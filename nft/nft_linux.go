@@ -1,0 +1,319 @@
+//go:build linux
+
+package nft
+
+import (
+	"fmt"
+	"os/exec"
+
+	"github.com/google/nftables"
+	"github.com/google/nftables/expr"
+	"golang.org/x/sys/unix"
+)
+
+func LoadExamples() error {
+	cmd := exec.Command("nft", "-f", "examples/example-nftables-01.conf")
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("nftables konfiguráció betöltése sikertelen: %v\nKimenet: %s", err, string(output))
+	}
+
+	fmt.Printf("Nftables konfiguráció sikeresen betöltve: example-nftables-01.conf\n")
+	return nil
+}
+
+func FlushRules() error {
+	cmd := exec.Command("nft", "flush", "ruleset")
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("nftables konfiguráció ürítése sikertelen: %v\nKimenet: %s", err, string(output))
+	}
+
+	fmt.Printf("Nftables konfiguráció sikeresen ürítve\n")
+	return nil
+}
+
+func ListTables() ([]*nftables.Table, error) {
+	conn := &nftables.Conn{}
+	tables, err := conn.ListTables()
+	if err != nil {
+		return nil, err
+	}
+	return tables, nil
+}
+
+func ListChains() ([]*nftables.Chain, error) {
+	conn := &nftables.Conn{}
+	chains, err := conn.ListChains()
+	if err != nil {
+		return nil, err
+	}
+	return chains, nil
+}
+
+func ListChainsOfTable(table *nftables.Table) ([]*nftables.Chain, error) {
+	allChains, err := ListChains()
+	if err != nil {
+		return nil, err
+	}
+
+	chains := make([]*nftables.Chain, 0)
+	for _, chain := range allChains {
+		if chain.Table.Name == table.Name && chain.Table.Family == table.Family {
+			chains = append(chains, chain)
+		}
+	}
+
+	return chains, nil
+}
+
+func ListRulesOfTable(table *nftables.Table) ([]*nftables.Rule, error) {
+	chains, err := ListChainsOfTable(table)
+	if err != nil {
+		return nil, err
+	}
+
+	rulesOfTable := make([]*nftables.Rule, 0)
+	for _, chain := range chains {
+		rules, err := ListRulesOfChain(table, chain)
+		if err != nil {
+			continue
+		}
+		rulesOfTable = append(rulesOfTable, rules...)
+	}
+
+	return rulesOfTable, nil
+}
+
+func ListRulesOfChain(table *nftables.Table, chain *nftables.Chain) ([]*nftables.Rule, error) {
+	conn := &nftables.Conn{}
+	rules, err := conn.GetRules(table, chain)
+	if err != nil {
+		return nil, err
+	}
+	//for _, rule := range rules {
+	//	fmt.Printf("rule: %+v\n", rule)
+	//	for _, expr := range rule.Exprs {
+	//		fmt.Printf("expr: %+v\n", expr)
+	//	}
+	//	fmt.Printf("userData: %+v\n", string(rule.UserData))
+	//}
+	return rules, nil
+}
+
+func getAllRules() ([]*nftables.Rule, error) {
+	conn := &nftables.Conn{}
+
+	tables, err := conn.ListTables()
+	if err != nil {
+		return nil, err
+	}
+	chains, err := conn.ListChains()
+	if err != nil {
+		return nil, err
+	}
+
+	allRules := make([]*nftables.Rule, 0)
+	for _, table := range tables {
+		for _, chain := range chains {
+			rules, err := conn.GetRules(table, chain)
+			if err != nil {
+				continue
+			}
+			allRules = append(allRules, rules...)
+		}
+	}
+
+	return allRules, nil
+}
+
+func GetAllRulesWithAccept() ([]*nftables.Rule, error) {
+	allRules, err := getAllRules()
+	if err != nil {
+		return nil, err
+	}
+	acceptRules := make([]*nftables.Rule, 0)
+	for _, rule := range allRules {
+		for _, e := range rule.Exprs {
+			if verdict, ok := e.(*expr.Verdict); ok {
+				if verdict.Kind == expr.VerdictAccept {
+					acceptRules = append(acceptRules, rule)
+					break
+				}
+			}
+		}
+	}
+	return acceptRules, nil
+}
+
+func GetAllRulesWithDrop() ([]*nftables.Rule, error) {
+	allRules, err := getAllRules()
+	if err != nil {
+		return nil, err
+	}
+	acceptRules := make([]*nftables.Rule, 0)
+	for _, rule := range allRules {
+		for _, e := range rule.Exprs {
+			if verdict, ok := e.(*expr.Verdict); ok {
+				if verdict.Kind == expr.VerdictDrop {
+					acceptRules = append(acceptRules, rule)
+					break
+				}
+			}
+		}
+	}
+	return acceptRules, nil
+}
+
+func CountRulesByType(rules []*nftables.Rule) (accept int, drop int, other int) {
+	for _, rule := range rules {
+		hasVerdict := false
+		for _, e := range rule.Exprs {
+			if verdict, ok := e.(*expr.Verdict); ok {
+				hasVerdict = true
+				if verdict.Kind == expr.VerdictAccept {
+					accept++
+				} else if verdict.Kind == expr.VerdictDrop {
+					drop++
+				} else {
+					other++
+				}
+				break
+			}
+		}
+		if !hasVerdict {
+			other++
+		}
+	}
+	return
+}
+
+func logLevelToString(logLevel expr.LogLevel) string {
+	switch logLevel {
+	case expr.LogLevelEmerg:
+		return "emerg"
+	case expr.LogLevelAlert:
+		return "alert"
+	case expr.LogLevelCrit:
+		return "crit"
+	case expr.LogLevelErr:
+		return "err"
+	case expr.LogLevelWarning:
+		return "warning"
+	case expr.LogLevelNotice:
+		return "notice"
+	case expr.LogLevelInfo:
+		return "info"
+	case expr.LogLevelDebug:
+		return "debug"
+	case expr.LogLevelAudit:
+		return "audit"
+	default:
+		return "unknown"
+
+	}
+}
+
+func payloadBaseToString(payloadBase expr.PayloadBase) string {
+	switch payloadBase {
+	case unix.NFT_PAYLOAD_LL_HEADER:
+		return "ll header"
+	case unix.NFT_PAYLOAD_NETWORK_HEADER:
+		return "network header"
+	case unix.NFT_PAYLOAD_TRANSPORT_HEADER:
+		return "transport header"
+	default:
+		return "unknown"
+	}
+}
+
+func verdictKindToString(verdictKind expr.VerdictKind) string {
+	switch verdictKind {
+	case expr.VerdictReturn:
+		return "return"
+	case expr.VerdictGoto:
+		return "goto"
+	case expr.VerdictJump:
+		return "jump"
+	case expr.VerdictBreak:
+		return "break"
+	case expr.VerdictContinue:
+		return "continue"
+	case expr.VerdictDrop:
+		return "drop"
+	case expr.VerdictAccept:
+		return "accept"
+	case expr.VerdictStolen:
+		return "stolen"
+	case expr.VerdictQueue:
+		return "queue"
+	case expr.VerdictRepeat:
+		return "repeat"
+	case expr.VerdictStop:
+		return "stop"
+	default:
+		return "unknown"
+	}
+}
+
+func KeyTypeToString(kt nftables.SetDatatype) string {
+	switch kt {
+	case nftables.TypeIPAddr:
+		return "ipv4_addr"
+	case nftables.TypeIP6Addr:
+		return "ipv6_addr"
+	case nftables.TypeInetProto:
+		return "inet_proto"
+	case nftables.TypeInetService:
+		return "inet_service"
+	case nftables.TypeEtherAddr:
+		return "ether_addr"
+	default:
+		return fmt.Sprintf("type_%d", kt)
+	}
+}
+
+func Icmpv6TypeToString(t uint8) string {
+	switch t {
+	case 1:
+		return "destination-unreachable"
+	case 2:
+		return "packet-too-big"
+	case 3:
+		return "time-exceeded"
+	case 4:
+		return "parameter-problem"
+	case 128:
+		return "echo-request"
+	case 129:
+		return "echo-reply"
+	case 130:
+		return "mld-listener-query"
+	case 131:
+		return "mld-listener-report"
+	case 132:
+		return "mld-listener-done"
+	case 133:
+		return "nd-router-solicit"
+	case 134:
+		return "nd-router-advert"
+	case 135:
+		return "nd-neighbor-solicit"
+	case 136:
+		return "nd-neighbor-advert"
+	case 137:
+		return "nd-redirect"
+	case 138:
+		return "router-renumbering"
+	case 141:
+		return "ind-neighbor-solicit"
+	case 142:
+		return "ind-neighbor-advert"
+	case 143:
+		return "mld2-listener-report"
+	default:
+		return fmt.Sprintf("icmpv6_type_%d", t)
+	}
+}
