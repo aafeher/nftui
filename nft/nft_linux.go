@@ -271,7 +271,7 @@ func KeyTypeToString(kt nftables.SetDatatype) string {
 	case nftables.TypeEtherAddr:
 		return "ether_addr"
 	default:
-		return fmt.Sprintf("type_%d", kt)
+		return fmt.Sprintf("type_%s", kt.Name)
 	}
 }
 

@@ -62,7 +62,7 @@ func MetaKeyToString(metaKey expr.MetaKey) string {
 	case expr.MetaKeyPRANDOM:
 		return "prandom"
 	default:
-		return fmt.Sprintf("unknown (meta %d)", metaKey)
+		return "unknown"
 	}
 }
 
@@ -147,7 +147,7 @@ func serializeCmpOp(cmp *expr.Cmp, value string) string {
 	op := CmpOpToString(cmp.Op)
 
 	//value := formatData(cmp.Data)
-	fmt.Printf("serializeCmpOp: %s %s\n", op, value)
+	//fmt.Printf("serializeCmpOp: %s %s\n", op, value)
 	if op == "==" {
 		return value
 	}
@@ -190,12 +190,12 @@ func FormatCmp(cmp *expr.Cmp) string {
 
 func formatData(data []byte) string {
 	if len(data) == 0 {
-		return "0"
+		return "0x"
 	}
 
 	// CT Direction vagy más 1 bájtos nulla érték kezelése
-	if len(data) == 1 && data[0] == 0 {
-		return "0"
+	if len(data) == 1 {
+		return fmt.Sprintf("%d", data[0])
 	}
 
 	// IP

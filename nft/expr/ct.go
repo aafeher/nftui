@@ -3,6 +3,7 @@ package nftexpr
 import (
 	"encoding/binary"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/google/nftables"
@@ -25,7 +26,9 @@ type Ct struct {
 	Labels     []string    `json:"labels,omitempty"`
 	Bytes      uint64      `json:"bytes,omitempty"`
 	Pkts       uint64      `json:"packets,omitempty"`
+	Avgpkt     uint32      `json:"avgpkt,omitempty"`
 	Zone       uint16      `json:"zone,omitempty"`
+	Eventmask  uint32      `json:"eventmask,omitempty"`
 }
 
 type CtKey string
@@ -42,8 +45,8 @@ const (
 	CtKeySrc        CtKey = "src"
 	CtKeyDst        CtKey = "dst"
 	CtKeyProtocol   CtKey = "protocol"
-	CtKeyProtoSrc   CtKey = "proto-src"
-	CtKeyProtoDst   CtKey = "proto-dst"
+	CtKeyProtoSrc   CtKey = "proto_src"
+	CtKeyProtoDst   CtKey = "proto_dst"
 	CtKeyLabels     CtKey = "labels"
 	CtKeyPkts       CtKey = "pkts"
 	CtKeyBytes      CtKey = "bytes"
@@ -155,6 +158,14 @@ func CtKeyToString(ctKey expr.CtKey) string {
 	}
 }
 
+var CtStateStrings = []string{
+	string(CtStateInvalid),
+	string(CtStateEstablished),
+	string(CtStateRelated),
+	string(CtStateNew),
+	string(CtStateUntracked),
+}
+
 func CtStateStringToState(ctStateString string) CtState {
 	switch ctStateString {
 	case string(CtStateInvalid):
@@ -169,6 +180,68 @@ func CtStateStringToState(ctStateString string) CtState {
 		return CtStateUntracked
 	}
 	return CtStateInvalid
+}
+
+func CtStateStringToStates(ctStateStrings []string) []CtState {
+	states := []CtState{}
+	for _, s := range ctStateStrings {
+		states = append(states, CtStateStringToState(s))
+	}
+	return states
+}
+
+func CtStateToStateStrings(ctStates []CtState) []string {
+	stateStrings := []string{}
+	for _, s := range ctStates {
+		stateStrings = append(stateStrings, string(s))
+	}
+	return stateStrings
+}
+
+func EncodeCtStates(states []CtState) []byte {
+	var mask uint32
+	for _, s := range states {
+		switch s {
+		case CtStateInvalid:
+			mask |= expr.CtStateBitINVALID
+		case CtStateEstablished:
+			mask |= expr.CtStateBitESTABLISHED
+		case CtStateRelated:
+			mask |= expr.CtStateBitRELATED
+		case CtStateNew:
+			mask |= expr.CtStateBitNEW
+		case CtStateUntracked:
+			mask |= expr.CtStateBitUNTRACKED
+		}
+	}
+	buf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(buf, mask)
+	return buf
+}
+
+func CtStatesAreEqual(a1 []string, a2 []string) bool {
+	if len(a1) != len(a2) {
+		return false
+	}
+
+	counts := make(map[string]int, len(a1))
+	for _, s := range a1 {
+		counts[s]++
+	}
+
+	for _, s := range a2 {
+		n := counts[s]
+		if n == 0 {
+			return false
+		}
+		if n == 1 {
+			delete(counts, s)
+		} else {
+			counts[s] = n - 1
+		}
+	}
+
+	return len(counts) == 0
 }
 
 // FormatCt converts a `Ct` expression into its string representation, including register, key, source/destination, and direction.
@@ -192,7 +265,7 @@ func FormatCt(c *expr.Ct) string {
 	// Direction uint32
 	parts = append(parts, fmt.Sprintf("%d", c.Direction))
 
-	fmt.Printf("parts: %+v\n", parts)
+	//fmt.Printf("parts: %+v\n", parts)
 
 	return strings.Join(parts, " ")
 }
@@ -200,24 +273,24 @@ func FormatCt(c *expr.Ct) string {
 func SerializeCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (string, int) {
 	ctStr := fmt.Sprintf("ct %s", CtKeyToString(ct.Key))
 
-	fmt.Printf("SerializeCT() exprs: %+v\n", exprs)
-	for _, e := range exprs {
-		fmt.Printf("SerializeCT() e: %+v\n", e)
-	}
+	//fmt.Printf("SerializeCT() exprs: %+v\n", exprs)
+	//for _, e := range exprs {
+	//	fmt.Printf("SerializeCT() e: %+v\n", e)
+	//}
 
 	if pos+1 < len(exprs) {
 		// Ha következő Cmp
 		if cmp, ok := exprs[pos+1].(*expr.Cmp); ok {
-			fmt.Printf("SerializeCT() cmp: %+v\n", cmp)
+			//fmt.Printf("SerializeCT() cmp: %+v\n", cmp)
 			value := formatCtValue(ct.Key, cmp.Data)
 			op := serializeCmpOp(cmp, value)
-			fmt.Printf("177: value: %s - op: %+v\n", value, op)
+			//fmt.Printf("177: value: %s - op: %+v\n", value, op)
 			return fmt.Sprintf("%s %s", ctStr, op), 2
 		}
 		// Ha következő Bitwise
 		if bitwise, ok := exprs[pos+1].(*expr.Bitwise); ok {
-			fmt.Printf("SerializeCT() bitwise: %+v\n", bitwise)
-			decoded := DecodeCTValue(expr.CtKeySTATE, bitwise.Mask)
+			//fmt.Printf("SerializeCT() bitwise: %+v\n", bitwise)
+			value := formatCtValue(ct.Key, bitwise.Mask)
 
 			isXorZero := true
 			for _, v := range bitwise.Xor {
@@ -228,12 +301,12 @@ func SerializeCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (
 			}
 
 			if isXorZero {
-				return fmt.Sprintf("%s %v", ctStr, decoded), 3
+				return fmt.Sprintf("%s %s", ctStr, value), 3
 			}
 		}
 		// Ha következő Lookup
 		if lookup, ok := exprs[pos+1].(*expr.Lookup); ok {
-			fmt.Printf("SerializeCT() lookup: %+v\n", lookup)
+			//fmt.Printf("SerializeCT() lookup: %+v\n", lookup)
 			return SerializeLookup(lookup, ctStr, sets), 2
 		}
 	}
@@ -286,7 +359,14 @@ func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (C
 			// Halmaz alapú keresés (pl. ct mark @trusted_marks)
 			// A lookup-ból kinyerjük a set elemeit és betöltjük a megfelelő mezőbe
 			for _, set := range sets {
-				if set.Name == v.SetName {
+				if set.Name == v.SetName || (v.SetName == "" && set.ID == v.SetID) {
+					// Megjegyzés: Itt a TUI környezetben nem biztos, hogy le tudjuk kérni az elemeket
+					// de a már meglévő set.Elements-et (ha van) használhatjuk.
+					// A valódi nftables.Conn.GetSetElements hívás itt problémás lehet tesztekben.
+					// Mivel nftables.Set-ben nincs közvetlen Elements mező.
+					// In a real TUI environment, sets are usually pre-fetched.
+					// For now, we keep the structure but avoid direct connection calls here if possible,
+					// or use the provided sets.
 					conn := &nftables.Conn{}
 					elements, err := conn.GetSetElements(set)
 					if err == nil {
@@ -352,9 +432,67 @@ func fillCtField(ct *Ct, key expr.CtKey, value interface{}) {
 		if v, ok := value.(uint32); ok {
 			ct.Mark = v
 		}
+	case expr.CtKeyEXPIRATION:
+		if v, ok := value.(uint32); ok {
+			ct.Expiration = v
+		}
+	case expr.CtKeyPROTOCOL:
+		if v, ok := value.(uint8); ok {
+			ct.Protocol = v
+		} else if v, ok := value.(uint32); ok {
+			ct.Protocol = uint8(v)
+		}
+	case expr.CtKeyL3PROTOCOL:
+		if v, ok := value.(uint8); ok {
+			ct.L3Protocol = v
+		} else if v, ok := value.(uint32); ok {
+			ct.L3Protocol = uint8(v)
+		}
+	case expr.CtKeySRC:
+		if v, ok := value.(string); ok {
+			ct.Src = v
+		}
+	case expr.CtKeyDST:
+		if v, ok := value.(string); ok {
+			ct.Dst = v
+		}
+	case expr.CtKeyPROTOSRC:
+		if v, ok := value.(uint16); ok {
+			ct.ProtoSrc = v
+		} else if v, ok := value.(uint32); ok {
+			ct.ProtoSrc = uint16(v)
+		}
+	case expr.CtKeyPROTODST:
+		if v, ok := value.(uint16); ok {
+			ct.ProtoDst = v
+		} else if v, ok := value.(uint32); ok {
+			ct.ProtoDst = uint16(v)
+		}
+	case expr.CtKeyPKTS:
+		if v, ok := value.(uint64); ok {
+			ct.Pkts = v
+		} else if v, ok := value.(uint32); ok {
+			ct.Pkts = uint64(v)
+		}
+	case expr.CtKeyBYTES:
+		if v, ok := value.(uint64); ok {
+			ct.Bytes = v
+		} else if v, ok := value.(uint32); ok {
+			ct.Bytes = uint64(v)
+		}
+	case expr.CtKeyAVGPKT:
+		if v, ok := value.(uint32); ok {
+			ct.Avgpkt = v
+		}
 	case expr.CtKeyZONE:
 		if v, ok := value.(uint16); ok {
 			ct.Zone = v
+		} else if v, ok := value.(uint32); ok {
+			ct.Zone = uint16(v)
+		}
+	case expr.CtKeyEVENTMASK:
+		if v, ok := value.(uint32); ok {
+			ct.Eventmask = v
 		}
 	}
 }
@@ -448,11 +586,50 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 		}
 		return statuses
 	}
-	fmt.Printf("444. data: %+v\n", data)
+
+	switch key {
+	case expr.CtKeyPROTOCOL, expr.CtKeyL3PROTOCOL:
+		if len(data) == 1 {
+			return data[0]
+		}
+		if len(data) >= 4 {
+			return binary.LittleEndian.Uint32(data[:4])
+		}
+	case expr.CtKeyPROTOSRC, expr.CtKeyPROTODST:
+		if len(data) == 2 {
+			return binary.BigEndian.Uint16(data)
+		}
+		if len(data) >= 4 {
+			return uint16(binary.LittleEndian.Uint32(data[:4]))
+		}
+	case expr.CtKeySRC, expr.CtKeyDST:
+		if len(data) == 4 {
+			return net.IP(data).String()
+		}
+		if len(data) == 16 {
+			return net.IP(data).String()
+		}
+	case expr.CtKeyPKTS, expr.CtKeyBYTES:
+		if len(data) == 8 {
+			return binary.BigEndian.Uint64(data)
+		}
+		if len(data) >= 4 {
+			return uint64(binary.LittleEndian.Uint32(data[:4]))
+		}
+	case expr.CtKeyZONE:
+		if len(data) == 2 {
+			return binary.LittleEndian.Uint16(data)
+		}
+		if len(data) >= 4 {
+			return uint16(binary.LittleEndian.Uint32(data[:4]))
+		}
+	}
+
+	//fmt.Printf("444. data: %+v\n", data)
 	if len(data) == 4 {
 		return binary.LittleEndian.Uint32(data)
 	}
-	fmt.Printf("448. data: %+v\n", data)
+	//fmt.Printf("448. data: %+v\n", data)
 	return data
 }
 
@@ -539,12 +716,21 @@ func formatCtValue(key expr.CtKey, data []byte) string {
 		}
 	}
 	if key == expr.CtKeyMARK {
-		fmt.Printf("535. mark data: %+v", data)
+		//fmt.Printf("535. mark data: %+v", data)
 		if len(data) == 4 {
 			val := binary.LittleEndian.Uint32(data)
 			return fmt.Sprintf("0x%08x", val)
 		}
 		return fmt.Sprintf("0x%x", data)
 	}
+
+	decoded := DecodeCTValue(key, data)
+	switch v := decoded.(type) {
+	case string:
+		return v
+	case uint8, uint16, uint32, uint64:
+		return fmt.Sprintf("%v", v)
+	}
+
 	return formatData(data)
 }
