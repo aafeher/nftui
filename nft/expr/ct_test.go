@@ -136,6 +136,21 @@ func TestSerializeCt(t *testing.T) {
 			wantIdx: 2,
 		},
 		{
+			name: "CT direction original",
+			ct:   &expr.Ct{Key: unix.NFT_CT_DIRECTION, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_DIRECTION, Register: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte{0},
+				},
+			},
+			pos:     0,
+			wantStr: "ct direction original",
+			wantIdx: 2,
+		},
+		{
 			name: "CT protocol TCP",
 			ct:   &expr.Ct{Key: unix.NFT_CT_PROTOCOL, Register: 1},
 			exprs: []expr.Any{

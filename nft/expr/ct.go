@@ -166,6 +166,11 @@ var CtStateStrings = []string{
 	string(CtStateUntracked),
 }
 
+var CtDirectionStrings = []string{
+	string(CtDirectionOriginal),
+	string(CtDirectionReply),
+}
+
 func CtStateStringToState(ctStateString string) CtState {
 	switch ctStateString {
 	case string(CtStateInvalid):
