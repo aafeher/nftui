@@ -86,13 +86,11 @@ const (
 	CtStatusBitDnatDone     uint32 = 256
 	CtStatusBitDying        uint32 = 512
 	CtStatusBitFixedTimeout uint32 = 1024
-
-	/* template 2048 */
-	/* untracked 4096 */
-
-	CtStatusBitHelper    uint32 = 8192
-	CtStatusBitOffload   uint32 = 16384
-	CtStatusBitHWOffload uint32 = 32768
+	CtStatusBitTemplate     uint32 = 2048
+	CtStatusBitUntracked    uint32 = 4096
+	CtStatusBitHelper       uint32 = 8192
+	CtStatusBitOffload      uint32 = 16384
+	CtStatusBitHWOffload    uint32 = 32768
 
 	CtStatusExpected     CtStatus = "expected"
 	CtStatusSeenReply    CtStatus = "seen-reply"
@@ -105,6 +103,8 @@ const (
 	CtStatusDNatDone     CtStatus = "dnat-done"
 	CtStatusDying        CtStatus = "dying"
 	CtStatusFixedTimeout CtStatus = "fixed-timeout"
+	CtStatusTemplate     CtStatus = "template"
+	CtStatusUntracked    CtStatus = "untracked"
 	CtStatusHelper       CtStatus = "helper"
 	CtStatusOffload      CtStatus = "offload"
 	CtStatusHWOffload    CtStatus = "hw-offload"
@@ -171,6 +171,25 @@ var CtDirectionStrings = []string{
 	string(CtDirectionReply),
 }
 
+var CtStatusStrings = []string{
+	string(CtStatusExpected),
+	string(CtStatusSeenReply),
+	string(CtStatusAssured),
+	string(CtStatusConfirmed),
+	string(CtStatusSnat),
+	string(CtStatusDnat),
+	string(CtStatusSeqAdjust),
+	string(CtStatusSNatDone),
+	string(CtStatusDNatDone),
+	string(CtStatusDying),
+	string(CtStatusFixedTimeout),
+	string(CtStatusTemplate),
+	string(CtStatusUntracked),
+	string(CtStatusHelper),
+	string(CtStatusOffload),
+	string(CtStatusHWOffload),
+}
+
 func CtStateStringToState(ctStateString string) CtState {
 	switch ctStateString {
 	case string(CtStateInvalid):
@@ -185,6 +204,40 @@ func CtStateStringToState(ctStateString string) CtState {
 		return CtStateUntracked
 	}
 	return CtStateInvalid
+}
+
+func CtStatusStringToStatus(ctStatusString string) CtStatus {
+	switch ctStatusString {
+	case string(CtStatusExpected):
+		return CtStatusExpected
+	case string(CtStatusSeenReply):
+		return CtStatusSeenReply
+	case string(CtStatusAssured):
+		return CtStatusAssured
+	case string(CtStatusConfirmed):
+		return CtStatusConfirmed
+	case string(CtStatusSnat):
+		return CtStatusSnat
+	case string(CtStatusDnat):
+		return CtStatusDnat
+	case string(CtStatusSeqAdjust):
+		return CtStatusSeqAdjust
+	case string(CtStatusSNatDone):
+		return CtStatusSNatDone
+	case string(CtStatusDNatDone):
+		return CtStatusDNatDone
+	case string(CtStatusDying):
+		return CtStatusDying
+	case string(CtStatusFixedTimeout):
+		return CtStatusFixedTimeout
+	case string(CtStatusHelper):
+		return CtStatusHelper
+	case string(CtStatusOffload):
+		return CtStatusOffload
+	case string(CtStatusHWOffload):
+		return CtStatusHWOffload
+	}
+	return ""
 }
 
 func CtStateStringToStates(ctStateStrings []string) []CtState {
@@ -217,6 +270,68 @@ func EncodeCtStates(states []CtState) []byte {
 			mask |= expr.CtStateBitNEW
 		case CtStateUntracked:
 			mask |= expr.CtStateBitUNTRACKED
+		}
+	}
+	buf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(buf, mask)
+	return buf
+}
+
+func CtStatusStringToStatuses(ctStatusStrings []string) []CtStatus {
+	statuses := []CtStatus{}
+	for _, s := range ctStatusStrings {
+		status := CtStatusStringToStatus(s)
+		if status != "" {
+			statuses = append(statuses, status)
+		}
+	}
+	return statuses
+}
+
+func CtStatusToStatusStrings(ctStatuses []CtStatus) []string {
+	statusStrings := []string{}
+	for _, s := range ctStatuses {
+		statusStrings = append(statusStrings, string(s))
+	}
+	return statusStrings
+}
+
+func EncodeCtStatuses(statuses []CtStatus) []byte {
+	var mask uint32
+	for _, s := range statuses {
+		switch s {
+		case CtStatusExpected:
+			mask |= CtStatusBitExpected
+		case CtStatusSeenReply:
+			mask |= CtStatusBitSeenReply
+		case CtStatusAssured:
+			mask |= CtStatusBitAssured
+		case CtStatusConfirmed:
+			mask |= CtStatusBitConfirmed
+		case CtStatusSnat:
+			mask |= CtStatusBitSnat
+		case CtStatusDnat:
+			mask |= CtStatusBitDnat
+		case CtStatusSeqAdjust:
+			mask |= CtStatusBitSeqAdjust
+		case CtStatusSNatDone:
+			mask |= CtStatusBitSnatDone
+		case CtStatusDNatDone:
+			mask |= CtStatusBitDnatDone
+		case CtStatusDying:
+			mask |= CtStatusBitDying
+		case CtStatusFixedTimeout:
+			mask |= CtStatusBitFixedTimeout
+		case CtStatusTemplate:
+			mask |= CtStatusBitTemplate
+		case CtStatusUntracked:
+			mask |= CtStatusBitUntracked
+		case CtStatusHelper:
+			mask |= CtStatusBitHelper
+		case CtStatusOffload:
+			mask |= CtStatusBitOffload
+		case CtStatusHWOffload:
+			mask |= CtStatusBitHWOffload
 		}
 	}
 	buf := make([]byte, 4)
@@ -332,8 +447,8 @@ func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (C
 			skip = 2
 
 		case *expr.Bitwise:
-			// Maszkolt állapotok (pl. ct state {established, related})
-			decoded := DecodeCTValue(expr.CtKeySTATE, v.Mask)
+			// Maszkolt állapotok (pl. ct state {established, related} vagy ct status {expected})
+			decoded := DecodeCTValue(ct.Key, v.Mask)
 
 			isXorZero := true
 			for _, val := range v.Xor {
@@ -349,6 +464,10 @@ func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (C
 					ctObj.State = append(ctObj.State, d)
 				case []CtState:
 					ctObj.State = append(ctObj.State, d...)
+				case CtStatus:
+					ctObj.Status = append(ctObj.Status, d)
+				case []CtStatus:
+					ctObj.Status = append(ctObj.Status, d...)
 				}
 			}
 			skip = 2

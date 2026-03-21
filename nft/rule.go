@@ -721,6 +721,20 @@ func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition
 	ctKey := nftexpr.CtKeyToString(regVal.ctKey)
 	value := nftexpr.DecodeCTValue(regVal.ctKey, cmp.data)
 
+	// Ha a kulcs STATUS, akkor a DecodeCTValue visszaadhat egy []CtStatus-t
+	if regVal.ctKey == expr.CtKeySTATUS {
+		if statuses, ok := value.([]nftexpr.CtStatus); ok {
+			return Condition{
+				Type:      ConditionTypeCT,
+				Operation: cmpOpToCompareOp(cmp.op),
+				CT: &CTCondition{
+					Key:   nftexpr.CtKey(ctKey),
+					Value: statuses,
+				},
+			}, nil
+		}
+	}
+
 	return Condition{
 		Type:      ConditionTypeCT,
 		Operation: cmpOpToCompareOp(cmp.op),

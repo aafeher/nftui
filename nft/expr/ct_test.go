@@ -180,6 +180,43 @@ func TestSerializeCt(t *testing.T) {
 			wantStr: "ct src 192.168.1.1",
 			wantIdx: 2,
 		},
+		{
+			name: "CT status expected",
+			ct:   &expr.Ct{Key: unix.NFT_CT_STATUS, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_STATUS, Register: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     EncodeCtStatuses([]CtStatus{CtStatusExpected}),
+				},
+			},
+			pos:     0,
+			wantStr: "ct status expected",
+			wantIdx: 2,
+		},
+		{
+			name: "CT status multiple (Bitwise)",
+			ct:   &expr.Ct{Key: unix.NFT_CT_STATUS, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_STATUS, Register: 1},
+				&expr.Bitwise{
+					SourceRegister: 1,
+					DestRegister:   1,
+					Len:            4,
+					Mask:           EncodeCtStatuses([]CtStatus{CtStatusExpected, CtStatusSeenReply, CtStatusAssured, CtStatusConfirmed, CtStatusSnat, CtStatusDnat, CtStatusDying}),
+					Xor:            make([]byte, 4),
+				},
+				&expr.Cmp{
+					Op:       expr.CmpOpNeq,
+					Register: 1,
+					Data:     make([]byte, 4),
+				},
+			},
+			pos:     0,
+			wantStr: "ct status {expected, seen-reply, assured, confirmed, snat, dnat, dying}",
+			wantIdx: 3,
+		},
 	}
 
 	for _, tt := range tests {
@@ -387,6 +424,30 @@ func TestExprCtToCt(t *testing.T) {
 				ProtoSrc: 8080,
 			},
 			wantIdx: 2,
+		},
+		{
+			name: "Populate multiple statuses via Bitwise",
+			ct:   &expr.Ct{Key: unix.NFT_CT_STATUS, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_STATUS, Register: 1},
+				&expr.Bitwise{
+					SourceRegister: 1,
+					DestRegister:   1,
+					Len:            4,
+					Mask:           EncodeCtStatuses([]CtStatus{CtStatusExpected, CtStatusSeenReply, CtStatusAssured, CtStatusConfirmed, CtStatusSnat, CtStatusDnat, CtStatusDying}),
+					Xor:            make([]byte, 4),
+				},
+				&expr.Cmp{
+					Op:       expr.CmpOpNeq,
+					Register: 1,
+					Data:     make([]byte, 4),
+				},
+			},
+			pos: 0,
+			want: Ct{
+				Status: []CtStatus{CtStatusExpected, CtStatusSeenReply, CtStatusAssured, CtStatusConfirmed, CtStatusSnat, CtStatusDnat, CtStatusDying},
+			},
+			wantIdx: 3,
 		},
 	}
 
