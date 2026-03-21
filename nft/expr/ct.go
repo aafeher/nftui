@@ -190,6 +190,7 @@ var CtStatusStrings = []string{
 	string(CtStatusHWOffload),
 }
 
+// CtStateStringToState converts a string representation of a connection state to its corresponding CtState value.
 func CtStateStringToState(ctStateString string) CtState {
 	switch ctStateString {
 	case string(CtStateInvalid):
@@ -206,6 +207,7 @@ func CtStateStringToState(ctStateString string) CtState {
 	return CtStateInvalid
 }
 
+// CtStatusStringToStatus converts a string representation of a connection tracking status to its corresponding CtStatus value.
 func CtStatusStringToStatus(ctStatusString string) CtStatus {
 	switch ctStatusString {
 	case string(CtStatusExpected):
@@ -240,6 +242,7 @@ func CtStatusStringToStatus(ctStatusString string) CtStatus {
 	return ""
 }
 
+// CtStateStringToStates converts a list of connection state strings to their corresponding CtState values.
 func CtStateStringToStates(ctStateStrings []string) []CtState {
 	states := []CtState{}
 	for _, s := range ctStateStrings {
@@ -248,6 +251,7 @@ func CtStateStringToStates(ctStateStrings []string) []CtState {
 	return states
 }
 
+// CtStateToStateStrings converts a slice of CtState to a slice of their string representations.
 func CtStateToStateStrings(ctStates []CtState) []string {
 	stateStrings := []string{}
 	for _, s := range ctStates {
@@ -256,6 +260,7 @@ func CtStateToStateStrings(ctStates []CtState) []string {
 	return stateStrings
 }
 
+// EncodeCtStates converts a slice of CtState into a 4-byte bitmask representation of connection tracking states.
 func EncodeCtStates(states []CtState) []byte {
 	var mask uint32
 	for _, s := range states {
@@ -277,6 +282,7 @@ func EncodeCtStates(states []CtState) []byte {
 	return buf
 }
 
+// CtStatusStringToStatuses converts a slice of connection tracking status strings to a slice of CtStatus values.
 func CtStatusStringToStatuses(ctStatusStrings []string) []CtStatus {
 	statuses := []CtStatus{}
 	for _, s := range ctStatusStrings {
@@ -288,6 +294,7 @@ func CtStatusStringToStatuses(ctStatusStrings []string) []CtStatus {
 	return statuses
 }
 
+// CtStatusToStatusStrings converts a slice of CtStatus to a slice of corresponding string representations.
 func CtStatusToStatusStrings(ctStatuses []CtStatus) []string {
 	statusStrings := []string{}
 	for _, s := range ctStatuses {
@@ -296,6 +303,7 @@ func CtStatusToStatusStrings(ctStatuses []CtStatus) []string {
 	return statusStrings
 }
 
+// EncodeCtStatuses encodes a slice of CtStatus into a binary representation using a bitmask.
 func EncodeCtStatuses(statuses []CtStatus) []byte {
 	var mask uint32
 	for _, s := range statuses {
@@ -339,6 +347,7 @@ func EncodeCtStatuses(statuses []CtStatus) []byte {
 	return buf
 }
 
+// CtStatesAreEqual compares two slices of connection tracking states and returns true if they have identical elements.
 func CtStatesAreEqual(a1 []string, a2 []string) bool {
 	if len(a1) != len(a2) {
 		return false
@@ -390,6 +399,8 @@ func FormatCt(c *expr.Ct) string {
 	return strings.Join(parts, " ")
 }
 
+// SerializeCt serializes a connection tracking (ct) expression into a string representation and returns the string and position.
+// It processes various cases like comparison (Cmp), bitwise operations, and lookups, handling them accordingly.
 func SerializeCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (string, int) {
 	ctStr := fmt.Sprintf("ct %s", CtKeyToString(ct.Key))
 
@@ -434,6 +445,7 @@ func SerializeCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (
 	return ctStr, 1
 }
 
+// ExprCtToCt parses an expr.Ct object with additional expressions and sets to generate a Ct struct and skip count.
 func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (Ct, int) {
 	ctObj := Ct{}
 	skip := 1
@@ -510,6 +522,7 @@ func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (C
 	return ctObj, skip
 }
 
+// GetCtOp retrieves the comparison operator from the exprs slice at the specified position or returns the default equal operator.
 func GetCtOp(exprs []expr.Any, pos int) expr.CmpOp {
 	if pos+1 < len(exprs) {
 		if cmp, ok := exprs[pos+1].(*expr.Cmp); ok {
@@ -519,7 +532,7 @@ func GetCtOp(exprs []expr.Any, pos int) expr.CmpOp {
 	return expr.CmpOpEq // Alapértelmezett a ==
 }
 
-// fillCtField egy segédfüggvény, ami a kulcs alapján a megfelelő mezőbe teszi az értéket
+// fillCtField updates the specified field in the Ct struct based on the provided key and value.
 func fillCtField(ct *Ct, key expr.CtKey, value interface{}) {
 	if value == nil {
 		return
@@ -621,6 +634,7 @@ func fillCtField(ct *Ct, key expr.CtKey, value interface{}) {
 	}
 }
 
+// DecodeCTValue decodes connection tracking data based on the specified CtKey and byte slice. Returns a structured result.
 func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 	if key == expr.CtKeySTATE && len(data) >= 4 {
 		state := binary.LittleEndian.Uint32(data[:4])
@@ -757,6 +771,7 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 	return data
 }
 
+// formatCtValue formats a connection tracking value based on the key and data, returning a human-readable string representation.
 func formatCtValue(key expr.CtKey, data []byte) string {
 	//fmt.Printf("\n\n163: %s\n\n", data)
 	if key == expr.CtKeySTATE && len(data) == 4 {

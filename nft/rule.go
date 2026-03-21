@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// Rule represents a single rule in the nftables ruleset, containing conditions, actions, metadata, and statistics.
 type Rule struct {
 	Position uint64
 	Handle   uint64
@@ -25,6 +26,7 @@ type Rule struct {
 	Comment string
 }
 
+// Condition represents a logical rule component that defines criteria for filtering or matching operations.
 type Condition struct {
 	Type      ConditionType
 	Negate    bool
@@ -38,8 +40,15 @@ type Condition struct {
 	Custom    *CustomCondition
 }
 
+// ConditionType represents the type of a condition used to define specific filtering or matching criteria.
 type ConditionType string
 
+// ConditionTypeMeta represents a condition type related to metadata processing.
+// ConditionTypePayload represents a condition type related to payload processing.
+// ConditionTypeCT represents a condition type related to content type processing.
+// ConditionTypeSetLookup represents a condition type for set lookup operations.
+// ConditionTypeLimit represents a condition type for limiting operations.
+// ConditionTypeCustom represents a custom-defined condition type.
 const (
 	ConditionTypeMeta      ConditionType = "meta"
 	ConditionTypePayload   ConditionType = "payload"
@@ -49,8 +58,17 @@ const (
 	ConditionTypeCustom    ConditionType = "custom"
 )
 
+// CompareOp represents a type for comparison operators used in conditional expressions.
 type CompareOp string
 
+// CompareOpEq represents the equality comparison operator "==".
+// CompareOpNeq represents the inequality comparison operator "!=".
+// CompareOpLt represents the less-than comparison operator "<".
+// CompareOpLte represents the less-than-or-equal-to comparison operator "<=".
+// CompareOpGt represents the greater-than comparison operator ">".
+// CompareOpGte represents the greater-than-or-equal-to comparison operator ">=".
+// CompareOpIn represents the inclusion operator "in".
+// CompareOpNotIn represents the not-in operator "not in".
 const (
 	CompareOpEq    CompareOp = "=="
 	CompareOpNeq   CompareOp = "!="
@@ -62,13 +80,34 @@ const (
 	CompareOpNotIn CompareOp = "not in"
 )
 
+// MetaCondition represents a condition based on metadata with a specific key-value pair.
 type MetaCondition struct {
 	Key   MetaKey
 	Value any
 }
 
+// MetaKey represents a string-based identifier used as a key in metadata structures.
 type MetaKey string
 
+// MetaKeyIIf represents the input interface ID.
+// MetaKeyOIf represents the output interface ID.
+// MetaKeyIIfName represents the input interface name.
+// MetaKeyOIfName represents the output interface name.
+// MetaKeyIIfType represents the input interface type.
+// MetaKeyOIfType represents the output interface type.
+// MetaKeyProtocol represents the protocol family.
+// MetaKeyPriority represents the priority value.
+// MetaKeyMark represents the packet marking.
+// MetaKeyL4Proto represents the Layer 4 protocol, such as TCP, UDP, or ICMP.
+// MetaKeyLength represents the packet length.
+// MetaKeyCGroup represents the cgroup associated with the packet.
+// MetaKeyPktType represents the type of packet, such as unicast, broadcast, or multicast.
+// MetaKeyCPU represents the CPU handling the packet.
+// MetaKeyIIfGroup represents the group ID of the input interface.
+// MetaKeyOIfGroup represents the group ID of the output interface.
+// MetaKeyTime represents the timestamp of the packet.
+// MetaKeyDay represents the day-associated metadata of the packet.
+// MetaKeyHour represents the hour-associated metadata of the packet.
 const (
 	MetaKeyIIf      MetaKey = "iif"
 	MetaKeyOIf      MetaKey = "oif"
@@ -91,14 +130,24 @@ const (
 	MetaKeyHour     MetaKey = "hour"
 )
 
+// PayloadCondition represents a filtering or matching criterion based on protocol, field, and value in payload data.
 type PayloadCondition struct {
 	Protocol PayloadProtocol
 	Field    string
 	Value    any
 }
 
+// PayloadProtocol represents a specific protocol type used within payload data for networking and filtering operations.
 type PayloadProtocol string
 
+// PayloadProtoEther represents the payload protocol for Ethernet.
+// PayloadProtoIP represents the payload protocol for IPv4.
+// PayloadProtoIP6 represents the payload protocol for IPv6.
+// PayloadProtoTCP represents the payload protocol for TCP.
+// PayloadProtoUDP represents the payload protocol for UDP.
+// PayloadProtoICMP represents the payload protocol for ICMP.
+// PayloadProtoICMPv6 represents the payload protocol for ICMPv6.
+// PayloadProtoARP represents the payload protocol for ARP.
 const (
 	PayloadProtoEther  PayloadProtocol = "ether"
 	PayloadProtoIP     PayloadProtocol = "ip"
@@ -110,7 +159,15 @@ const (
 	PayloadProtoARP    PayloadProtocol = "arp"
 )
 
-// Konkrét payload mezők
+// IPFields represents the structure to hold metadata fields for an IP packet.
+// Version specifies the IP version (e.g., 4 or 6).
+// Saddr denotes the source IP address.
+// Daddr denotes the destination IP address.
+// Protocol indicates the protocol type (e.g., TCP, UDP).
+// DSCP represents the Differentiated Services Code Point for QoS.
+// ECN defines the Explicit Congestion Notification value.
+// Length specifies the total length of the IP packet.
+// TTL represents the Time-to-Live value for the packet.
 type IPFields struct {
 	Version  *uint8
 	Saddr    *IPAddress // source address
@@ -122,6 +179,7 @@ type IPFields struct {
 	TTL      *uint8
 }
 
+// TCPFields represents the structure for TCP header fields used in packet filtering or manipulation.
 type TCPFields struct {
 	Sport *PortSpec // source port
 	Dport *PortSpec // destination port
@@ -130,36 +188,43 @@ type TCPFields struct {
 	Ack   *uint32
 }
 
+// UDPFields represents the structure for defining specific fields in the UDP protocol header.
+// Sport specifies the source port using PortSpec.
+// Dport specifies the destination port using PortSpec.
+// Length indicates the total length of the UDP packet including the header and data.
 type UDPFields struct {
 	Sport  *PortSpec
 	Dport  *PortSpec
 	Length *uint16
 }
 
+// ICMPFields represents the fields of an ICMP message, including its type and code.
 type ICMPFields struct {
 	Type *ICMPType
 	Code *uint8
 }
 
-// CTCondition - connection tracking
+// CTCondition represents a condition related to connection tracking in nftables.
+// The Key field specifies the specific connection tracking attribute.
+// The Value field contains the value associated with the connection tracking attribute.
 type CTCondition struct {
 	Key   nftexpr.CtKey
 	Value interface{}
 }
 
-// SetLookupCondition - set lookup
+// SetLookupCondition specifies a condition to match data within a named set using a specific field.
 type SetLookupCondition struct {
 	SetName string
 	Field   string // melyik mezőt keressük a setben
 }
 
-// CustomCondition - egyedi/komplex feltételek
+// CustomCondition represents a user-defined condition with an expression and associated data for custom logic.
 type CustomCondition struct {
 	Expression string      // az eredeti kifejezés
 	Data       interface{} // extra adatok
 }
 
-// Action - végrehajtandó művelet
+// Action represents a rule action with a specific type and associated data for different action types.
 type Action struct {
 	Type ActionType
 
@@ -177,8 +242,20 @@ type Action struct {
 	Custom   *CustomAction
 }
 
+// ActionType represents a string-based identifier for different types of actions in a networking or firewall system.
 type ActionType string
 
+// ActionTypeVerdict represents an action type for verdict processing.
+// ActionTypeNAT represents an action type for Network Address Translation (NAT).
+// ActionTypeLog represents an action type for logging events or packets.
+// ActionTypeCounter represents an action type for counting matched rules or packets.
+// ActionTypeQueue represents an action type for queuing packets for user-space processing.
+// ActionTypeReject represents an action type for rejecting packets or connections.
+// ActionTypeLimit represents an action type for restricting rates or limiting packets.
+// ActionTypeSet represents an action type for modifying or setting attributes.
+// ActionTypeRedirect represents an action type for redirecting traffic to a specified destination.
+// ActionTypeMasq represents an action type for masquerading packets with source address translation.
+// ActionTypeCustom represents a custom-defined action type for specific use cases.
 const (
 	ActionTypeVerdict  ActionType = "verdict"
 	ActionTypeNAT      ActionType = "nat"
@@ -193,14 +270,22 @@ const (
 	ActionTypeCustom   ActionType = "custom"
 )
 
-// VerdictAction - accept, drop, jump, goto, return
+// VerdictAction represents an action with a specific verdict type and an optional target chain for jump/goto actions.
 type VerdictAction struct {
 	Kind  VerdictKind
 	Chain string // jump/goto esetén a cél chain
 }
 
+// VerdictKind represents the type of verdict action to be taken in a networking or rule-checking context.
 type VerdictKind string
 
+// VerdictAccept represents a decision to accept the packet or operation.
+// VerdictDrop represents a decision to drop the packet or operation.
+// VerdictReject represents a decision to reject the packet or operation with an error or notification.
+// VerdictReturn represents a decision to return to the previous context or caller.
+// VerdictJump represents a decision to jump to a specified target or rule set.
+// VerdictGoto represents a decision to go to a specified destination, bypassing further processing.
+// VerdictContinue represents a decision to proceed with the next rule or operation in sequence.
 const (
 	VerdictAccept   VerdictKind = "accept"
 	VerdictDrop     VerdictKind = "drop"
@@ -211,7 +296,7 @@ const (
 	VerdictContinue VerdictKind = "continue"
 )
 
-// NATAction - source/destination NAT
+// NATAction represents a network address translation (NAT) action configuration for packet processing rules.
 type NATAction struct {
 	Type         NATType
 	AddressRange *AddressRange
@@ -222,16 +307,25 @@ type NATAction struct {
 	FullyRandom  bool
 }
 
+// NATType represents the type of Network Address Translation (NAT), such as SNAT, DNAT, or Masquerade.
 type NATType string
 
+// NATTypeSNAT represents the Source Network Address Translation (SNAT) type.
+// NATTypeDNAT represents the Destination Network Address Translation (DNAT) type.
+// NATTypeMasq represents the Masquerade NAT type.
 const (
 	NATTypeSNAT NATType = "snat"
 	NATTypeDNAT NATType = "dnat"
 	NATTypeMasq NATType = "masquerade"
 )
 
+// NATFlag represents a string-based flag used to specify NAT behaviors, such as randomization or persistence.
 type NATFlag string
 
+// NATFlagRandom represents a NAT behavior configuration for random port allocation.
+// NATFlagFullyRandom represents a NAT behavior configuration for fully random port allocation.
+// NATFlagPersistent represents a NAT behavior configuration for persistent port allocation.
+// NATFlagNetmap represents a NAT behavior configuration for network address and port mapping (netmap).
 const (
 	NATFlagRandom      NATFlag = "random"
 	NATFlagFullyRandom NATFlag = "fully-random"
@@ -239,7 +333,7 @@ const (
 	NATFlagNetmap      NATFlag = "netmap"
 )
 
-// LogAction - logging
+// LogAction represents a logging action with configurable prefix, level, group, threshold, snap length, and flags.
 type LogAction struct {
 	Prefix     string
 	Level      LogLevel
@@ -249,8 +343,17 @@ type LogAction struct {
 	Flags      []LogFlag
 }
 
+// LogLevel represents the severity level of log messages.
 type LogLevel string
 
+// LogLevelEmerg represents the highest-priority log level for emergency messages.
+// LogLevelAlert represents the log level for alert messages requiring immediate action.
+// LogLevelCrit represents the log level for critical messages indicating serious issues.
+// LogLevelErr represents the log level for error messages indicating failures.
+// LogLevelWarn represents the log level for warning messages about potential issues.
+// LogLevelNotice represents the log level for normal messages requiring attention.
+// LogLevelInfo represents the log level for informational messages about normal operations.
+// LogLevelDebug represents the log level for detailed debug messages used during development.
 const (
 	LogLevelEmerg  LogLevel = "emerg"
 	LogLevelAlert  LogLevel = "alert"
@@ -262,8 +365,14 @@ const (
 	LogLevelDebug  LogLevel = "debug"
 )
 
+// LogFlag represents a configurable string identifier used as flags for logging behaviors in the system.
 type LogFlag string
 
+// LogFlagTCPSequence represents a log flag for TCP sequence information.
+// LogFlagTCPOptions represents a log flag for TCP options information.
+// LogFlagIPOptions represents a log flag for IP options information.
+// LogFlagUID represents a log flag for user identifier (UID) information.
+// LogFlagAll represents a log flag to enable all logging options.
 const (
 	LogFlagTCPSequence LogFlag = "tcp sequence"
 	LogFlagTCPOptions  LogFlag = "tcp options"
@@ -272,31 +381,35 @@ const (
 	LogFlagAll         LogFlag = "all"
 )
 
-// CounterAction - packet/byte counter
+// CounterAction represents an action for incrementing a counter.
 type CounterAction struct {
-	Name string // opcionális név
+	Name string
 }
 
-// QueueAction - nfqueue
+// QueueAction represents a queue configuration, including queue number, optional range, and associated flags.
 type QueueAction struct {
 	Num      uint16
 	NumRange *QueueRange
 	Flags    []QueueFlag
 }
 
+// QueueRange represents a range of queue numbers, with a defined start (`From`) and end (`To`) value.
 type QueueRange struct {
 	From uint16
 	To   uint16
 }
 
+// QueueFlag represents a string-based identifier for queue-related flags used to configure specific queue behaviors.
 type QueueFlag string
 
+// QueueFlagBypass represents a flag indicating that the queue should bypass certain processing steps.
+// QueueFlagFanout represents a flag indicating that the queue should distribute messages to multiple subscribers.
 const (
 	QueueFlagBypass QueueFlag = "bypass"
 	QueueFlagFanout QueueFlag = "fanout"
 )
 
-// RejectAction - reject with
+// RejectAction represents an action that rejects a packet with a specified type and ICMPv4/v6 code.
 type RejectAction struct {
 	Type RejectType
 	Code uint8 // ICMPv4/v6 code
@@ -304,6 +417,10 @@ type RejectAction struct {
 
 type RejectType string
 
+// RejectTypeICMP represents the reject type for ICMP protocol messages.
+// RejectTypeICMPv6 represents the reject type for ICMPv6 protocol messages.
+// RejectTypeTCPReset represents the reject type for TCP reset messages.
+// RejectTypeICMPX represents a custom reject type for extended ICMP messages.
 const (
 	RejectTypeICMP     RejectType = "icmp"
 	RejectTypeICMPv6   RejectType = "icmpv6"
@@ -311,7 +428,7 @@ const (
 	RejectTypeICMPX    RejectType = "icmpx"
 )
 
-// SetAction - set/map update
+// SetAction represents an action to modify or update a set with specific elements, target set names, and update flags.
 type SetAction struct {
 	SetName  string
 	MapName  string
@@ -319,17 +436,18 @@ type SetAction struct {
 	Update   bool // add vagy update
 }
 
+// SetElement represents a single element in a set with a key and an optional associated value.
 type SetElement struct {
 	Key   interface{}
 	Value interface{} // map esetén
 }
 
-// RedirectAction - port redirect
+// RedirectAction represents an action that performs redirection, optionally specifying a range of destination ports.
 type RedirectAction struct {
 	PortRange *PortRange
 }
 
-// MasqueradeAction - masquerade
+// MasqueradeAction represents an action for source NAT with optional port range and randomization settings.
 type MasqueradeAction struct {
 	PortRange   *PortRange
 	Random      bool
@@ -337,40 +455,44 @@ type MasqueradeAction struct {
 	Persistent  bool
 }
 
-// CustomAction - egyedi művelet
+// CustomAction represents a user-defined action that stores an expression and associated data for custom processing.
 type CustomAction struct {
 	Expression string
 	Data       interface{}
 }
 
-// Segédtípusok
-
+// IPAddress represents an IP address and its associated subnet within a network configuration.
 type IPAddress struct {
 	IP     net.IP
 	Subnet *net.IPNet // CIDR esetén
 }
 
+// PortSpec represents a specification for defining port configurations including single, ranged, or set-based ports.
 type PortSpec struct {
 	Port  uint16
 	Range *PortRange
 	Set   []uint16
 }
 
+// PortRange represents a range of network ports, defined by a starting port (From) and an ending port (To).
 type PortRange struct {
 	From uint16
 	To   uint16
 }
 
+// AddressRange represents a range of IP addresses with a starting address (From) and an ending address (To).
 type AddressRange struct {
 	From net.IP
 	To   net.IP
 }
 
+// TCPFlags represents a structure for matching TCP packet flags with a mask and value.
 type TCPFlags struct {
 	Mask  TCPFlagSet
 	Value TCPFlagSet
 }
 
+// TCPFlagSet represents a set of TCP flags used to indicate specific control parameters in a TCP segment.
 type TCPFlagSet struct {
 	Fin bool
 	Syn bool
@@ -382,29 +504,30 @@ type TCPFlagSet struct {
 	Cwr bool
 }
 
+// ICMPType represents an ICMP message type with its numerical identifier and a descriptive name.
 type ICMPType struct {
 	Type uint8
 	Name string // "echo-request", "echo-reply", stb.
 }
 
+// CounterStats represents statistics for a counter, including the number of packets and bytes.
 type CounterStats struct {
 	Packets uint64
 	Bytes   uint64
 }
 
-// RangeValue generikus tartomány
+// RangeValue represents a range with inclusive start and end values, defined by the From and To fields.
 type RangeValue struct {
 	From interface{}
 	To   interface{}
 }
 
-// SetValue - set elemek
+// SetValue represents a collection of unique elements that can store values of any type.
 type SetValue struct {
 	Elements []interface{}
 }
 
-// extractValueFromCt kinyeri a beállított értéket az nftexpr.Ct struktúrából.
-// Ez segít abban, hogy a CTCondition.Value mezője a GUI számára értelmezhető legyen.
+// extractValueFromCt inspects an nftexpr.Ct object and returns the first non-zero/non-empty attribute found as an interface{}.
 func extractValueFromCt(ct nftexpr.Ct) interface{} {
 	if len(ct.State) > 0 {
 		return ct.State
@@ -434,7 +557,7 @@ func extractValueFromCt(ct nftexpr.Ct) interface{} {
 	return nil
 }
 
-// NftablesToRuleDefinition konvertál egy nftables.Rule-t RuleDefinition-né
+// NftablesToRuleDefinition converts an nftables.Rule into a Rule definition, translating expressions into conditions and actions.
 func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 	rd := &Rule{
 		Position:   rule.Position,
@@ -623,8 +746,14 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 
 // Segédtípusok és struktúrák
 
+// registerValueType defines an enumeration of possible register value types used within the system for type differentiation.
 type registerValueType int
 
+// regTypeUnknown represents an unknown register value type.
+// regTypeMeta represents a register value type for metadata.
+// regTypePayload represents a register value type for payload data.
+// regTypeCT represents a register value type for connection tracking data.
+// regTypeImmediate represents a register value type for immediate values.
 const (
 	regTypeUnknown registerValueType = iota
 	regTypeMeta
@@ -633,6 +762,7 @@ const (
 	regTypeImmediate
 )
 
+// registerValue represents a container holding metadata and context for register-based expressions in rule processing.
 type registerValue struct {
 	valueType registerValueType
 
@@ -658,13 +788,14 @@ type registerValue struct {
 	bitwiseXor  []byte
 }
 
+// compareContext represents a context for comparison operations, holding the comparison operator, data, and register reference.
 type compareContext struct {
 	op       expr.CmpOp
 	data     []byte
 	register *registerValue
 }
 
-// compareToCondition konvertál egy összehasonlítást Condition-né
+// compareToCondition converts a comparison context into a corresponding Condition based on the register's value type.
 func compareToCondition(cmp *compareContext) (Condition, error) {
 	regVal := cmp.register
 
@@ -685,7 +816,7 @@ func compareToCondition(cmp *compareContext) (Condition, error) {
 	}
 }
 
-// metaCompareToCondition konvertál meta összehasonlítást
+// metaCompareToCondition converts a register value and comparison context into a metadata-based Condition.
 func metaCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition, error) {
 	metaKey := metaKeyToString(regVal.metaKey)
 	value := decodeMetaValue(regVal.metaKey, cmp.data)
@@ -700,7 +831,7 @@ func metaCompareToCondition(regVal *registerValue, cmp *compareContext) (Conditi
 	}, nil
 }
 
-// payloadCompareToCondition konvertál payload összehasonlítást
+// payloadCompareToCondition converts a payload comparison context into a Condition by interpreting protocol and field info.
 func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition, error) {
 	protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen)
 	value := decodePayloadValue(protocol, field, cmp.data)
@@ -716,7 +847,7 @@ func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Cond
 	}, nil
 }
 
-// ctCompareToCondition konvertál CT összehasonlítást
+// ctCompareToCondition converts a registerValue and compareContext into a CTCondition-based Condition or returns an error.
 func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition, error) {
 	ctKey := nftexpr.CtKeyToString(regVal.ctKey)
 	value := nftexpr.DecodeCTValue(regVal.ctKey, cmp.data)
@@ -745,7 +876,7 @@ func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition
 	}, nil
 }
 
-// rangeToCondition konvertál tartomány ellenőrzést
+// rangeToCondition converts a registerValue and Range expression into a Condition if the value type is supported.
 func rangeToCondition(regVal *registerValue, rng *expr.Range) (Condition, error) {
 	switch regVal.valueType {
 	case regTypePayload:
@@ -770,7 +901,7 @@ func rangeToCondition(regVal *registerValue, rng *expr.Range) (Condition, error)
 	}
 }
 
-// lookupToCondition konvertál set lookup-ot
+// lookupToCondition converts a registerValue and a Lookup expression into a Condition for set lookup operations.
 func lookupToCondition(regVal *registerValue, lookup *expr.Lookup) Condition {
 	field := ""
 
@@ -791,6 +922,7 @@ func lookupToCondition(regVal *registerValue, lookup *expr.Lookup) Condition {
 	}
 }
 
+// limitToCondition converts a Limit expression into a Condition with a type of ConditionTypeLimit.
 func limitToCondition(limit *expr.Limit) Condition {
 	return Condition{
 		Type:  ConditionTypeLimit,
@@ -798,7 +930,7 @@ func limitToCondition(limit *expr.Limit) Condition {
 	}
 }
 
-// verdictToAction konvertál verdict-et action-né
+// verdictToAction converts a Verdict expression into an Action object with the corresponding verdict type and optional chain.
 func verdictToAction(v *expr.Verdict) Action {
 	kind := VerdictDrop
 
@@ -824,7 +956,7 @@ func verdictToAction(v *expr.Verdict) Action {
 	}
 }
 
-// logToAction konvertál log-ot action-né
+// logToAction converts a Log expression to an Action object with type ActionTypeLog and associated LogAction data.
 func logToAction(l *expr.Log) Action {
 	prefix := string(l.Data)
 	if len(prefix) > 0 && prefix[len(prefix)-1] == 0 {
@@ -843,7 +975,7 @@ func logToAction(l *expr.Log) Action {
 	}
 }
 
-// natToAction konvertál NAT-ot action-né
+// natToAction converts a NAT expression and register map to an Action object, decoding address/port ranges and NAT flags.
 func natToAction(n *expr.NAT, regMap map[uint32]*registerValue) (Action, error) {
 	natType := NATTypeSNAT
 	if n.Type == expr.NATTypeDestNAT {
@@ -913,7 +1045,8 @@ func natToAction(n *expr.NAT, regMap map[uint32]*registerValue) (Action, error) 
 	}, nil
 }
 
-// masqToAction konvertál masquerade-ot action-né
+// masqToAction converts a Masq expression and associated register mappings into a Masquerade action with port range settings.
+// It handles port ranges defined by register values, randomization options, and fully random masquerading.
 func masqToAction(m *expr.Masq, regMap map[uint32]*registerValue) Action {
 	var portRange *PortRange
 
@@ -945,7 +1078,7 @@ func masqToAction(m *expr.Masq, regMap map[uint32]*registerValue) Action {
 	}
 }
 
-// redirToAction konvertál redirect-et action-né
+// redirToAction converts a Redir expression and a register map into a Redirect Action, extracting port range if available.
 func redirToAction(r *expr.Redir, regMap map[uint32]*registerValue) Action {
 	var portRange *PortRange
 
@@ -975,7 +1108,7 @@ func redirToAction(r *expr.Redir, regMap map[uint32]*registerValue) Action {
 	}
 }
 
-// rejectToAction konvertál reject-et action-né
+// rejectToAction converts an expr.Reject expression into an Action with type reject and appropriate RejectAction configuration.
 func rejectToAction(r *expr.Reject) Action {
 	rejectType := RejectTypeICMP
 
@@ -997,7 +1130,7 @@ func rejectToAction(r *expr.Reject) Action {
 	}
 }
 
-// queueToAction konvertál queue-t action-né
+// queueToAction converts a *expr.Queue into an Action of type ActionTypeQueue with queue-specific properties and flags.
 func queueToAction(q *expr.Queue) Action {
 	var queueRange *QueueRange
 	if q.Num != q.Total-1 {
@@ -1025,7 +1158,7 @@ func queueToAction(q *expr.Queue) Action {
 	}
 }
 
-// dynsetToAction konvertál dynset-et action-né
+// dynsetToAction converts a Dynset expression into a corresponding Action with a SetAction type.
 func dynsetToAction(d *expr.Dynset, regMap map[uint32]*registerValue) Action {
 	// TODO: teljes implementáció
 	return Action{
@@ -1036,8 +1169,7 @@ func dynsetToAction(d *expr.Dynset, regMap map[uint32]*registerValue) Action {
 	}
 }
 
-// Segédfüggvények
-
+// identifyPayloadField determines the protocol and field name based on payload base, offset, and length values.
 func identifyPayloadField(base expr.PayloadBase, offset, length uint32) (PayloadProtocol, string) {
 	switch base {
 	case unix.NFT_PAYLOAD_NETWORK_HEADER:
@@ -1069,6 +1201,7 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32) (Payload
 	}
 }
 
+// decodePayloadValue interprets a payload value from raw data based on protocol and field, returning an appropriate type.
 func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) interface{} {
 	switch field {
 	case "saddr", "daddr":
@@ -1090,6 +1223,7 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 	return data
 }
 
+// decodeMetaValue decodes a metadata value based on the key and raw binary data provided.
 func decodeMetaValue(key expr.MetaKey, data []byte) interface{} {
 	// Interface index kezelése
 	if key == unix.NFT_META_IIF || key == unix.NFT_META_OIF {
@@ -1118,6 +1252,7 @@ func decodeMetaValue(key expr.MetaKey, data []byte) interface{} {
 	return data
 }
 
+// cmpOpToCompareOp maps an expr.CmpOp to its corresponding CompareOp representation for conditional comparisons.
 func cmpOpToCompareOp(op expr.CmpOp) CompareOp {
 	switch op {
 	case expr.CmpOpEq:
@@ -1137,6 +1272,7 @@ func cmpOpToCompareOp(op expr.CmpOp) CompareOp {
 	}
 }
 
+// metaKeyToString converts a MetaKey constant to its corresponding string representation for better readability.
 func metaKeyToString(key expr.MetaKey) string {
 	switch key {
 	case unix.NFT_META_IIF:
@@ -1158,6 +1294,7 @@ func metaKeyToString(key expr.MetaKey) string {
 	}
 }
 
+// syslogLevelToLogLevel maps a syslog severity level to a corresponding internal LogLevel value.
 func syslogLevelToLogLevel(level expr.LogLevel) LogLevel {
 	switch level {
 	case 0:
@@ -1181,6 +1318,7 @@ func syslogLevelToLogLevel(level expr.LogLevel) LogLevel {
 	}
 }
 
+// RuleToHumanReadable converts an nftables.Rule object into a human-readable string representation.
 func RuleToHumanReadable(rule *nftables.Rule) string {
 	var parts []string
 	regMap := make(map[uint32]string)
@@ -1429,8 +1567,7 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 	return result
 }
 
-// Segédfüggvények az emberi olvashatósághoz
-
+// payloadToHumanReadable converts a network payload specification into a human-readable string representation.
 func payloadToHumanReadable(p *expr.Payload) string {
 	// Transport header (TCP/UDP/ICMP)
 	if p.Base == unix.NFT_PAYLOAD_TRANSPORT_HEADER {
@@ -1461,6 +1598,7 @@ func payloadToHumanReadable(p *expr.Payload) string {
 	return fmt.Sprintf("payload[%s+%d:%d]", payloadBaseToString(p.Base), p.Offset, p.Len)
 }
 
+// verdictToHumanReadable converts a verdict object into a human-readable string representation.
 func verdictToHumanReadable(v *expr.Verdict) string {
 	switch v.Kind {
 	case expr.VerdictAccept:
@@ -1478,6 +1616,10 @@ func verdictToHumanReadable(v *expr.Verdict) string {
 	}
 }
 
+// ExtractComment extracts a user-defined comment from the UserData field of an nftables.Rule.
+// The comment is stored in TLV format, where Type=0 indicates a comment, followed by its Length and Value.
+// If no comment is found, an empty string is returned.
+// Null terminators within the comment are removed before returning the result.
 func ExtractComment(rule *nftables.Rule) string {
 	// A UserData TLV formátumban van
 	// Type=0, Length=N, Value=comment
@@ -1512,6 +1654,8 @@ func ExtractComment(rule *nftables.Rule) string {
 	return ""
 }
 
+// ApplyRuleChange updates or adds the specified nftables rule and commits the changes to the kernel.
+// Returns an error if the connection to nftables fails or the changes cannot be flushed.
 func ApplyRuleChange(rule *nftables.Rule) error {
 	conn, err := nftables.New()
 	if err != nil {

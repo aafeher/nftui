@@ -15,6 +15,7 @@ import (
 	"github.com/google/nftables/expr"
 )
 
+// ruleEdit represents a model for editing nftables rules with various properties and stateful inputs for user interaction.
 type ruleEdit struct {
 	rule   *nftables.Rule
 	width  int
@@ -71,22 +72,26 @@ type ruleEdit struct {
 	focusIndex int
 }
 
+// ruleEditKeyMap is a structure that defines key bindings for navigation and actions within the rule editing interface.
 type ruleEditKeyMap struct {
 	Back key.Binding
 	Save key.Binding
 	Quit key.Binding
 }
 
+// ShortHelp returns a slice of key bindings for primary actions: back, save, and quit.
 func (k ruleEditKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{k.Back, k.Save, k.Quit}
 }
 
+// FullHelp returns a matrix of key bindings, grouping actions such as back, save, and quit for detailed interface navigation.
 func (k ruleEditKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Back, k.Save, k.Quit},
 	}
 }
 
+// newRuleEdit initializes and returns a ruleEdit structure for editing nftables rules with pre-filled data and inputs.
 func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	km := ruleEditKeyMap{
 		Back: key.NewBinding(
@@ -103,38 +108,48 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		),
 	}
 
+	// position
 	tiPosition := NewNumberInput(0, 999_999_999)
 	tiPosition.Placeholder = ""
 	tiPosition.CharLimit = 10
 	tiPosition.Width = 10
 
+	// ct state
 	ctStateInputs := NewMultiSelect(nftexpr.CtStateStrings)
 
+	// ct direction
 	ctDirectionInput := NewSelect(nftexpr.CtDirectionStrings)
 	ctDirectionInput.Width = 10
 
+	// ct status
 	ctStatusInputs := NewMultiSelect(nftexpr.CtStatusStrings)
 
+	// limit over
 	availableOvers := []string{"false", "true"}
 	tiLimitOver := NewSelect(availableOvers)
 	tiLimitOver.Width = 10
 
+	// limit rate
 	tiLimitRate := NewNumberInput(0, 999_999_999)
 	tiLimitRate.Placeholder = ""
 	tiLimitRate.CharLimit = 10
 	tiLimitRate.Width = 10
 
+	// limit unit
 	tiLimitUnit := NewSelect(nftexpr.LimitTimeStrings)
 	tiLimitUnit.Width = 10
 
+	// limit burst
 	tiLimitBurst := NewNumberInput(0, 999_999_999)
 	tiLimitBurst.Placeholder = ""
 	tiLimitBurst.CharLimit = 10
 	tiLimitBurst.Width = 10
 
+	// limit type
 	tiLimitType := NewSelect(nftexpr.LimitTypeStrings)
 	tiLimitType.Width = 10
 
+	// comment
 	tiComment := textinput.New()
 	tiComment.Placeholder = "Comment"
 	tiComment.CharLimit = 256
@@ -142,18 +157,34 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 
 	ruleDefinition, _ := nft.NftablesToRuleDefinition(rule)
 
+	// position
 	tiPosition.SetValue(fmt.Sprint(ruleDefinition.Position))
 	tiPosition.Focus()
 
+	// ct state
 	var originalCtStates []nftexpr.CtState
+
+	// ct direction
 	var originalCtDirection nftexpr.CtDirection
+
+	// ct status
 	var originalCtStatuses []nftexpr.CtStatus
 
+	// limit over
 	originalLimitOver := false
+
+	// limit rate
 	originalLimitRate := uint64(0)
+
+	// limit unit
 	originalLimitUnit := expr.LimitTimeSecond
+
+	// limit burst
 	originalLimitBurst := uint32(0)
+
+	// limit type
 	originalLimitType := expr.LimitTypePkts
+
 	for _, condition := range ruleDefinition.Conditions {
 		if condition.CT != nil {
 			if condition.CT.Key == nftexpr.CtKeyState {
@@ -183,6 +214,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		}
 	}
 
+	// ct state
 	originalCtStateStrings := make([]string, len(originalCtStates))
 	for _, state := range originalCtStates {
 		stateStr := string(state)
@@ -190,14 +222,17 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	}
 	ctStateInputs.SetValues(originalCtStateStrings)
 
+	// ct direction
 	ctDirectionInput.SetValue(string(originalCtDirection))
 
+	// ct status
 	originalCtStatusStrings := make([]string, 0, len(originalCtStatuses))
 	for _, status := range originalCtStatuses {
 		originalCtStatusStrings = append(originalCtStatusStrings, string(status))
 	}
 	ctStatusInputs.SetValues(originalCtStatusStrings)
 
+	// limit
 	overStr := "false"
 	switch originalLimitOver {
 	case false:
@@ -212,6 +247,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	tiLimitBurst.SetValue(fmt.Sprint(originalLimitBurst))
 	tiLimitType.SetValue(nftexpr.LimitTypeToString(originalLimitType))
 
+	// comment
 	tiComment.SetValue(ruleDefinition.Comment)
 
 	return ruleEdit{
@@ -252,6 +288,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	}
 }
 
+// Update processes user inputs and updates the state of the rule editor based on the received messages.
 func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
@@ -426,7 +463,7 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				r.limitOverInput.Changed = false
 			}
 
-			// Limit Rate mentése
+			// limit rate
 			if r.limitRateChanged {
 				if val, err := r.limitRateInput.GetUint64(); err == nil {
 					for i, re := range r.rule.Exprs {
@@ -440,6 +477,7 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				}
 			}
 
+			// limit unit
 			if r.limitUnitChanged {
 				newLimitUnit := nftexpr.StringToLimitUnit(r.limitUnitInput.Value())
 				for i, re := range r.rule.Exprs {
@@ -453,6 +491,7 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				r.limitUnitInput.Changed = false
 			}
 
+			// limit burst
 			if r.limitBurstChanged {
 				if val, err := r.limitBurstInput.GetUint64(); err == nil {
 					for i, re := range r.rule.Exprs {
@@ -466,6 +505,7 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				}
 			}
 
+			// limit type
 			if r.limitTypeChanged {
 				newLimitType := nftexpr.StringToLimitType(r.limitTypeInput.Value())
 				for i, re := range r.rule.Exprs {
@@ -479,7 +519,7 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				r.limitTypeInput.Changed = false
 			}
 
-			// Comment mentése
+			// comment
 			if r.commentChanged {
 				newComment := r.commentInput.Value()
 				r.rule.UserData = encodeCommentToUserData(newComment)
