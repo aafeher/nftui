@@ -9,6 +9,7 @@ import (
 	"github.com/google/nftables/expr"
 )
 
+// MetaKeyToString converts a MetaKey enum value to its corresponding string representation for easy identification.
 func MetaKeyToString(metaKey expr.MetaKey) string {
 	switch metaKey {
 	case expr.MetaKeyLEN:
@@ -66,6 +67,7 @@ func MetaKeyToString(metaKey expr.MetaKey) string {
 	}
 }
 
+// SerializeMeta serializes a meta expression with its associated comparison and returns its string representation, step size, and data.
 func SerializeMeta(m *expr.Meta, exprs []expr.Any, pos int) (string, int, string) {
 	metaStr := MetaKeyToString(m.Key)
 
@@ -108,6 +110,7 @@ func SerializeMeta(m *expr.Meta, exprs []expr.Any, pos int) (string, int, string
 	return metaStr, 1, ""
 }
 
+// FormatMeta formats a Meta struct into a string representation indicating key, source/destination register, and register value.
 func FormatMeta(m *expr.Meta) string {
 	parts := []string{}
 
@@ -127,6 +130,7 @@ func FormatMeta(m *expr.Meta) string {
 	return strings.Join(parts, " ")
 }
 
+// SerializeMasq serializes a Masq expression into a string representation based on its configuration flags.
 func SerializeMasq(m *expr.Masq) string {
 	result := "masquerade"
 
@@ -143,6 +147,7 @@ func SerializeMasq(m *expr.Masq) string {
 	return result
 }
 
+// serializeCmpOp converts a comparison operator and value into its string representation based on the operator's type.
 func serializeCmpOp(cmp *expr.Cmp, value string) string {
 	op := CmpOpToString(cmp.Op)
 
@@ -154,6 +159,7 @@ func serializeCmpOp(cmp *expr.Cmp, value string) string {
 	return fmt.Sprintf("%s %s", op, value)
 }
 
+// SerializeCmp converts a comparison expression into its string representation using the provided comparison data.
 func SerializeCmp(cmp *expr.Cmp, pending any) string {
 	value := formatData(cmp.Data)
 	return serializeCmpOp(cmp, value)
@@ -188,6 +194,7 @@ func FormatCmp(cmp *expr.Cmp) string {
 	return fmt.Sprintf("cmp %d %s %s", cmp.Register, op, val)
 }
 
+// formatData formats a byte slice into a human-readable representation, handling various cases like IP, port, and strings.
 func formatData(data []byte) string {
 	if len(data) == 0 {
 		return "0x"
@@ -225,6 +232,7 @@ func formatData(data []byte) string {
 	return fmt.Sprintf("0x%x", data)
 }
 
+// isPrintable checks if all bytes in the given slice are printable ASCII characters or null (0x00). Returns true if so.
 func isPrintable(data []byte) bool {
 	if len(data) == 0 {
 		return false
@@ -264,6 +272,8 @@ func InterfaceIndexToName(data []byte) string {
 	return iface.Name
 }
 
+// DataToHumanReadable converts raw byte data to a human-readable string based on the provided context.
+// It handles different data formats such as protocols, ports, IP addresses, and interface names.
 func DataToHumanReadable(data []byte, context string) string {
 	//fmt.Printf("\nDataToHumanReadable: %s, %s\n", data, context)
 	if len(data) == 0 {
