@@ -78,6 +78,7 @@ type CtDirection string
 const (
 	CtDirectionOriginal CtDirection = "original"
 	CtDirectionReply    CtDirection = "reply"
+	CtDirectionNone     CtDirection = ""
 )
 
 type CtStatus string
@@ -410,7 +411,23 @@ func FormatCt(c *expr.Ct) string {
 // SerializeCt serializes a connection tracking (ct) expression into a string representation and returns the string and position.
 // It processes various cases like comparison (Cmp), bitwise operations, and lookups, handling them accordingly.
 func SerializeCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (string, int) {
-	ctStr := fmt.Sprintf("ct %s", CtKeyToString(ct.Key))
+	keyStr := CtKeyToString(ct.Key)
+	ctStr := fmt.Sprintf("ct %s", keyStr)
+	if ct.Key == expr.CtKeyBYTES || ct.Key == expr.CtKeyPKTS || ct.Key == expr.CtKeyAVGPKT {
+		// Mapping for direction (heuristic):
+		// Since we don't have a way to know if NFTA_CT_DIRECTION was present in the library's struct,
+		// we use 0=None, 1=Original, 2=Reply as an internal convention if we can,
+		// BUT Netlink uses 0=Original, 1=Reply.
+		// So we use 255 (or 2) as "None" for now if we ever need it.
+		// For now, let's just support what we can.
+		if ct.Direction == 0 {
+			ctStr = fmt.Sprintf("ct original %s", keyStr)
+		} else if ct.Direction == 1 {
+			ctStr = fmt.Sprintf("ct reply %s", keyStr)
+		} else if ct.Direction == 255 {
+			ctStr = fmt.Sprintf("ct %s", keyStr)
+		}
+	}
 
 	//fmt.Printf("SerializeCT() exprs: %+v\n", exprs)
 	//for _, e := range exprs {
@@ -471,6 +488,16 @@ func SerializeCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (
 func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (Ct, int) {
 	ctObj := Ct{}
 	skip := 1
+
+	if ct.Key == expr.CtKeyBYTES || ct.Key == expr.CtKeyPKTS || ct.Key == expr.CtKeyAVGPKT {
+		if ct.Direction == 0 {
+			ctObj.Direction = CtDirectionOriginal
+		} else if ct.Direction == 1 {
+			ctObj.Direction = CtDirectionReply
+		} else {
+			ctObj.Direction = CtDirectionNone
+		}
+	}
 
 	if pos+1 < len(exprs) {
 		switch v := exprs[pos+1].(type) {
@@ -846,7 +873,16 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 		}
 	case expr.CtKeyPKTS, expr.CtKeyBYTES:
 		if len(data) == 8 {
-			return binary.BigEndian.Uint64(data)
+			valBE := binary.BigEndian.Uint64(data)
+			valLE := binary.LittleEndian.Uint64(data)
+			// Ha a BE érték irreálisan nagy (pl. > 10^15, ami több petabájt),
+			// de a LE érték kisebb és hihetőbb, akkor a LE-t használjuk.
+			// Az nftables számlálók gyakran LittleEndian-ként jönnek a regiszterekben
+			// bizonyos rendszereken, de az nftables netlink üzeneteiben BigEndian-ok.
+			if valBE > 0x0000FFFFFFFFFFFF && valLE < 0x0000FFFFFFFFFFFF {
+				return valLE
+			}
+			return valBE
 		}
 		if len(data) >= 4 {
 			return uint64(binary.LittleEndian.Uint32(data[:4]))

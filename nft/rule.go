@@ -208,8 +208,9 @@ type ICMPFields struct {
 // The Key field specifies the specific connection tracking attribute.
 // The Value field contains the value associated with the connection tracking attribute.
 type CTCondition struct {
-	Key   nftexpr.CtKey
-	Value interface{}
+	Key       nftexpr.CtKey
+	Value     interface{}
+	Direction nftexpr.CtDirection
 }
 
 // SetLookupCondition specifies a condition to match data within a named set using a specific field.
@@ -594,11 +595,6 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 	// Összehasonlítások összegyűjtése (AND kapcsolat)
 	var pendingCompares []*compareContext
 
-	sets, err := GetSets(rule.Table)
-	if err != nil {
-		return nil, fmt.Errorf("error getting sets: %s", err)
-	}
-
 	i := 0
 	for i < len(rule.Exprs) {
 		e := rule.Exprs[i]
@@ -606,24 +602,12 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 		switch v := e.(type) {
 		case *expr.Ct:
 			//fmt.Printf("CT: %v\n", e)
-			ct, skip := nftexpr.ExprCtToCt(v, rule.Exprs, i, sets)
-			op := nftexpr.GetCtOp(rule.Exprs, i)
-
-			actualOp := cmpOpToCompareOp(op)
-			if ct.ExpirationOp != "" {
-				actualOp = CompareOp(ct.ExpirationOp)
+			regMap[v.Register] = &registerValue{
+				valueType:   regTypeCT,
+				ctKey:       v.Key,
+				ctDirection: uint8(v.Direction),
 			}
-
-			rd.Conditions = append(rd.Conditions, Condition{
-				Type:      ConditionTypeCT,
-				Operation: actualOp,
-				CT: &CTCondition{
-					Key:   nftexpr.CtKey(nftexpr.CtKeyToString(v.Key)),
-					Value: extractValueFromCt(ct),
-				},
-			})
-			i += skip
-			continue
+			i++
 		case *expr.Range:
 			// Tartomány ellenőrzés
 			regVal := regMap[v.Register]
@@ -795,7 +779,8 @@ type registerValue struct {
 	value any
 
 	// CT
-	ctKey expr.CtKey
+	ctKey       expr.CtKey
+	ctDirection uint8
 
 	// Meta
 	metaKey expr.MetaKey
@@ -878,6 +863,15 @@ func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition
 	ctKey := nftexpr.CtKeyToString(regVal.ctKey)
 	value := nftexpr.DecodeCTValue(regVal.ctKey, cmp.data)
 
+	direction := nftexpr.CtDirectionNone
+	if regVal.ctKey == expr.CtKeyBYTES || regVal.ctKey == expr.CtKeyPKTS || regVal.ctKey == expr.CtKeyAVGPKT {
+		if regVal.ctDirection == 0 {
+			direction = nftexpr.CtDirectionOriginal
+		} else if regVal.ctDirection == 1 {
+			direction = nftexpr.CtDirectionReply
+		}
+	}
+
 	// Ha a kulcs STATUS, akkor a DecodeCTValue visszaadhat egy []CtStatus-t
 	if regVal.ctKey == expr.CtKeySTATUS {
 		if statuses, ok := value.([]nftexpr.CtStatus); ok {
@@ -885,8 +879,9 @@ func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition
 				Type:      ConditionTypeCT,
 				Operation: cmpOpToCompareOp(cmp.op),
 				CT: &CTCondition{
-					Key:   nftexpr.CtKey(ctKey),
-					Value: statuses,
+					Key:       nftexpr.CtKey(ctKey),
+					Value:     statuses,
+					Direction: direction,
 				},
 			}, nil
 		}
@@ -896,8 +891,9 @@ func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition
 		Type:      ConditionTypeCT,
 		Operation: cmpOpToCompareOp(cmp.op),
 		CT: &CTCondition{
-			Key:   nftexpr.CtKey(ctKey),
-			Value: value,
+			Key:       nftexpr.CtKey(ctKey),
+			Value:     value,
+			Direction: direction,
 		},
 	}, nil
 }

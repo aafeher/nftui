@@ -84,7 +84,15 @@ func (r ruleView) View() string {
 
 	// CT Mezők fix sorrendben
 	{
-		keys := []nftexpr.CtKey{nftexpr.CtKeyState, nftexpr.CtKeyDirection, nftexpr.CtKeyStatus, nftexpr.CtKeyMark, nftexpr.CtKeyExpiration, nftexpr.CtKeyHelper}
+		keys := []nftexpr.CtKey{
+			nftexpr.CtKeyState,
+			nftexpr.CtKeyDirection,
+			nftexpr.CtKeyStatus,
+			nftexpr.CtKeyMark,
+			nftexpr.CtKeyExpiration,
+			nftexpr.CtKeyHelper,
+			nftexpr.CtKeyBytes,
+		}
 		for _, key := range keys {
 			prefix := fmt.Sprintf("CT %s", key)
 			found := false
@@ -93,7 +101,15 @@ func (r ruleView) View() string {
 					found = true
 					val := condition.CT.Value
 					op := condition.Operation
-					prefix = fmt.Sprintf("CT %s %s", key, op)
+
+					dirPrefix := ""
+					if condition.CT.Direction == nftexpr.CtDirectionOriginal {
+						dirPrefix = "original "
+					} else if condition.CT.Direction == nftexpr.CtDirectionReply {
+						dirPrefix = "reply "
+					}
+
+					prefix = fmt.Sprintf("CT %s%s %s", dirPrefix, key, op)
 
 					if val == nil {
 						content.WriteString(fmt.Sprintf("%s: (nincs érték)\n", prefix))

@@ -99,6 +99,96 @@ func TestSerializeCt(t *testing.T) {
 			wantIdx: 2,
 		},
 		{
+			name: "CT bytes",
+			ct:   &expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 255},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 255},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte{0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // 1024 Little Endian
+				},
+			},
+			pos:     0,
+			wantStr: "ct bytes 1024",
+			wantIdx: 2,
+		},
+		{
+			name: "CT bytes 100000 Little Endian (Bug Reproducer)",
+			ct:   &expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 255},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 255},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte{0xa0, 0x86, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00}, // 100000 Little Endian
+				},
+			},
+			pos:     0,
+			wantStr: "ct bytes 100000",
+			wantIdx: 2,
+		},
+		{
+			name: "CT bytes 1024 Big Endian (Compatibility Check)",
+			ct:   &expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 255},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 255},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00}, // 1024 Big Endian
+				},
+			},
+			pos:     0,
+			wantStr: "ct bytes 1024",
+			wantIdx: 2,
+		},
+		{
+			name: "CT bytes > 1024",
+			ct:   &expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 255},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 255},
+				&expr.Cmp{
+					Op:       expr.CmpOpGt,
+					Register: 1,
+					Data:     []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00}, // 1024 Big Endian
+				},
+			},
+			pos:     0,
+			wantStr: "ct bytes > 1024",
+			wantIdx: 2,
+		},
+		{
+			name: "CT original bytes > 1024",
+			ct:   &expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 0},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 0},
+				&expr.Cmp{
+					Op:       expr.CmpOpGt,
+					Register: 1,
+					Data:     []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00},
+				},
+			},
+			pos:     0,
+			wantStr: "ct original bytes > 1024",
+			wantIdx: 2,
+		},
+		{
+			name: "CT reply bytes > 1024",
+			ct:   &expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 1}, // reply
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpGt,
+					Register: 1,
+					Data:     []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00},
+				},
+			},
+			pos:     0,
+			wantStr: "ct reply bytes > 1024",
+			wantIdx: 2,
+		},
+		{
 			name: "CT helper",
 			ct:   &expr.Ct{Key: unix.NFT_CT_HELPER, Register: 1},
 			exprs: []expr.Any{
@@ -467,6 +557,60 @@ func TestExprCtToCt(t *testing.T) {
 			pos: 0,
 			want: Ct{
 				Expiration: 30,
+			},
+			wantIdx: 2,
+		},
+		{
+			name: "Populate bytes",
+			ct:   &expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 255},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 255},
+				&expr.Cmp{
+					Op:       expr.CmpOpGt,
+					Register: 1,
+					Data:     []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00}, // 1024 Big Endian
+				},
+			},
+			pos: 0,
+			want: Ct{
+				Bytes:     1024,
+				Direction: CtDirectionNone,
+			},
+			wantIdx: 2,
+		},
+		{
+			name: "Populate original bytes",
+			ct:   &expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 0},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 0},
+				&expr.Cmp{
+					Op:       expr.CmpOpGt,
+					Register: 1,
+					Data:     []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00},
+				},
+			},
+			pos: 0,
+			want: Ct{
+				Bytes:     1024,
+				Direction: CtDirectionOriginal,
+			},
+			wantIdx: 2,
+		},
+		{
+			name: "Populate reply bytes",
+			ct:   &expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_BYTES, Register: 1, Direction: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpGt,
+					Register: 1,
+					Data:     []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00},
+				},
+			},
+			pos: 0,
+			want: Ct{
+				Bytes:     1024,
+				Direction: CtDirectionReply,
 			},
 			wantIdx: 2,
 		},

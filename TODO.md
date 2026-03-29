@@ -172,7 +172,7 @@
 - [x] `mark`: Mark of the connection
 - [x] `expiration`: Connection expiration time
 - [x] `helper`: Helper associated with the connection
-- [ ] `bytes`
+- [x] `bytes`
 - [ ] `packets`
 - [ ] `ip saddr`
 - [ ] `ip daddr`
