@@ -82,55 +82,66 @@ func (r ruleView) View() string {
 	content.WriteString("\n")
 	content.WriteString(fmt.Sprintf("Position: %d\n", ruleDefinition.Position))
 
-	for _, condition := range ruleDefinition.Conditions {
-		// Ct
-		if condition.CT != nil {
-			val := condition.CT.Value
-			op := condition.Operation
+	// CT Mezők fix sorrendben
+	{
+		keys := []nftexpr.CtKey{nftexpr.CtKeyState, nftexpr.CtKeyDirection, nftexpr.CtKeyStatus, nftexpr.CtKeyMark}
+		for _, key := range keys {
+			prefix := fmt.Sprintf("CT %s %s", key, "==")
+			found := false
+			for _, condition := range ruleDefinition.Conditions {
+				if condition.CT != nil && condition.CT.Key == key {
+					found = true
+					val := condition.CT.Value
+					op := condition.Operation
+					prefix = fmt.Sprintf("CT %s %s", key, op)
 
-			prefix := fmt.Sprintf("CT %s %s", condition.CT.Key, op)
+					if val == nil {
+						content.WriteString(fmt.Sprintf("%s: (nincs érték)\n", prefix))
+						break
+					}
 
-			if val == nil {
-				content.WriteString(fmt.Sprintf("%s: (nincs érték)\n", prefix))
-				continue
+					// Robusztusabb típuskezelés a megjelenítéshez
+					switch v := val.(type) {
+					case nftexpr.CtState:
+						content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v)))
+					case []nftexpr.CtState:
+						if len(v) == 1 {
+							content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v[0])))
+						} else {
+							var s []string
+							for _, state := range v {
+								s = append(s, string(state))
+							}
+							content.WriteString(fmt.Sprintf("%s {%s}\n", prefix, strings.Join(s, ", ")))
+						}
+					case nftexpr.CtDirection:
+						content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v)))
+					case nftexpr.CtStatus:
+						content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v)))
+					case []nftexpr.CtStatus:
+						if len(v) == 1 {
+							content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v[0])))
+						} else {
+							var s []string
+							for _, status := range v {
+								s = append(s, string(status))
+							}
+							content.WriteString(fmt.Sprintf("%s {%s}\n", prefix, strings.Join(s, ", ")))
+						}
+					case uint32:
+						if key == nftexpr.CtKeyMark {
+							content.WriteString(fmt.Sprintf("%s 0x%08x\n", prefix, v))
+						} else {
+							content.WriteString(fmt.Sprintf("%s %d\n", prefix, v))
+						}
+					default:
+						content.WriteString(fmt.Sprintf("%s %v\n", prefix, v))
+					}
+					break
+				}
 			}
-
-			// Robusztusabb típuskezelés a megjelenítéshez
-			switch v := val.(type) {
-			case nftexpr.CtState:
-				content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v)))
-			case []nftexpr.CtState:
-				if len(v) == 1 {
-					content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v[0])))
-				} else {
-					var s []string
-					for _, state := range v {
-						s = append(s, string(state))
-					}
-					content.WriteString(fmt.Sprintf("%s {%s}\n", prefix, strings.Join(s, ", ")))
-				}
-			case nftexpr.CtDirection:
-				content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v)))
-			case nftexpr.CtStatus:
-				content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v)))
-			case []nftexpr.CtStatus:
-				if len(v) == 1 {
-					content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v[0])))
-				} else {
-					var s []string
-					for _, status := range v {
-						s = append(s, string(status))
-					}
-					content.WriteString(fmt.Sprintf("%s {%s}\n", prefix, strings.Join(s, ", ")))
-				}
-			case uint32:
-				if condition.CT.Key == nftexpr.CtKeyMark {
-					content.WriteString(fmt.Sprintf("%s 0x%08x\n", prefix, v))
-				} else {
-					content.WriteString(fmt.Sprintf("%s %d\n", prefix, v))
-				}
-			default:
-				content.WriteString(fmt.Sprintf("%s %v\n", prefix, v))
+			if !found {
+				content.WriteString(fmt.Sprintf("%s: (üres)\n", prefix))
 			}
 		}
 	}

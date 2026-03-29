@@ -169,7 +169,7 @@
 - [x] `state`: State of the connection
 - [x] `direction`: Direction of the packet relative to the connection
 - [x] `status`: Status of the connection
-- [ ] `mark`: Mark of the connection
+- [x] `mark`: Mark of the connection
 - [ ] `expiration`: Connection expiration time
 - [ ] `helper`: Helper associated with the connection
 - [ ] `bytes`

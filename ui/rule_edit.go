@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/binary"
 	"fmt"
 	"nftui/nft"
 	nftexpr "nftui/nft/expr"
@@ -42,6 +43,11 @@ type ruleEdit struct {
 	originalCtStatuses []nftexpr.CtStatus
 	ctStatusInputs     MultiSelect
 	ctStatusesChanged  bool
+
+	// CT Mark
+	originalCtMark uint32
+	ctMarkInput    NumberInput
+	ctMarkChanged  bool
 
 	// Limit
 	originalLimitOver bool
@@ -124,6 +130,12 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	// ct status
 	ctStatusInputs := NewMultiSelect(nftexpr.CtStatusStrings)
 
+	// ct mark
+	ctMarkInput := NewNumberInput(0, 999_999_999)
+	ctMarkInput.Placeholder = "0"
+	ctMarkInput.CharLimit = 10
+	ctMarkInput.Width = 10
+
 	// limit over
 	availableOvers := []string{"false", "true"}
 	tiLimitOver := NewSelect(availableOvers)
@@ -170,6 +182,9 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	// ct status
 	var originalCtStatuses []nftexpr.CtStatus
 
+	// ct mark
+	var originalCtMark uint32
+
 	// limit over
 	originalLimitOver := false
 
@@ -203,6 +218,10 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				} else if status, ok := condition.CT.Value.(nftexpr.CtStatus); ok {
 					originalCtStatuses = []nftexpr.CtStatus{status}
 				}
+			} else if condition.CT.Key == nftexpr.CtKeyMark {
+				if mark, ok := condition.CT.Value.(uint32); ok {
+					originalCtMark = mark
+				}
 			}
 		}
 		if condition.Limit != nil {
@@ -232,6 +251,9 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	}
 	ctStatusInputs.SetValues(originalCtStatusStrings)
 
+	// ct mark
+	ctMarkInput.SetValue(fmt.Sprint(originalCtMark))
+
 	// limit
 	overStr := "false"
 	switch originalLimitOver {
@@ -258,6 +280,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		ctStateInputs:       ctStateInputs,
 		ctDirectionInput:    ctDirectionInput,
 		ctStatusInputs:      ctStatusInputs,
+		ctMarkInput:         ctMarkInput,
 		limitOverInput:      tiLimitOver,
 		limitRateInput:      tiLimitRate,
 		limitUnitInput:      tiLimitUnit,
@@ -269,6 +292,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		originalCtStates:    originalCtStates,
 		originalCtDirection: originalCtDirection,
 		originalCtStatuses:  originalCtStatuses,
+		originalCtMark:      originalCtMark,
 		originalLimitOver:   originalLimitOver,
 		originalLimitRate:   originalLimitRate,
 		originalLimitUnit:   originalLimitUnit,
@@ -279,6 +303,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		ctStatesChanged:     false,
 		ctDirectionChanged:  false,
 		ctStatusesChanged:   false,
+		ctMarkChanged:       false,
 		limitOverChanged:    false,
 		limitRateChanged:    false,
 		limitUnitChanged:    false,
@@ -303,15 +328,16 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 		case "tab", "shift+tab":
 			// Tab billentyűvel váltás a mezők között
 			if msg.String() == "tab" {
-				r.focusIndex = (r.focusIndex + 1) % 10
+				r.focusIndex = (r.focusIndex + 1) % 11
 			} else {
-				r.focusIndex = (r.focusIndex - 1 + 10) % 10
+				r.focusIndex = (r.focusIndex - 1 + 11) % 11
 			}
 
 			r.positionInput.Blur()
 			r.ctStateInputs.Blur()
 			r.ctDirectionInput.Blur()
 			r.ctStatusInputs.Blur()
+			r.ctMarkInput.Blur()
 			r.limitOverInput.Blur()
 			r.limitRateInput.Blur()
 			r.limitUnitInput.Blur()
@@ -329,16 +355,18 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 			} else if r.focusIndex == 3 {
 				r.ctStatusInputs.Focus()
 			} else if r.focusIndex == 4 {
-				r.limitOverInput.Focus()
+				r.ctMarkInput.Focus()
 			} else if r.focusIndex == 5 {
-				r.limitRateInput.Focus()
+				r.limitOverInput.Focus()
 			} else if r.focusIndex == 6 {
-				r.limitUnitInput.Focus()
+				r.limitRateInput.Focus()
 			} else if r.focusIndex == 7 {
-				r.limitBurstInput.Focus()
+				r.limitUnitInput.Focus()
 			} else if r.focusIndex == 8 {
-				r.limitTypeInput.Focus()
+				r.limitBurstInput.Focus()
 			} else if r.focusIndex == 9 {
+				r.limitTypeInput.Focus()
+			} else if r.focusIndex == 10 {
 				r.commentInput.Focus()
 			}
 			return r, nil
@@ -441,6 +469,28 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				r.originalCtStatuses = newCtStatuses
 				r.ctStatusesChanged = false
 				r.ctStatusInputs.Changed = false
+			}
+
+			if r.ctMarkChanged {
+				val, err := r.ctMarkInput.GetUint64()
+				if err == nil {
+					newMark := uint32(val)
+					for i, re := range r.rule.Exprs {
+						switch e := re.(type) {
+						case *expr.Ct:
+							if e.Key == expr.CtKeyMARK {
+								if i+1 < len(r.rule.Exprs) {
+									if next, ok := r.rule.Exprs[i+1].(*expr.Cmp); ok {
+										next.Data = binary.LittleEndian.AppendUint32(nil, newMark)
+									}
+								}
+							}
+						}
+					}
+
+					r.originalCtMark = newMark
+					r.ctMarkChanged = false
+				}
 			}
 
 			if r.limitOverChanged {
@@ -563,6 +613,10 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				r.ctStatusesChanged = !nftexpr.CtStatesAreEqual(r.ctStatusInputs.Values(), ctStatusStrings)
 				r.ctStatusInputs.Changed = r.ctStatusesChanged
 			} else if r.focusIndex == 4 {
+				r.ctMarkInput, cmd = r.ctMarkInput.Update(msg)
+				cmds = append(cmds, cmd)
+				r.ctMarkChanged = r.ctMarkInput.GetValue() != int(r.originalCtMark)
+			} else if r.focusIndex == 5 {
 				r.limitOverInput, cmd = r.limitOverInput.Update(msg)
 				cmds = append(cmds, cmd)
 
@@ -575,28 +629,28 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				}
 				r.limitOverChanged = r.limitOverInput.Value() != overStr
 				r.limitOverInput.Changed = r.limitOverChanged
-			} else if r.focusIndex == 5 {
+			} else if r.focusIndex == 6 {
 				r.limitRateInput, cmd = r.limitRateInput.Update(msg)
 				cmds = append(cmds, cmd)
 				r.limitRateChanged = r.limitRateInput.Value() != fmt.Sprint(r.originalLimitRate)
-			} else if r.focusIndex == 6 {
+			} else if r.focusIndex == 7 {
 				r.limitUnitInput, cmd = r.limitUnitInput.Update(msg)
 				cmds = append(cmds, cmd)
 
 				unitStr := nftexpr.LimitUnitToString(r.originalLimitUnit)
 				r.limitUnitChanged = r.limitUnitInput.Value() != unitStr
 				r.limitUnitInput.Changed = r.limitUnitChanged
-			} else if r.focusIndex == 7 {
+			} else if r.focusIndex == 8 {
 				r.limitBurstInput, cmd = r.limitBurstInput.Update(msg)
 				cmds = append(cmds, cmd)
 				r.limitBurstChanged = r.limitBurstInput.Value() != fmt.Sprint(r.originalLimitBurst)
-			} else if r.focusIndex == 8 {
+			} else if r.focusIndex == 9 {
 				r.limitTypeInput, cmd = r.limitTypeInput.Update(msg)
 				cmds = append(cmds, cmd)
 
 				r.limitTypeChanged = r.limitTypeInput.Value() != nftexpr.LimitTypeToString(r.originalLimitType)
 				r.limitTypeInput.Changed = r.limitTypeChanged
-			} else if r.focusIndex == 9 {
+			} else if r.focusIndex == 10 {
 				r.commentInput, cmd = r.commentInput.Update(msg)
 				cmds = append(cmds, cmd)
 				r.commentChanged = r.commentInput.Value() != r.originalComment
@@ -619,23 +673,33 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 		r.ctStatusInputs, cmd = r.ctStatusInputs.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 4 {
-		r.limitOverInput, cmd = r.limitOverInput.Update(msg)
+		r.ctMarkInput, cmd = r.ctMarkInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 5 {
-		r.limitRateInput, cmd = r.limitRateInput.Update(msg)
+		r.limitOverInput, cmd = r.limitOverInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 6 {
-		r.limitUnitInput, cmd = r.limitUnitInput.Update(msg)
+		r.limitRateInput, cmd = r.limitRateInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 7 {
-		r.limitBurstInput, cmd = r.limitBurstInput.Update(msg)
+		r.limitUnitInput, cmd = r.limitUnitInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 8 {
-		r.limitTypeInput, cmd = r.limitTypeInput.Update(msg)
+		r.limitBurstInput, cmd = r.limitBurstInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 9 {
+		r.limitTypeInput, cmd = r.limitTypeInput.Update(msg)
+		cmds = append(cmds, cmd)
+	} else if r.focusIndex == 10 {
 		r.commentInput, cmd = r.commentInput.Update(msg)
 		cmds = append(cmds, cmd)
+	}
+
+	// ct mark változás figyelése
+	if r.ctMarkInput.GetValue() != int(r.originalCtMark) {
+		r.ctMarkChanged = true
+	} else {
+		r.ctMarkChanged = false
 	}
 
 	return r, tea.Batch(cmds...)
@@ -670,45 +734,50 @@ func (r ruleEdit) View() string {
 	content.WriteString(positionView)
 	content.WriteString("\n")
 
-	for _, condition := range ruleDefinition.Conditions {
-		// Ct
-		if condition.CT != nil {
-			if condition.CT.Key == nftexpr.CtKeyState {
-				content.WriteString(grayStyle.Render("CT States"))
-				content.WriteString("\n")
-				ctStatesView := r.ctStateInputs.View()
-				if r.ctStatesChanged {
-					ctStatesView = lipgloss.NewStyle().
-						Foreground(lipgloss.Color("220")).
-						Render(ctStatesView)
-				}
-				content.WriteString(ctStatesView)
-				content.WriteString("\n")
-			} else if condition.CT.Key == nftexpr.CtKeyDirection {
-				content.WriteString(grayStyle.Render("CT Direction"))
-				content.WriteString("\n")
-				ctDirectionView := r.ctDirectionInput.View()
-				if r.ctDirectionChanged {
-					ctDirectionView = lipgloss.NewStyle().
-						Foreground(lipgloss.Color("220")).
-						Render(ctDirectionView)
-				}
-				content.WriteString(ctDirectionView)
-				content.WriteString("\n")
-			} else if condition.CT.Key == nftexpr.CtKeyStatus {
-				content.WriteString(grayStyle.Render("CT Status"))
-				content.WriteString("\n")
-				ctStatusView := r.ctStatusInputs.View()
-				if r.ctStatusesChanged {
-					ctStatusView = lipgloss.NewStyle().
-						Foreground(lipgloss.Color("220")).
-						Render(ctStatusView)
-				}
-				content.WriteString(ctStatusView)
-				content.WriteString("\n")
-			}
-		}
+	// CT Mezők fix sorrendben
+	content.WriteString(grayStyle.Render("CT States"))
+	content.WriteString("\n")
+	ctStatesView := r.ctStateInputs.View()
+	if r.ctStatesChanged {
+		ctStatesView = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("220")).
+			Render(ctStatesView)
 	}
+	content.WriteString(ctStatesView)
+	content.WriteString("\n")
+
+	content.WriteString(grayStyle.Render("CT Direction"))
+	content.WriteString("\n")
+	ctDirectionView := r.ctDirectionInput.View()
+	if r.ctDirectionChanged {
+		ctDirectionView = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("220")).
+			Render(ctDirectionView)
+	}
+	content.WriteString(ctDirectionView)
+	content.WriteString("\n")
+
+	content.WriteString(grayStyle.Render("CT Status"))
+	content.WriteString("\n")
+	ctStatusView := r.ctStatusInputs.View()
+	if r.ctStatusesChanged {
+		ctStatusView = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("220")).
+			Render(ctStatusView)
+	}
+	content.WriteString(ctStatusView)
+	content.WriteString("\n")
+
+	content.WriteString(grayStyle.Render("CT Mark"))
+	content.WriteString("\n")
+	ctMarkView := r.ctMarkInput.View()
+	if r.ctMarkChanged {
+		ctMarkView = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("220")).
+			Render(ctMarkView)
+	}
+	content.WriteString(ctMarkView)
+	content.WriteString("\n")
 
 	for _, condition := range ruleDefinition.Conditions {
 		// Meta
