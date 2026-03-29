@@ -84,9 +84,9 @@ func (r ruleView) View() string {
 
 	// CT Mezők fix sorrendben
 	{
-		keys := []nftexpr.CtKey{nftexpr.CtKeyState, nftexpr.CtKeyDirection, nftexpr.CtKeyStatus, nftexpr.CtKeyMark}
+		keys := []nftexpr.CtKey{nftexpr.CtKeyState, nftexpr.CtKeyDirection, nftexpr.CtKeyStatus, nftexpr.CtKeyMark, nftexpr.CtKeyExpiration}
 		for _, key := range keys {
-			prefix := fmt.Sprintf("CT %s %s", key, "==")
+			prefix := fmt.Sprintf("CT %s", key)
 			found := false
 			for _, condition := range ruleDefinition.Conditions {
 				if condition.CT != nil && condition.CT.Key == key {
@@ -130,10 +130,60 @@ func (r ruleView) View() string {
 						}
 					case uint32:
 						if key == nftexpr.CtKeyMark {
-							content.WriteString(fmt.Sprintf("%s 0x%08x\n", prefix, v))
+							content.WriteString(fmt.Sprintf("%s %s 0x%08x\n", prefix, condition.Operation, v))
+						} else if key == nftexpr.CtKeyExpiration {
+							opStr := string(condition.Operation)
+							if opStr == "==" {
+								opStr = ""
+							} else {
+								opStr += " "
+							}
+							content.WriteString(fmt.Sprintf("%s %s%s\n", prefix, opStr, nftexpr.FormatDuration(v)))
 						} else {
-							content.WriteString(fmt.Sprintf("%s %d\n", prefix, v))
+							content.WriteString(fmt.Sprintf("%s %s %d\n", prefix, condition.Operation, v))
 						}
+					case *nft.RangeValue:
+						fromStr := fmt.Sprintf("%v", v.From)
+						toStr := fmt.Sprintf("%v", v.To)
+						if f, ok := v.From.(uint32); ok && key == nftexpr.CtKeyExpiration {
+							fromStr = nftexpr.FormatDuration(f)
+						}
+						if t, ok := v.To.(uint32); ok && key == nftexpr.CtKeyExpiration {
+							toStr = nftexpr.FormatDuration(t)
+						}
+						opStr := string(condition.Operation)
+						if opStr == "==" {
+							opStr = ""
+						} else {
+							opStr += " "
+						}
+						content.WriteString(fmt.Sprintf("%s %s%s-%s\n", prefix, opStr, fromStr, toStr))
+					case *nft.SetValue:
+						var s []string
+						for _, item := range v.Elements {
+							if val, ok := item.(uint32); ok && key == nftexpr.CtKeyExpiration {
+								s = append(s, nftexpr.FormatDuration(val))
+							} else {
+								s = append(s, fmt.Sprintf("%v", item))
+							}
+						}
+						opStr := string(condition.Operation)
+						if opStr == "==" {
+							opStr = ""
+						} else {
+							opStr += " "
+						}
+						content.WriteString(fmt.Sprintf("%s %s{%s}\n", prefix, opStr, strings.Join(s, ", ")))
+					case []any:
+						var s []string
+						for _, item := range v {
+							if val, ok := item.(uint32); ok && key == nftexpr.CtKeyExpiration {
+								s = append(s, nftexpr.FormatDuration(val))
+							} else {
+								s = append(s, fmt.Sprintf("%v", item))
+							}
+						}
+						content.WriteString(fmt.Sprintf("%s {%s}\n", prefix, strings.Join(s, ", ")))
 					default:
 						content.WriteString(fmt.Sprintf("%s %v\n", prefix, v))
 					}

@@ -541,6 +541,24 @@ func extractValueFromCt(ct nftexpr.Ct) interface{} {
 	if ct.Mark != 0 {
 		return ct.Mark
 	}
+	if ct.ExpirationRange != nil {
+		return &RangeValue{
+			From: ct.ExpirationRange.From,
+			To:   ct.ExpirationRange.To,
+		}
+	}
+	if len(ct.ExpirationSet) > 0 {
+		var elements []interface{}
+		for _, e := range ct.ExpirationSet {
+			elements = append(elements, e)
+		}
+		return &SetValue{
+			Elements: elements,
+		}
+	}
+	if ct.Expiration != 0 {
+		return ct.Expiration
+	}
 	if ct.Zone != 0 {
 		return ct.Zone
 	}
@@ -588,9 +606,14 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			ct, skip := nftexpr.ExprCtToCt(v, rule.Exprs, i, sets)
 			op := nftexpr.GetCtOp(rule.Exprs, i)
 
+			actualOp := cmpOpToCompareOp(op)
+			if ct.ExpirationOp != "" {
+				actualOp = CompareOp(ct.ExpirationOp)
+			}
+
 			rd.Conditions = append(rd.Conditions, Condition{
 				Type:      ConditionTypeCT,
-				Operation: cmpOpToCompareOp(op),
+				Operation: actualOp,
 				CT: &CTCondition{
 					Key:   nftexpr.CtKey(nftexpr.CtKeyToString(v.Key)),
 					Value: extractValueFromCt(ct),
@@ -896,6 +919,21 @@ func rangeToCondition(regVal *registerValue, rng *expr.Range) (Condition, error)
 				},
 			},
 		}, nil
+	case regTypeCT:
+		fromVal := nftexpr.DecodeCTValue(regVal.ctKey, rng.FromData)
+		toVal := nftexpr.DecodeCTValue(regVal.ctKey, rng.ToData)
+
+		return Condition{
+			Type:      ConditionTypeCT,
+			Operation: cmpOpToCompareOp(rng.Op),
+			CT: &CTCondition{
+				Key: nftexpr.CtKey(nftexpr.CtKeyToString(regVal.ctKey)),
+				Value: &RangeValue{
+					From: fromVal,
+					To:   toVal,
+				},
+			},
+		}, nil
 	default:
 		return Condition{}, fmt.Errorf("unsupported range type")
 	}
@@ -910,6 +948,8 @@ func lookupToCondition(regVal *registerValue, lookup *expr.Lookup) Condition {
 		field = metaKeyToString(regVal.metaKey)
 	case regTypePayload:
 		_, field = identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen)
+	case regTypeCT:
+		field = nftexpr.CtKeyToString(regVal.ctKey)
 	}
 
 	return Condition{

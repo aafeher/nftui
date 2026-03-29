@@ -217,6 +217,87 @@ func TestSerializeCt(t *testing.T) {
 			wantStr: "ct status {expected, seen-reply, assured, confirmed, snat, dnat, dying}",
 			wantIdx: 3,
 		},
+		{
+			name: "CT expiration 30s",
+			ct:   &expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte{0, 0, 0, 30}, // 30 seconds
+				},
+			},
+			pos:     0,
+			wantStr: "ct expiration 30s",
+			wantIdx: 2,
+		},
+		{
+			name: "CT expiration != 233s",
+			ct:   &expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpNeq,
+					Register: 1,
+					Data:     []byte{0, 0, 0, 233}, // 233 seconds
+				},
+			},
+			pos:     0,
+			wantStr: "ct expiration != 3m53s",
+			wantIdx: 2,
+		},
+		{
+			name: "CT expiration 33s-45s",
+			ct:   &expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+				&expr.Range{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					FromData: []byte{0, 0, 0, 33},
+					ToData:   []byte{0, 0, 0, 45},
+				},
+			},
+			pos:     0,
+			wantStr: "ct expiration 33s-45s",
+			wantIdx: 2,
+		},
+		{
+			name: "CT expiration != 33s-45s",
+			ct:   &expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+				&expr.Range{
+					Op:       expr.CmpOpNeq,
+					Register: 1,
+					FromData: []byte{0, 0, 0, 33},
+					ToData:   []byte{0, 0, 0, 45},
+				},
+			},
+			pos:     0,
+			wantStr: "ct expiration != 33s-45s",
+			wantIdx: 2,
+		},
+		{
+			name: "CT expiration set",
+			ct:   &expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+				&expr.Lookup{
+					SourceRegister: 1,
+					SetName:        "exp_set",
+				},
+			},
+			pos: 0,
+			sets: []*nftables.Set{
+				{
+					Name: "exp_set",
+				},
+			},
+			wantStr: "ct expiration @exp_set",
+			wantIdx: 2,
+		},
 	}
 
 	for _, tt := range tests {
@@ -348,12 +429,29 @@ func TestExprCtToCt(t *testing.T) {
 				&expr.Cmp{
 					Op:       expr.CmpOpEq,
 					Register: 1,
-					Data:     []byte{0x3c, 0x00, 0x00, 0x00}, // 60 seconds
+					Data:     []byte{0x00, 0x00, 0x00, 0x3c}, // 60 seconds (Big Endian)
 				},
 			},
 			pos: 0,
 			want: Ct{
 				Expiration: 60,
+			},
+			wantIdx: 2,
+		},
+		{
+			name: "Reproduce issue: expiration 30s as 30000ms (Big Endian)",
+			ct:   &expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte{0x00, 0x00, 0x75, 0x30}, // 30000 ms (Big Endian)
+				},
+			},
+			pos: 0,
+			want: Ct{
+				Expiration: 30,
 			},
 			wantIdx: 2,
 		},
@@ -448,6 +546,91 @@ func TestExprCtToCt(t *testing.T) {
 				Status: []CtStatus{CtStatusExpected, CtStatusSeenReply, CtStatusAssured, CtStatusConfirmed, CtStatusSnat, CtStatusDnat, CtStatusDying},
 			},
 			wantIdx: 3,
+		},
+		{
+			name: "Populate expiration range (Big Endian)",
+			ct:   &expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+				&expr.Range{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					FromData: []byte{0, 0, 0, 33}, // 33s Big Endian
+					ToData:   []byte{0, 0, 0, 45}, // 45s Big Endian
+				},
+			},
+			pos: 0,
+			want: Ct{
+				ExpirationRange: &CtRange{From: 33, To: 45},
+				ExpirationOp:    "==",
+			},
+			wantIdx: 2,
+		},
+		{
+			name: "Populate expiration range neq (Big Endian)",
+			ct:   &expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+				&expr.Range{
+					Op:       expr.CmpOpNeq,
+					Register: 1,
+					FromData: []byte{0, 0, 0, 33}, // 33s Big Endian
+					ToData:   []byte{0, 0, 0, 45}, // 45s Big Endian
+				},
+			},
+			pos: 0,
+			want: Ct{
+				ExpirationRange: &CtRange{From: 33, To: 45},
+				ExpirationOp:    "!=",
+			},
+			wantIdx: 2,
+		},
+		{
+			name: "Populate expiration from 16-byte data (Reproduce reported issue)",
+			ct:   &expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x1e}, // 30s at the end
+				},
+			},
+			pos: 0,
+			want: Ct{
+				Expiration: 30,
+			},
+			wantIdx: 2,
+		},
+		{
+			name: "CT expiration 30s as 48-bit (6 byte) register",
+			ct:   &expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte{0, 0, 0, 0, 0, 30},
+				},
+			},
+			pos:     0,
+			want:    Ct{Expiration: 30},
+			wantIdx: 2,
+		},
+		{
+			name: "CT expiration 30s as 4 byte Little Endian (should FAIL or be handled if nftables uses it)",
+			ct:   &expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte{30, 0, 0, 0},
+				},
+			},
+			pos:     0,
+			want:    Ct{Expiration: 30},
+			wantIdx: 2,
 		},
 	}
 

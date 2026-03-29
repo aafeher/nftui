@@ -11,24 +11,32 @@ import (
 )
 
 type Ct struct {
-	State      []CtState   `json:"state,omitempty"`
-	Direction  CtDirection `json:"direction,omitempty"`
-	Status     []CtStatus  `json:"status,omitempty"`
-	Mark       uint32      `json:"mark,omitempty"`
-	Expiration uint32      `json:"expiration,omitempty"`
-	Helper     string      `json:"helper,omitempty"`
-	L3Protocol uint8       `json:"l3protocol,omitempty"`
-	Protocol   uint8       `json:"protocol,omitempty"`
-	Src        string      `json:"src,omitempty"`
-	Dst        string      `json:"dst,omitempty"`
-	ProtoSrc   uint16      `json:"proto_src,omitempty"`
-	ProtoDst   uint16      `json:"proto_dst,omitempty"`
-	Labels     []string    `json:"labels,omitempty"`
-	Bytes      uint64      `json:"bytes,omitempty"`
-	Pkts       uint64      `json:"packets,omitempty"`
-	Avgpkt     uint32      `json:"avgpkt,omitempty"`
-	Zone       uint16      `json:"zone,omitempty"`
-	Eventmask  uint32      `json:"eventmask,omitempty"`
+	State           []CtState   `json:"state,omitzero"`
+	Direction       CtDirection `json:"direction,omitzero"`
+	Status          []CtStatus  `json:"status,omitzero"`
+	Mark            uint32      `json:"mark,omitzero"`
+	Expiration      uint32      `json:"expiration,omitzero"`
+	ExpirationOp    string      `json:"expiration_op,omitzero"`
+	ExpirationRange *CtRange    `json:"expiration_range,omitzero"`
+	ExpirationSet   []string    `json:"expiration_set,omitzero"`
+	Helper          string      `json:"helper,omitzero"`
+	L3Protocol      uint8       `json:"l3protocol,omitzero"`
+	Protocol        uint8       `json:"protocol,omitzero"`
+	Src             string      `json:"src,omitzero"`
+	Dst             string      `json:"dst,omitzero"`
+	ProtoSrc        uint16      `json:"proto_src,omitzero"`
+	ProtoDst        uint16      `json:"proto_dst,omitzero"`
+	Labels          []string    `json:"labels,omitzero"`
+	Bytes           uint64      `json:"bytes,omitzero"`
+	Pkts            uint64      `json:"packets,omitzero"`
+	Avgpkt          uint32      `json:"avgpkt,omitzero"`
+	Zone            uint16      `json:"zone,omitzero"`
+	Eventmask       uint32      `json:"eventmask,omitzero"`
+}
+
+type CtRange struct {
+	From uint32 `json:"from"`
+	To   uint32 `json:"to"`
 }
 
 type CtKey string
@@ -438,7 +446,21 @@ func SerializeCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (
 		// Ha következő Lookup
 		if lookup, ok := exprs[pos+1].(*expr.Lookup); ok {
 			//fmt.Printf("SerializeCT() lookup: %+v\n", lookup)
-			return SerializeLookup(lookup, ctStr, sets), 2
+			return SerializeLookupWithKey(lookup, ctStr, ct.Key, sets), 2
+		}
+		// Ha következő Range
+		if rng, ok := exprs[pos+1].(*expr.Range); ok {
+			from := formatCtValue(ct.Key, rng.FromData)
+			to := formatCtValue(ct.Key, rng.ToData)
+			if ct.Key == expr.CtKeyEXPIRATION && len(rng.FromData) >= 4 {
+				from = formatCtValue(ct.Key, rng.FromData)
+				to = formatCtValue(ct.Key, rng.ToData)
+			}
+			op := ""
+			if rng.Op == expr.CmpOpNeq {
+				op = "!= "
+			}
+			return fmt.Sprintf("%s %s%s-%s", ctStr, op, from, to), 2
 		}
 	}
 
@@ -456,6 +478,9 @@ func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (C
 			// Egyszerű összehasonlítás (pl. ct direction original)
 			value := DecodeCTValue(ct.Key, v.Data)
 			fillCtField(&ctObj, ct.Key, value)
+			if ct.Key == expr.CtKeyEXPIRATION {
+				ctObj.ExpirationOp = CmpOpToString(v.Op)
+			}
 			skip = 2
 
 		case *expr.Bitwise:
@@ -494,6 +519,9 @@ func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (C
 		case *expr.Lookup:
 			// Halmaz alapú keresés (pl. ct mark @trusted_marks)
 			// A lookup-ból kinyerjük a set elemeit és betöltjük a megfelelő mezőbe
+			if ct.Key == expr.CtKeyEXPIRATION && v.Invert {
+				ctObj.ExpirationOp = "!="
+			}
 			for _, set := range sets {
 				if set.Name == v.SetName || (v.SetName == "" && set.ID == v.SetID) {
 					// Megjegyzés: Itt a TUI környezetben nem biztos, hogy le tudjuk kérni az elemeket
@@ -508,7 +536,28 @@ func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (C
 					if err == nil {
 						for _, el := range elements {
 							val := DecodeCTValue(ct.Key, el.Key)
-							fillCtField(&ctObj, ct.Key, val)
+							if ct.Key == expr.CtKeyEXPIRATION {
+								if u, ok := val.(uint32); ok {
+									ctObj.ExpirationSet = append(ctObj.ExpirationSet, FormatDuration(u))
+								}
+							} else {
+								fillCtField(&ctObj, ct.Key, val)
+							}
+						}
+					}
+				}
+			}
+			skip = 2
+
+		case *expr.Range:
+			if ct.Key == expr.CtKeyEXPIRATION {
+				from := DecodeCTValue(ct.Key, v.FromData)
+				to := DecodeCTValue(ct.Key, v.ToData)
+				if f, ok := from.(uint32); ok {
+					if t, ok := to.(uint32); ok {
+						ctObj.ExpirationRange = &CtRange{From: f, To: t}
+						if v.Op == expr.CmpOpNeq {
+							ctObj.ExpirationOp = "!="
 						}
 					}
 				}
@@ -725,6 +774,50 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 		return statuses
 	}
 
+	if key == expr.CtKeyEXPIRATION {
+		if len(data) >= 4 {
+			// A ct expiration általában BigEndian a kernelben, de néha LittleEndian-nek tűnik a regiszterekben
+			// Megpróbáljuk mindkét irányból, ha az egyik túl nagy értéket ad
+			valBE := binary.BigEndian.Uint32(data[len(data)-4:])
+			valLE := binary.LittleEndian.Uint32(data[:4])
+
+			//fmt.Printf("DecodeCTValue: key=%v len=%d BE=%v LE=%v\n", key, len(data), valBE, valLE)
+
+			// Az nftables-ben az expiration általában ms-ben vagy s-ben van.
+			// Ha a BE érték irreálisan nagy (pl. > 100 év s-ben), akkor próbáljuk a LE-t.
+			// 100 év s-ben kb. 3,153,600,000. 2^32-1 kb. 4,294,967,295.
+			// 30 s LE-ben: [30, 0, 0, 0], BE-ként olvasva 30 << 24 = 503,316,480.
+			// 30 s BE-ben: [0, 0, 0, 30], BE-ként olvasva 30.
+			// 30 s-nak megfelelő ms (30000) BE-ben: [0, 0, 117, 48]
+			// 9409d10h8m az 812,964,480 s.
+			// 812,964,480 BE-ben: [48, 116, 212, 0]
+			// 812,964,480 LE-ben: [0, 212, 116, 48] -> BE-ként olvasva 13943856.
+
+			var val uint32
+			if valBE > 1000000 && valLE < 1000000 {
+				val = valLE
+			} else {
+				val = valBE
+			}
+
+			// Az nftables a kernelből gyakran ms-ben kapja az expiration értéket, de s-ben jeleníti meg.
+			// Ha az érték 30000, az valójában 30s.
+			// A 8h20m pontosan 30000 másodperc, ami arra utal, hogy 30000 ms-t kaptunk, de s-ként kezeltük.
+			// Ha az érték túl nagynak tűnik, de 1000-rel osztva értelmes, akkor ms-ben van.
+			// Ugyanakkor az nftables forráskódja szerint bizonyos kernel verziók óta ez változhat.
+			// A legegyszerűbb, ha a 1000-rel való osztást alkalmazzuk, ha az érték > 0 és osztható 1000-rel,
+			// vagy ha egy bizonyos küszöb felett van.
+			if val >= 1000 {
+				// Az nftables CLI-ben is van hasonló logika:
+				// div_round_up(timeout, 1000)
+				return val / 1000
+			}
+
+			return val
+		}
+		return uint32(0)
+	}
+
 	switch key {
 	case expr.CtKeyPROTOCOL, expr.CtKeyL3PROTOCOL:
 		if len(data) == 1 {
@@ -863,6 +956,11 @@ func formatCtValue(key expr.CtKey, data []byte) string {
 		return fmt.Sprintf("0x%x", data)
 	}
 
+	if key == expr.CtKeyEXPIRATION && len(data) >= 4 {
+		val := DecodeCTValue(key, data).(uint32)
+		return FormatDuration(val)
+	}
+
 	decoded := DecodeCTValue(key, data)
 	switch v := decoded.(type) {
 	case string:
@@ -872,4 +970,32 @@ func formatCtValue(key expr.CtKey, data []byte) string {
 	}
 
 	return formatData(data)
+}
+
+func FormatDuration(seconds uint32) string {
+	if seconds == 0 {
+		return "0s"
+	}
+
+	var parts []string
+	days := seconds / 86400
+	if days > 0 {
+		parts = append(parts, fmt.Sprintf("%dd", days))
+		seconds %= 86400
+	}
+	hours := seconds / 3600
+	if hours > 0 {
+		parts = append(parts, fmt.Sprintf("%dh", hours))
+		seconds %= 3600
+	}
+	minutes := seconds / 60
+	if minutes > 0 {
+		parts = append(parts, fmt.Sprintf("%dm", minutes))
+		seconds %= 60
+	}
+	if seconds > 0 || len(parts) == 0 {
+		parts = append(parts, fmt.Sprintf("%ds", seconds))
+	}
+
+	return strings.Join(parts, "")
 }

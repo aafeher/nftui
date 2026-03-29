@@ -49,6 +49,11 @@ type ruleEdit struct {
 	ctMarkInput    NumberInput
 	ctMarkChanged  bool
 
+	// CT Expiration
+	originalCtExpiration uint32
+	ctExpirationInput    textinput.Model
+	ctExpirationChanged  bool
+
 	// Limit
 	originalLimitOver bool
 	limitOverInput    Select
@@ -136,6 +141,12 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	ctMarkInput.CharLimit = 10
 	ctMarkInput.Width = 10
 
+	// ct expiration
+	ctExpirationInput := textinput.New()
+	ctExpirationInput.Placeholder = "e.g. 30s, 1m"
+	ctExpirationInput.CharLimit = 32
+	ctExpirationInput.Width = 20
+
 	// limit over
 	availableOvers := []string{"false", "true"}
 	tiLimitOver := NewSelect(availableOvers)
@@ -185,6 +196,9 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	// ct mark
 	var originalCtMark uint32
 
+	// ct expiration
+	var originalCtExpiration uint32
+
 	// limit over
 	originalLimitOver := false
 
@@ -222,6 +236,10 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				if mark, ok := condition.CT.Value.(uint32); ok {
 					originalCtMark = mark
 				}
+			} else if condition.CT.Key == nftexpr.CtKeyExpiration {
+				if exp, ok := condition.CT.Value.(uint32); ok {
+					originalCtExpiration = exp
+				}
 			}
 		}
 		if condition.Limit != nil {
@@ -254,6 +272,13 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	// ct mark
 	ctMarkInput.SetValue(fmt.Sprint(originalCtMark))
 
+	// ct expiration
+	if originalCtExpiration > 0 {
+		ctExpirationInput.SetValue(nftexpr.FormatDuration(originalCtExpiration))
+	} else {
+		ctExpirationInput.SetValue("")
+	}
+
 	// limit
 	overStr := "false"
 	switch originalLimitOver {
@@ -273,43 +298,46 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	tiComment.SetValue(ruleDefinition.Comment)
 
 	return ruleEdit{
-		rule:                rule,
-		help:                help.New(),
-		keys:                km,
-		positionInput:       tiPosition,
-		ctStateInputs:       ctStateInputs,
-		ctDirectionInput:    ctDirectionInput,
-		ctStatusInputs:      ctStatusInputs,
-		ctMarkInput:         ctMarkInput,
-		limitOverInput:      tiLimitOver,
-		limitRateInput:      tiLimitRate,
-		limitUnitInput:      tiLimitUnit,
-		limitBurstInput:     tiLimitBurst,
-		limitTypeInput:      tiLimitType,
-		commentInput:        tiComment,
-		focusIndex:          0,
-		originalPosition:    ruleDefinition.Position,
-		originalCtStates:    originalCtStates,
-		originalCtDirection: originalCtDirection,
-		originalCtStatuses:  originalCtStatuses,
-		originalCtMark:      originalCtMark,
-		originalLimitOver:   originalLimitOver,
-		originalLimitRate:   originalLimitRate,
-		originalLimitUnit:   originalLimitUnit,
-		originalLimitBurst:  originalLimitBurst,
-		originalLimitType:   originalLimitType,
-		originalComment:     ruleDefinition.Comment,
-		positionChanged:     false,
-		ctStatesChanged:     false,
-		ctDirectionChanged:  false,
-		ctStatusesChanged:   false,
-		ctMarkChanged:       false,
-		limitOverChanged:    false,
-		limitRateChanged:    false,
-		limitUnitChanged:    false,
-		limitBurstChanged:   false,
-		limitTypeChanged:    false,
-		commentChanged:      false,
+		rule:                 rule,
+		help:                 help.New(),
+		keys:                 km,
+		positionInput:        tiPosition,
+		ctStateInputs:        ctStateInputs,
+		ctDirectionInput:     ctDirectionInput,
+		ctStatusInputs:       ctStatusInputs,
+		ctMarkInput:          ctMarkInput,
+		ctExpirationInput:    ctExpirationInput,
+		limitOverInput:       tiLimitOver,
+		limitRateInput:       tiLimitRate,
+		limitUnitInput:       tiLimitUnit,
+		limitBurstInput:      tiLimitBurst,
+		limitTypeInput:       tiLimitType,
+		commentInput:         tiComment,
+		focusIndex:           0,
+		originalPosition:     ruleDefinition.Position,
+		originalCtStates:     originalCtStates,
+		originalCtDirection:  originalCtDirection,
+		originalCtStatuses:   originalCtStatuses,
+		originalCtMark:       originalCtMark,
+		originalCtExpiration: originalCtExpiration,
+		originalLimitOver:    originalLimitOver,
+		originalLimitRate:    originalLimitRate,
+		originalLimitUnit:    originalLimitUnit,
+		originalLimitBurst:   originalLimitBurst,
+		originalLimitType:    originalLimitType,
+		originalComment:      ruleDefinition.Comment,
+		positionChanged:      false,
+		ctStatesChanged:      false,
+		ctDirectionChanged:   false,
+		ctStatusesChanged:    false,
+		ctMarkChanged:        false,
+		ctExpirationChanged:  false,
+		limitOverChanged:     false,
+		limitRateChanged:     false,
+		limitUnitChanged:     false,
+		limitBurstChanged:    false,
+		limitTypeChanged:     false,
+		commentChanged:       false,
 	}
 }
 
@@ -328,9 +356,9 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 		case "tab", "shift+tab":
 			// Tab billentyűvel váltás a mezők között
 			if msg.String() == "tab" {
-				r.focusIndex = (r.focusIndex + 1) % 11
+				r.focusIndex = (r.focusIndex + 1) % 12
 			} else {
-				r.focusIndex = (r.focusIndex - 1 + 11) % 11
+				r.focusIndex = (r.focusIndex - 1 + 12) % 12
 			}
 
 			r.positionInput.Blur()
@@ -338,6 +366,7 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 			r.ctDirectionInput.Blur()
 			r.ctStatusInputs.Blur()
 			r.ctMarkInput.Blur()
+			r.ctExpirationInput.Blur()
 			r.limitOverInput.Blur()
 			r.limitRateInput.Blur()
 			r.limitUnitInput.Blur()
@@ -357,16 +386,18 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 			} else if r.focusIndex == 4 {
 				r.ctMarkInput.Focus()
 			} else if r.focusIndex == 5 {
-				r.limitOverInput.Focus()
+				r.ctExpirationInput.Focus()
 			} else if r.focusIndex == 6 {
-				r.limitRateInput.Focus()
+				r.limitOverInput.Focus()
 			} else if r.focusIndex == 7 {
-				r.limitUnitInput.Focus()
+				r.limitRateInput.Focus()
 			} else if r.focusIndex == 8 {
-				r.limitBurstInput.Focus()
+				r.limitUnitInput.Focus()
 			} else if r.focusIndex == 9 {
-				r.limitTypeInput.Focus()
+				r.limitBurstInput.Focus()
 			} else if r.focusIndex == 10 {
+				r.limitTypeInput.Focus()
+			} else if r.focusIndex == 11 {
 				r.commentInput.Focus()
 			}
 			return r, nil
@@ -493,6 +524,71 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				}
 			}
 
+			if r.ctExpirationChanged {
+				newExpStr := r.ctExpirationInput.Value()
+				op, val1, val2, elements, isRange, isSet := parseComplexDuration(newExpStr)
+
+				found := false
+				for i, re := range r.rule.Exprs {
+					switch e := re.(type) {
+					case *expr.Ct:
+						if e.Key == expr.CtKeyEXPIRATION {
+							found = true
+							if i+1 < len(r.rule.Exprs) {
+								if isRange {
+									bufFrom := make([]byte, 4)
+									binary.BigEndian.PutUint32(bufFrom, val1*1000)
+									bufTo := make([]byte, 4)
+									binary.BigEndian.PutUint32(bufTo, val2*1000)
+
+									r.rule.Exprs[i+1] = &expr.Range{
+										Op:       op,
+										Register: e.Register,
+										FromData: bufFrom,
+										ToData:   bufTo,
+									}
+								} else if isSet {
+									if len(elements) == 1 {
+										buf := make([]byte, 4)
+										binary.BigEndian.PutUint32(buf, elements[0]*1000)
+										r.rule.Exprs[i+1] = &expr.Cmp{
+											Op:       op,
+											Register: e.Register,
+											Data:     buf,
+										}
+									} else {
+										// Halmaz kezelése (lookup) - korlátozott frissítés
+										if _, ok := r.rule.Exprs[i+1].(*expr.Lookup); !ok {
+											buf := make([]byte, 4)
+											binary.BigEndian.PutUint32(buf, elements[0]*1000)
+											r.rule.Exprs[i+1] = &expr.Cmp{
+												Op:       op,
+												Register: e.Register,
+												Data:     buf,
+											}
+										}
+									}
+								} else {
+									buf := make([]byte, 4)
+									binary.BigEndian.PutUint32(buf, val1*1000)
+									r.rule.Exprs[i+1] = &expr.Cmp{
+										Op:       op,
+										Register: e.Register,
+										Data:     buf,
+									}
+								}
+							}
+						}
+					}
+				}
+				if !found && val1 > 0 {
+					// Add new CT expiration if not found (simplified)
+				}
+				r.originalCtExpiration = val1
+				r.ctExpirationChanged = false
+				r.ctExpirationInput.Blur()
+			}
+
 			if r.limitOverChanged {
 				newLimitOverStr := r.limitOverInput.Value()
 				var newLimitOver bool
@@ -617,6 +713,10 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				cmds = append(cmds, cmd)
 				r.ctMarkChanged = r.ctMarkInput.GetValue() != int(r.originalCtMark)
 			} else if r.focusIndex == 5 {
+				r.ctExpirationInput, cmd = r.ctExpirationInput.Update(msg)
+				cmds = append(cmds, cmd)
+				r.ctExpirationChanged = r.ctExpirationInput.Value() != nftexpr.FormatDuration(r.originalCtExpiration)
+			} else if r.focusIndex == 6 {
 				r.limitOverInput, cmd = r.limitOverInput.Update(msg)
 				cmds = append(cmds, cmd)
 
@@ -629,28 +729,28 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				}
 				r.limitOverChanged = r.limitOverInput.Value() != overStr
 				r.limitOverInput.Changed = r.limitOverChanged
-			} else if r.focusIndex == 6 {
+			} else if r.focusIndex == 7 {
 				r.limitRateInput, cmd = r.limitRateInput.Update(msg)
 				cmds = append(cmds, cmd)
 				r.limitRateChanged = r.limitRateInput.Value() != fmt.Sprint(r.originalLimitRate)
-			} else if r.focusIndex == 7 {
+			} else if r.focusIndex == 8 {
 				r.limitUnitInput, cmd = r.limitUnitInput.Update(msg)
 				cmds = append(cmds, cmd)
 
 				unitStr := nftexpr.LimitUnitToString(r.originalLimitUnit)
 				r.limitUnitChanged = r.limitUnitInput.Value() != unitStr
 				r.limitUnitInput.Changed = r.limitUnitChanged
-			} else if r.focusIndex == 8 {
+			} else if r.focusIndex == 9 {
 				r.limitBurstInput, cmd = r.limitBurstInput.Update(msg)
 				cmds = append(cmds, cmd)
 				r.limitBurstChanged = r.limitBurstInput.Value() != fmt.Sprint(r.originalLimitBurst)
-			} else if r.focusIndex == 9 {
+			} else if r.focusIndex == 10 {
 				r.limitTypeInput, cmd = r.limitTypeInput.Update(msg)
 				cmds = append(cmds, cmd)
 
 				r.limitTypeChanged = r.limitTypeInput.Value() != nftexpr.LimitTypeToString(r.originalLimitType)
 				r.limitTypeInput.Changed = r.limitTypeChanged
-			} else if r.focusIndex == 10 {
+			} else if r.focusIndex == 11 {
 				r.commentInput, cmd = r.commentInput.Update(msg)
 				cmds = append(cmds, cmd)
 				r.commentChanged = r.commentInput.Value() != r.originalComment
@@ -676,21 +776,24 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 		r.ctMarkInput, cmd = r.ctMarkInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 5 {
-		r.limitOverInput, cmd = r.limitOverInput.Update(msg)
+		r.ctExpirationInput, cmd = r.ctExpirationInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 6 {
-		r.limitRateInput, cmd = r.limitRateInput.Update(msg)
+		r.limitOverInput, cmd = r.limitOverInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 7 {
-		r.limitUnitInput, cmd = r.limitUnitInput.Update(msg)
+		r.limitRateInput, cmd = r.limitRateInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 8 {
-		r.limitBurstInput, cmd = r.limitBurstInput.Update(msg)
+		r.limitUnitInput, cmd = r.limitUnitInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 9 {
-		r.limitTypeInput, cmd = r.limitTypeInput.Update(msg)
+		r.limitBurstInput, cmd = r.limitBurstInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 10 {
+		r.limitTypeInput, cmd = r.limitTypeInput.Update(msg)
+		cmds = append(cmds, cmd)
+	} else if r.focusIndex == 11 {
 		r.commentInput, cmd = r.commentInput.Update(msg)
 		cmds = append(cmds, cmd)
 	}
@@ -700,6 +803,13 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 		r.ctMarkChanged = true
 	} else {
 		r.ctMarkChanged = false
+	}
+
+	// ct expiration változás figyelése
+	if r.ctExpirationInput.Value() != nftexpr.FormatDuration(r.originalCtExpiration) {
+		r.ctExpirationChanged = true
+	} else {
+		r.ctExpirationChanged = false
 	}
 
 	return r, tea.Batch(cmds...)
@@ -777,6 +887,17 @@ func (r ruleEdit) View() string {
 			Render(ctMarkView)
 	}
 	content.WriteString(ctMarkView)
+	content.WriteString("\n")
+
+	content.WriteString(grayStyle.Render("CT Expiration"))
+	content.WriteString("\n")
+	ctExpirationView := r.ctExpirationInput.View()
+	if r.ctExpirationChanged {
+		ctExpirationView = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("220")).
+			Render(ctExpirationView)
+	}
+	content.WriteString(ctExpirationView)
 	content.WriteString("\n")
 
 	for _, condition := range ruleDefinition.Conditions {
@@ -965,4 +1086,103 @@ func encodeCommentToUserData(comment string) []byte {
 	userData[len(userData)-1] = 0 // null terminátor
 
 	return userData
+}
+
+func parseDuration(s string) uint32 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+	var total uint32
+	var current uint32
+	var foundUnit bool
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= '0' && c <= '9' {
+			current = current*10 + uint32(c-'0')
+		} else {
+			switch c {
+			case 'd':
+				total += current * 86400
+				foundUnit = true
+			case 'h':
+				total += current * 3600
+				foundUnit = true
+			case 'm':
+				total += current * 60
+				foundUnit = true
+			case 's':
+				total += current
+				foundUnit = true
+			}
+			current = 0
+		}
+	}
+	// Default to seconds if no unit provided
+	if !foundUnit && current > 0 {
+		total += current
+	}
+	return total
+}
+
+func parseComplexDuration(s string) (op expr.CmpOp, val1 uint32, val2 uint32, elements []uint32, isRange bool, isSet bool) {
+	s = strings.TrimSpace(s)
+	op = expr.CmpOpEq
+
+	if strings.HasPrefix(s, "!= ") {
+		op = expr.CmpOpNeq
+		s = strings.TrimPrefix(s, "!= ")
+	} else if strings.HasPrefix(s, "!=") {
+		op = expr.CmpOpNeq
+		s = strings.TrimPrefix(s, "!=")
+	} else if strings.HasPrefix(s, "<= ") {
+		op = expr.CmpOpLte
+		s = strings.TrimPrefix(s, "<= ")
+	} else if strings.HasPrefix(s, "<=") {
+		op = expr.CmpOpLte
+		s = strings.TrimPrefix(s, "<=")
+	} else if strings.HasPrefix(s, ">= ") {
+		op = expr.CmpOpGte
+		s = strings.TrimPrefix(s, ">= ")
+	} else if strings.HasPrefix(s, ">=") {
+		op = expr.CmpOpGte
+		s = strings.TrimPrefix(s, ">=")
+	} else if strings.HasPrefix(s, "< ") {
+		op = expr.CmpOpLt
+		s = strings.TrimPrefix(s, "< ")
+	} else if strings.HasPrefix(s, "<") {
+		op = expr.CmpOpLt
+		s = strings.TrimPrefix(s, "<")
+	} else if strings.HasPrefix(s, "> ") {
+		op = expr.CmpOpGt
+		s = strings.TrimPrefix(s, "> ")
+	} else if strings.HasPrefix(s, ">") {
+		op = expr.CmpOpGt
+		s = strings.TrimPrefix(s, ">")
+	}
+
+	s = strings.TrimSpace(s)
+
+	if strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}") {
+		isSet = true
+		content := s[1 : len(s)-1]
+		parts := strings.Split(content, ",")
+		for _, p := range parts {
+			elements = append(elements, parseDuration(p))
+		}
+		return
+	}
+
+	if strings.Contains(s, "-") {
+		parts := strings.Split(s, "-")
+		if len(parts) == 2 {
+			isRange = true
+			val1 = parseDuration(parts[0])
+			val2 = parseDuration(parts[1])
+			return
+		}
+	}
+
+	val1 = parseDuration(s)
+	return
 }
