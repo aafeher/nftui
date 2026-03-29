@@ -670,6 +670,10 @@ func fillCtField(ct *Ct, key expr.CtKey, value interface{}) {
 		if v, ok := value.(uint32); ok {
 			ct.Avgpkt = v
 		}
+	case expr.CtKeyHELPER:
+		if v, ok := value.(string); ok {
+			ct.Helper = v
+		}
 	case expr.CtKeyZONE:
 		if v, ok := value.(uint16); ok {
 			ct.Zone = v
@@ -847,6 +851,8 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 		if len(data) >= 4 {
 			return uint64(binary.LittleEndian.Uint32(data[:4]))
 		}
+	case expr.CtKeyHELPER:
+		return strings.TrimRight(string(data), "\x00")
 	case expr.CtKeyZONE:
 		if len(data) == 2 {
 			return binary.LittleEndian.Uint16(data)

@@ -571,6 +571,9 @@ func extractValueFromCt(ct nftexpr.Ct) interface{} {
 	if ct.Dst != "" {
 		return ct.Dst
 	}
+	if ct.Helper != "" {
+		return ct.Helper
+	}
 
 	return nil
 }

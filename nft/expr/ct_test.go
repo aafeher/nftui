@@ -99,6 +99,21 @@ func TestSerializeCt(t *testing.T) {
 			wantIdx: 2,
 		},
 		{
+			name: "CT helper",
+			ct:   &expr.Ct{Key: unix.NFT_CT_HELPER, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_HELPER, Register: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte("ftp\x00"),
+				},
+			},
+			pos:     0,
+			wantStr: "ct helper ftp",
+			wantIdx: 2,
+		},
+		{
 			name: "CT state multiple states (Bitwise)",
 			ct:   &expr.Ct{Key: unix.NFT_CT_STATE, Register: 1},
 			exprs: []expr.Any{

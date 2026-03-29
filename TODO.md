@@ -171,7 +171,7 @@
 - [x] `status`: Status of the connection
 - [x] `mark`: Mark of the connection
 - [x] `expiration`: Connection expiration time
-- [ ] `helper`: Helper associated with the connection
+- [x] `helper`: Helper associated with the connection
 - [ ] `bytes`
 - [ ] `packets`
 - [ ] `ip saddr`

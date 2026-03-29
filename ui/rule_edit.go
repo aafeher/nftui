@@ -54,6 +54,11 @@ type ruleEdit struct {
 	ctExpirationInput    textinput.Model
 	ctExpirationChanged  bool
 
+	// CT Helper
+	originalCtHelper string
+	ctHelperInput    textinput.Model
+	ctHelperChanged  bool
+
 	// Limit
 	originalLimitOver bool
 	limitOverInput    Select
@@ -147,6 +152,12 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	ctExpirationInput.CharLimit = 32
 	ctExpirationInput.Width = 20
 
+	// ct helper
+	ctHelperInput := textinput.New()
+	ctHelperInput.Placeholder = "e.g. ftp"
+	ctHelperInput.CharLimit = 32
+	ctHelperInput.Width = 20
+
 	// limit over
 	availableOvers := []string{"false", "true"}
 	tiLimitOver := NewSelect(availableOvers)
@@ -199,6 +210,9 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	// ct expiration
 	var originalCtExpiration uint32
 
+	// ct helper
+	var originalCtHelper string
+
 	// limit over
 	originalLimitOver := false
 
@@ -240,6 +254,10 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				if exp, ok := condition.CT.Value.(uint32); ok {
 					originalCtExpiration = exp
 				}
+			} else if condition.CT.Key == nftexpr.CtKeyHelper {
+				if helper, ok := condition.CT.Value.(string); ok {
+					originalCtHelper = helper
+				}
 			}
 		}
 		if condition.Limit != nil {
@@ -279,6 +297,9 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		ctExpirationInput.SetValue("")
 	}
 
+	// ct helper
+	ctHelperInput.SetValue(originalCtHelper)
+
 	// limit
 	overStr := "false"
 	switch originalLimitOver {
@@ -307,6 +328,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		ctStatusInputs:       ctStatusInputs,
 		ctMarkInput:          ctMarkInput,
 		ctExpirationInput:    ctExpirationInput,
+		ctHelperInput:        ctHelperInput,
 		limitOverInput:       tiLimitOver,
 		limitRateInput:       tiLimitRate,
 		limitUnitInput:       tiLimitUnit,
@@ -320,6 +342,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		originalCtStatuses:   originalCtStatuses,
 		originalCtMark:       originalCtMark,
 		originalCtExpiration: originalCtExpiration,
+		originalCtHelper:     originalCtHelper,
 		originalLimitOver:    originalLimitOver,
 		originalLimitRate:    originalLimitRate,
 		originalLimitUnit:    originalLimitUnit,
@@ -332,6 +355,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		ctStatusesChanged:    false,
 		ctMarkChanged:        false,
 		ctExpirationChanged:  false,
+		ctHelperChanged:      false,
 		limitOverChanged:     false,
 		limitRateChanged:     false,
 		limitUnitChanged:     false,
@@ -356,9 +380,9 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 		case "tab", "shift+tab":
 			// Tab billentyűvel váltás a mezők között
 			if msg.String() == "tab" {
-				r.focusIndex = (r.focusIndex + 1) % 12
+				r.focusIndex = (r.focusIndex + 1) % 13
 			} else {
-				r.focusIndex = (r.focusIndex - 1 + 12) % 12
+				r.focusIndex = (r.focusIndex - 1 + 13) % 13
 			}
 
 			r.positionInput.Blur()
@@ -367,6 +391,7 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 			r.ctStatusInputs.Blur()
 			r.ctMarkInput.Blur()
 			r.ctExpirationInput.Blur()
+			r.ctHelperInput.Blur()
 			r.limitOverInput.Blur()
 			r.limitRateInput.Blur()
 			r.limitUnitInput.Blur()
@@ -388,16 +413,18 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 			} else if r.focusIndex == 5 {
 				r.ctExpirationInput.Focus()
 			} else if r.focusIndex == 6 {
-				r.limitOverInput.Focus()
+				r.ctHelperInput.Focus()
 			} else if r.focusIndex == 7 {
-				r.limitRateInput.Focus()
+				r.limitOverInput.Focus()
 			} else if r.focusIndex == 8 {
-				r.limitUnitInput.Focus()
+				r.limitRateInput.Focus()
 			} else if r.focusIndex == 9 {
-				r.limitBurstInput.Focus()
+				r.limitUnitInput.Focus()
 			} else if r.focusIndex == 10 {
-				r.limitTypeInput.Focus()
+				r.limitBurstInput.Focus()
 			} else if r.focusIndex == 11 {
+				r.limitTypeInput.Focus()
+			} else if r.focusIndex == 12 {
 				r.commentInput.Focus()
 			}
 			return r, nil
@@ -584,9 +611,52 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				if !found && val1 > 0 {
 					// Add new CT expiration if not found (simplified)
 				}
-				r.originalCtExpiration = val1
 				r.ctExpirationChanged = false
 				r.ctExpirationInput.Blur()
+			}
+
+			if r.ctHelperChanged {
+				newHelper := r.ctHelperInput.Value()
+
+				found := false
+				for i, re := range r.rule.Exprs {
+					switch e := re.(type) {
+					case *expr.Ct:
+						if e.Key == expr.CtKeyHELPER {
+							found = true
+							if i+1 < len(r.rule.Exprs) {
+								if cmp, ok := r.rule.Exprs[i+1].(*expr.Cmp); ok {
+									cmp.Data = []byte(newHelper + "\x00")
+								}
+							}
+						}
+					}
+				}
+				if !found && newHelper != "" {
+					// Add new CT helper if not found
+					// Find a good place to insert - usually at the beginning or after other CT expressions
+					insertIdx := 0
+					for i, re := range r.rule.Exprs {
+						if _, ok := re.(*expr.Ct); ok {
+							insertIdx = i + 2
+						}
+					}
+					newExprs := make([]expr.Any, 0, len(r.rule.Exprs)+2)
+					newExprs = append(newExprs, r.rule.Exprs[:insertIdx]...)
+					newExprs = append(newExprs, &expr.Ct{
+						Key:      expr.CtKeyHELPER,
+						Register: 1,
+					}, &expr.Cmp{
+						Op:       expr.CmpOpEq,
+						Register: 1,
+						Data:     []byte(newHelper + "\x00"),
+					})
+					newExprs = append(newExprs, r.rule.Exprs[insertIdx:]...)
+					r.rule.Exprs = newExprs
+				}
+				r.originalCtHelper = newHelper
+				r.ctHelperChanged = false
+				r.ctHelperInput.Blur()
 			}
 
 			if r.limitOverChanged {
@@ -717,6 +787,10 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				cmds = append(cmds, cmd)
 				r.ctExpirationChanged = r.ctExpirationInput.Value() != nftexpr.FormatDuration(r.originalCtExpiration)
 			} else if r.focusIndex == 6 {
+				r.ctHelperInput, cmd = r.ctHelperInput.Update(msg)
+				cmds = append(cmds, cmd)
+				r.ctHelperChanged = r.ctHelperInput.Value() != r.originalCtHelper
+			} else if r.focusIndex == 7 {
 				r.limitOverInput, cmd = r.limitOverInput.Update(msg)
 				cmds = append(cmds, cmd)
 
@@ -729,28 +803,28 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 				}
 				r.limitOverChanged = r.limitOverInput.Value() != overStr
 				r.limitOverInput.Changed = r.limitOverChanged
-			} else if r.focusIndex == 7 {
+			} else if r.focusIndex == 8 {
 				r.limitRateInput, cmd = r.limitRateInput.Update(msg)
 				cmds = append(cmds, cmd)
 				r.limitRateChanged = r.limitRateInput.Value() != fmt.Sprint(r.originalLimitRate)
-			} else if r.focusIndex == 8 {
+			} else if r.focusIndex == 9 {
 				r.limitUnitInput, cmd = r.limitUnitInput.Update(msg)
 				cmds = append(cmds, cmd)
 
 				unitStr := nftexpr.LimitUnitToString(r.originalLimitUnit)
 				r.limitUnitChanged = r.limitUnitInput.Value() != unitStr
 				r.limitUnitInput.Changed = r.limitUnitChanged
-			} else if r.focusIndex == 9 {
+			} else if r.focusIndex == 10 {
 				r.limitBurstInput, cmd = r.limitBurstInput.Update(msg)
 				cmds = append(cmds, cmd)
 				r.limitBurstChanged = r.limitBurstInput.Value() != fmt.Sprint(r.originalLimitBurst)
-			} else if r.focusIndex == 10 {
+			} else if r.focusIndex == 11 {
 				r.limitTypeInput, cmd = r.limitTypeInput.Update(msg)
 				cmds = append(cmds, cmd)
 
 				r.limitTypeChanged = r.limitTypeInput.Value() != nftexpr.LimitTypeToString(r.originalLimitType)
 				r.limitTypeInput.Changed = r.limitTypeChanged
-			} else if r.focusIndex == 11 {
+			} else if r.focusIndex == 12 {
 				r.commentInput, cmd = r.commentInput.Update(msg)
 				cmds = append(cmds, cmd)
 				r.commentChanged = r.commentInput.Value() != r.originalComment
@@ -779,21 +853,24 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 		r.ctExpirationInput, cmd = r.ctExpirationInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 6 {
-		r.limitOverInput, cmd = r.limitOverInput.Update(msg)
+		r.ctHelperInput, cmd = r.ctHelperInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 7 {
-		r.limitRateInput, cmd = r.limitRateInput.Update(msg)
+		r.limitOverInput, cmd = r.limitOverInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 8 {
-		r.limitUnitInput, cmd = r.limitUnitInput.Update(msg)
+		r.limitRateInput, cmd = r.limitRateInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 9 {
-		r.limitBurstInput, cmd = r.limitBurstInput.Update(msg)
+		r.limitUnitInput, cmd = r.limitUnitInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 10 {
-		r.limitTypeInput, cmd = r.limitTypeInput.Update(msg)
+		r.limitBurstInput, cmd = r.limitBurstInput.Update(msg)
 		cmds = append(cmds, cmd)
 	} else if r.focusIndex == 11 {
+		r.limitTypeInput, cmd = r.limitTypeInput.Update(msg)
+		cmds = append(cmds, cmd)
+	} else if r.focusIndex == 12 {
 		r.commentInput, cmd = r.commentInput.Update(msg)
 		cmds = append(cmds, cmd)
 	}
@@ -810,6 +887,13 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 		r.ctExpirationChanged = true
 	} else {
 		r.ctExpirationChanged = false
+	}
+
+	// ct helper változás figyelése
+	if r.ctHelperInput.Value() != r.originalCtHelper {
+		r.ctHelperChanged = true
+	} else {
+		r.ctHelperChanged = false
 	}
 
 	return r, tea.Batch(cmds...)
@@ -898,6 +982,17 @@ func (r ruleEdit) View() string {
 			Render(ctExpirationView)
 	}
 	content.WriteString(ctExpirationView)
+	content.WriteString("\n")
+
+	content.WriteString(grayStyle.Render("CT Helper"))
+	content.WriteString("\n")
+	ctHelperView := r.ctHelperInput.View()
+	if r.ctHelperChanged {
+		ctHelperView = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("220")).
+			Render(ctHelperView)
+	}
+	content.WriteString(ctHelperView)
 	content.WriteString("\n")
 
 	for _, condition := range ruleDefinition.Conditions {

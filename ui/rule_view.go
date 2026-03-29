@@ -84,7 +84,7 @@ func (r ruleView) View() string {
 
 	// CT Mezők fix sorrendben
 	{
-		keys := []nftexpr.CtKey{nftexpr.CtKeyState, nftexpr.CtKeyDirection, nftexpr.CtKeyStatus, nftexpr.CtKeyMark, nftexpr.CtKeyExpiration}
+		keys := []nftexpr.CtKey{nftexpr.CtKeyState, nftexpr.CtKeyDirection, nftexpr.CtKeyStatus, nftexpr.CtKeyMark, nftexpr.CtKeyExpiration, nftexpr.CtKeyHelper}
 		for _, key := range keys {
 			prefix := fmt.Sprintf("CT %s", key)
 			found := false
