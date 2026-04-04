@@ -6,7 +6,7 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/google/nftables v0.3.0
+	github.com/google/nftables v0.3.1-0.20251119083706-1db35da82052
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sys v0.42.0
 )

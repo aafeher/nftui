@@ -189,6 +189,51 @@ func TestSerializeCt(t *testing.T) {
 			wantIdx: 2,
 		},
 		{
+			name: "CT packets",
+			ct:   &expr.Ct{Key: unix.NFT_CT_PKTS, Register: 1, Direction: 255},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_PKTS, Register: 1, Direction: 255},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte{0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // 10 Little Endian
+				},
+			},
+			pos:     0,
+			wantStr: "ct pkts 10",
+			wantIdx: 2,
+		},
+		{
+			name: "CT original packets > 100",
+			ct:   &expr.Ct{Key: unix.NFT_CT_PKTS, Register: 1, Direction: 0},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_PKTS, Register: 1, Direction: 0},
+				&expr.Cmp{
+					Op:       expr.CmpOpGt,
+					Register: 1,
+					Data:     []byte{0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // 100 Little Endian
+				},
+			},
+			pos:     0,
+			wantStr: "ct original pkts > 100",
+			wantIdx: 2,
+		},
+		{
+			name: "CT reply packets != 50",
+			ct:   &expr.Ct{Key: unix.NFT_CT_PKTS, Register: 1, Direction: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_PKTS, Register: 1, Direction: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpNeq,
+					Register: 1,
+					Data:     []byte{0x32, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // 50 Little Endian
+				},
+			},
+			pos:     0,
+			wantStr: "ct reply pkts != 50",
+			wantIdx: 2,
+		},
+		{
 			name: "CT helper",
 			ct:   &expr.Ct{Key: unix.NFT_CT_HELPER, Register: 1},
 			exprs: []expr.Any{
@@ -610,6 +655,60 @@ func TestExprCtToCt(t *testing.T) {
 			pos: 0,
 			want: Ct{
 				Bytes:     1024,
+				Direction: CtDirectionReply,
+			},
+			wantIdx: 2,
+		},
+		{
+			name: "Populate packets",
+			ct:   &expr.Ct{Key: unix.NFT_CT_PKTS, Register: 1, Direction: 255},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_PKTS, Register: 1, Direction: 255},
+				&expr.Cmp{
+					Op:       expr.CmpOpEq,
+					Register: 1,
+					Data:     []byte{0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // 10 Little Endian
+				},
+			},
+			pos: 0,
+			want: Ct{
+				Pkts:      10,
+				Direction: CtDirectionNone,
+			},
+			wantIdx: 2,
+		},
+		{
+			name: "Populate original packets",
+			ct:   &expr.Ct{Key: unix.NFT_CT_PKTS, Register: 1, Direction: 0},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_PKTS, Register: 1, Direction: 0},
+				&expr.Cmp{
+					Op:       expr.CmpOpGt,
+					Register: 1,
+					Data:     []byte{0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // 100 Little Endian
+				},
+			},
+			pos: 0,
+			want: Ct{
+				Pkts:      100,
+				Direction: CtDirectionOriginal,
+			},
+			wantIdx: 2,
+		},
+		{
+			name: "Populate reply packets",
+			ct:   &expr.Ct{Key: unix.NFT_CT_PKTS, Register: 1, Direction: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_PKTS, Register: 1, Direction: 1},
+				&expr.Cmp{
+					Op:       expr.CmpOpNeq,
+					Register: 1,
+					Data:     []byte{0x32, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // 50 Little Endian
+				},
+			},
+			pos: 0,
+			want: Ct{
+				Pkts:      50,
 				Direction: CtDirectionReply,
 			},
 			wantIdx: 2,

@@ -861,7 +861,20 @@ func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Cond
 // ctCompareToCondition converts a registerValue and compareContext into a CTCondition-based Condition or returns an error.
 func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition, error) {
 	ctKey := nftexpr.CtKeyToString(regVal.ctKey)
-	value := nftexpr.DecodeCTValue(regVal.ctKey, cmp.data)
+
+	// For STATUS, the kernel encodes "ct status X" as Ct + Bitwise{mask=X} + Cmp{Neq, zeros}.
+	// The actual status bits are in the Bitwise mask, not in cmp.data (which is all zeros).
+	// Cmp{Neq, zeros} semantically means "bit is set", which normalizes to CompareOpEq.
+	data := cmp.data
+	op := cmp.op
+	if regVal.hasBitwise && regVal.ctKey == expr.CtKeySTATUS {
+		data = regVal.bitwiseMask
+		if op == expr.CmpOpNeq {
+			op = expr.CmpOpEq
+		}
+	}
+
+	value := nftexpr.DecodeCTValue(regVal.ctKey, data)
 
 	direction := nftexpr.CtDirectionNone
 	if regVal.ctKey == expr.CtKeyBYTES || regVal.ctKey == expr.CtKeyPKTS || regVal.ctKey == expr.CtKeyAVGPKT {
@@ -872,24 +885,9 @@ func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition
 		}
 	}
 
-	// Ha a kulcs STATUS, akkor a DecodeCTValue visszaadhat egy []CtStatus-t
-	if regVal.ctKey == expr.CtKeySTATUS {
-		if statuses, ok := value.([]nftexpr.CtStatus); ok {
-			return Condition{
-				Type:      ConditionTypeCT,
-				Operation: cmpOpToCompareOp(cmp.op),
-				CT: &CTCondition{
-					Key:       nftexpr.CtKey(ctKey),
-					Value:     statuses,
-					Direction: direction,
-				},
-			}, nil
-		}
-	}
-
 	return Condition{
 		Type:      ConditionTypeCT,
-		Operation: cmpOpToCompareOp(cmp.op),
+		Operation: cmpOpToCompareOp(op),
 		CT: &CTCondition{
 			Key:       nftexpr.CtKey(ctKey),
 			Value:     value,

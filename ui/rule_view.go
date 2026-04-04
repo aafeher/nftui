@@ -92,6 +92,7 @@ func (r ruleView) View() string {
 			nftexpr.CtKeyExpiration,
 			nftexpr.CtKeyHelper,
 			nftexpr.CtKeyBytes,
+			nftexpr.CtKeyPkts,
 		}
 		for _, key := range keys {
 			prefix := fmt.Sprintf("CT %s", key)

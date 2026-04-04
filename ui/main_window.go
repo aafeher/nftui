@@ -207,7 +207,11 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.showQuitConfirm {
 			switch msg.String() {
 			case "y", "Y":
-				_ = nft.FlushRules()
+				if err := nft.FlushRules(); err != nil {
+					m.showQuitConfirm = false
+					m.err = err
+					return m, nil
+				}
 				return m, tea.Quit
 			case "n", "N", "esc":
 				m.showQuitConfirm = false

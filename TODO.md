@@ -173,7 +173,7 @@
 - [x] `expiration`: Connection expiration time
 - [x] `helper`: Helper associated with the connection
 - [x] `bytes`
-- [ ] `packets`
+- [x] `packets`
 - [ ] `ip saddr`
 - [ ] `ip daddr`
 - [ ] `l3proto`

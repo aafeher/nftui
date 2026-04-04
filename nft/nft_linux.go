@@ -104,26 +104,18 @@ func ListRulesOfChain(table *nftables.Table, chain *nftables.Chain) ([]*nftables
 }
 
 func getAllRules() ([]*nftables.Rule, error) {
-	conn := &nftables.Conn{}
-
-	tables, err := conn.ListTables()
-	if err != nil {
-		return nil, err
-	}
-	chains, err := conn.ListChains()
+	tables, err := ListTables()
 	if err != nil {
 		return nil, err
 	}
 
 	allRules := make([]*nftables.Rule, 0)
 	for _, table := range tables {
-		for _, chain := range chains {
-			rules, err := conn.GetRules(table, chain)
-			if err != nil {
-				continue
-			}
-			allRules = append(allRules, rules...)
+		rules, err := ListRulesOfTable(table)
+		if err != nil {
+			continue
 		}
+		allRules = append(allRules, rules...)
 	}
 
 	return allRules, nil
