@@ -90,6 +90,35 @@ func TestNumberInput_Update(t *testing.T) {
 	}
 }
 
+func TestNumberInput_GetUint64(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		wantVal uint64
+		wantErr bool
+	}{
+		{"zero", "0", 0, false},
+		{"positive", "12345", 12345, false},
+		{"large", "9999999999", 9999999999, false},
+		{"empty returns zero", "", 0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ni := NewNumberInput(0, 0)
+			ni.SetValue(tt.value)
+
+			got, err := ni.GetUint64()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetUint64() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if got != tt.wantVal {
+				t.Errorf("GetUint64() = %d, want %d", got, tt.wantVal)
+			}
+		})
+	}
+}
+
 func TestNumberInput_GetValue(t *testing.T) {
 	tests := []struct {
 		name          string

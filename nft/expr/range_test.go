@@ -34,50 +34,62 @@ func TestFormatRange(t *testing.T) {
 		})
 	}
 
-	tests = append(tests, []struct {
+}
+
+func TestSerializeRange(t *testing.T) {
+	tests := []struct {
 		name string
 		r    *expr.Range
 		want string
 	}{
 		{
-			name: "Invalid CmpOp",
+			name: "eq range ports",
 			r: &expr.Range{
-				Op:       99, // Assuming 99 is not a valid CmpOp
-				Register: 2,
-				FromData: []byte{0x01},
-				ToData:   []byte{0x05, 0x06},
+				Op:       expr.CmpOpEq,
+				Register: 1,
+				FromData: []byte{0, 80},
+				ToData:   []byte{0, 90},
 			},
-			want: "range op unknown register 2 fromdata [1] todata [5 6]",
+			want: "80-90",
 		},
 		{
-			name: "Nil FromData and ToData",
+			name: "neq range",
 			r: &expr.Range{
 				Op:       expr.CmpOpNeq,
 				Register: 1,
-				FromData: nil,
-				ToData:   nil,
+				FromData: []byte{0, 80},
+				ToData:   []byte{0, 90},
 			},
-			want: "range op neq register 1 fromdata [] todata []",
+			want: "!= 80-90",
 		},
 		{
-			name: "Register 0",
+			name: "eq range ipv4",
 			r: &expr.Range{
-				Op:       expr.CmpOpGt,
-				Register: 0,
-				FromData: []byte{0x00},
-				ToData:   []byte{0x7F},
+				Op:       expr.CmpOpEq,
+				Register: 1,
+				FromData: []byte{10, 0, 0, 1},
+				ToData:   []byte{10, 0, 0, 10},
 			},
-			want: "range op gt register 0 fromdata [0] todata [127]",
+			want: "10.0.0.1-10.0.0.10",
 		},
 		{
-			name: "Empty FromData and ToData",
+			name: "eq range single byte",
 			r: &expr.Range{
-				Op:       expr.CmpOpLt,
-				Register: 3,
-				FromData: []byte{},
-				ToData:   []byte{},
+				Op:       expr.CmpOpEq,
+				Register: 1,
+				FromData: []byte{5},
+				ToData:   []byte{10},
 			},
-			want: "range op lt register 3 fromdata [] todata []",
+			want: "5-10",
 		},
-	}...)
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := SerializeRange(tc.r, nil)
+			if got != tc.want {
+				t.Errorf("SerializeRange() = %q, want %q", got, tc.want)
+			}
+		})
+	}
 }

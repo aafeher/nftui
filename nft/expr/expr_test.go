@@ -122,6 +122,12 @@ func TestFormatData(t *testing.T) {
 		{[]byte{255}, "255"},
 		{[]byte{1, 2, 3, 4, 5}, "0x0102030405"},
 		{[]byte{}, "0x"},
+		{[]byte{0, 80}, "80"},
+		// 4-byte data is always formatted as IPv4
+		{[]byte{0, 0, 0, 100}, "0.0.0.100"},
+		{[]byte{'h', 'e', 'l', 'l', 'o', 0}, `"hello"`},
+		// 4-byte non-printable hex: treated as IPv4
+		{[]byte{0x20, 0x21, 0x7e, 0x7f}, "32.33.126.127"},
 	}
 
 	for _, tt := range tests {
@@ -129,6 +135,112 @@ func TestFormatData(t *testing.T) {
 			got := formatData(tt.bytes)
 			if got != tt.want {
 				t.Errorf("formatData() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsPrintable(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		want bool
+	}{
+		{"empty", []byte{}, false},
+		{"printable ascii", []byte("hello"), true},
+		{"with null", []byte{'h', 'i', 0}, true},
+		{"control char", []byte{0x01, 0x02}, false},
+		{"high byte", []byte{0x80}, false},
+		{"space", []byte{0x20}, true},
+		{"tilde", []byte{0x7e}, true},
+		{"del", []byte{0x7f}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isPrintable(tt.data)
+			if got != tt.want {
+				t.Errorf("isPrintable() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSerializeMasq(t *testing.T) {
+	tests := []struct {
+		name string
+		masq expr.Masq
+		want string
+	}{
+		{"plain", expr.Masq{}, "masquerade"},
+		{"random", expr.Masq{Random: true}, "masquerade random"},
+		{"fully-random", expr.Masq{FullyRandom: true}, "masquerade fully-random"},
+		{"persistent", expr.Masq{Persistent: true}, "masquerade persistent"},
+		{"all flags", expr.Masq{Random: true, FullyRandom: true, Persistent: true}, "masquerade random fully-random persistent"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SerializeMasq(&tt.masq)
+			if got != tt.want {
+				t.Errorf("SerializeMasq() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSerializeCmp(t *testing.T) {
+	tests := []struct {
+		name string
+		cmp  expr.Cmp
+		want string
+	}{
+		{"eq ip", expr.Cmp{Op: expr.CmpOpEq, Data: []byte{10, 0, 0, 1}}, "10.0.0.1"},
+		{"neq port", expr.Cmp{Op: expr.CmpOpNeq, Data: []byte{0, 80}}, "!= 80"},
+		{"lt single byte", expr.Cmp{Op: expr.CmpOpLt, Data: []byte{10}}, "< 10"},
+		// 4-byte data is always formatted as IPv4
+		{"gte ipv4", expr.Cmp{Op: expr.CmpOpGte, Data: []byte{0, 0, 0, 5}}, ">= 0.0.0.5"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SerializeCmp(&tt.cmp, nil)
+			if got != tt.want {
+				t.Errorf("SerializeCmp() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDataToHumanReadable(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    []byte
+		context string
+		want    string
+	}{
+		{"empty", []byte{}, "any", "0"},
+		{"protocol tcp", []byte{6}, "l4proto", "tcp"},
+		{"protocol udp", []byte{17}, "l4proto", "udp"},
+		{"protocol icmp", []byte{1}, "l4proto", "icmp"},
+		{"protocol icmpv6", []byte{58}, "l4proto", "icmpv6"},
+		{"protocol unknown", []byte{99}, "l4proto", "99"},
+		{"dport", []byte{0, 80}, "dport", "80"},
+		{"sport", []byte{0x1f, 0x90}, "sport", "8080"},
+		{"saddr", []byte{192, 168, 1, 1}, "saddr", "192.168.1.1"},
+		{"daddr", []byte{10, 0, 0, 1}, "daddr", "10.0.0.1"},
+		{"ifname", []byte{'e', 't', 'h', '0', 0}, "iifname", `"eth0"`},
+		{"icmp echo-request", []byte{8}, "icmp type", "echo-request"},
+		{"icmp echo-reply", []byte{0}, "icmp type", "echo-reply"},
+		{"icmp unknown", []byte{5}, "icmp type", "5"},
+		{"hex fallback", []byte{0xde, 0xad}, "other", "0xdead"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DataToHumanReadable(tt.data, tt.context)
+			if got != tt.want {
+				t.Errorf("DataToHumanReadable(%v, %q) = %q, want %q", tt.data, tt.context, got, tt.want)
 			}
 		})
 	}
