@@ -3,31 +3,31 @@
 ## Basic ruleset management
 
 ### Tables
-- [x] list
-- [x] view
-- [ ] edit
-- [ ] create
-- [ ] delete
+- [x] list: Display all tables
+- [x] view: Show table details
+- [ ] edit: Modify table properties
+- [ ] create: Add a new table
+- [ ] delete: Remove a table
 
 ### Chains
-- [x] list
-- [x] view
-- [ ] edit
-- [ ] create
-- [ ] delete
+- [x] list: Display all chains
+- [x] view: Show chain details
+- [ ] edit: Modify chain properties (hook, policy, priority)
+- [ ] create: Add a new chain
+- [ ] delete: Remove a chain
 
 ### Rules
-- [x] list
-- [x] view
-- [x] edit
-- [ ] create
-- [ ] delete
-- [ ] move (up/down)
+- [x] list: Display all rules in a chain
+- [x] view: Show rule details and conditions
+- [x] edit: Modify an existing rule
+- [ ] create: Add a new rule
+- [ ] delete: Remove a rule
+- [ ] move (up/down): Reorder rules within a chain
 
 ## Rules
 
-- [x] `counter`
-- [x] `comment`
+- [x] `counter`: Packet and byte counters
+- [x] `comment`: Human-readable rule description stored in UserData
 
 ### Matches
 
@@ -90,12 +90,12 @@
 
 #### Ah
 - [ ] `hdrlength`: AH header length
-- [ ] `reservded`:
-- [ ] `spi`:
+- [ ] `reserved`: Reserved field
+- [ ] `spi`: Security Parameters Index
 - [ ] `sequence`: Sequence number
 
 #### Esp
-- [ ] `spi`:
+- [ ] `spi`: Security Parameters Index
 - [ ] `sequence`: Sequence number
 
 #### Comp
@@ -131,10 +131,10 @@
 
 #### Frag
 - [ ] `nexthdr`: Next protocol header
-- [ ] `reserved`
-- [ ] `frag-off`
-- [ ] `more-fragments`
-- [ ] `id`
+- [ ] `reserved`: Reserved field
+- [ ] `frag-off`: Fragment offset
+- [ ] `more-fragments`: More fragments flag
+- [ ] `id`: Fragment identification number
 
 #### Hbh
 - [ ] `nexthdr`: Next protocol header
@@ -143,27 +143,27 @@
 #### Mh
 - [ ] `nexthdr`: Next protocol header
 - [ ] `hdrlength`: Header length
-- [ ] `type`
-- [ ] `reserved`
-- [ ] `checksum`
+- [ ] `type`: Mobility header type
+- [ ] `reserved`: Reserved field
+- [ ] `checksum`: Mobility header checksum
 
 #### Rt
 - [ ] `nexthdr`: Next protocol header
 - [ ] `hdrlength`: Header length
-- [ ] `type`
-- [ ] `seg-left`
+- [ ] `type`: Routing header type
+- [ ] `seg-left`: Number of route segments remaining
 
 #### Vlan
-- [ ] `id`: Vlan tag ID
-- [ ] `cfi`
-- [ ] `pcp`
+- [ ] `id`: VLAN tag ID (0–4095)
+- [ ] `cfi`: Canonical Format Indicator bit
+- [ ] `pcp`: Priority Code Point (0–7)
 
 #### Arp
-- [ ] `ptype`: Payload type
-- [ ] `htype`: Header type
-- [ ] `hlen`: Header length
-- [ ] `plen`: Payload length
-- [ ] `operation`
+- [ ] `ptype`: Payload (protocol) type
+- [ ] `htype`: Hardware type
+- [ ] `hlen`: Hardware address length
+- [ ] `plen`: Protocol address length
+- [ ] `operation`: ARP operation (request/reply)
 
 #### Ct
 - [x] `state`: State of the connection
@@ -172,15 +172,20 @@
 - [x] `mark`: Mark of the connection
 - [x] `expiration`: Connection expiration time
 - [x] `helper`: Helper associated with the connection
-- [x] `bytes`
-- [x] `packets`
-- [ ] `ip saddr`
-- [ ] `ip daddr`
-- [ ] `l3proto`
-- [ ] `protocol`
-- [ ] `proto-dst`
-- [ ] `proto-src`
-- [ ] `count`
+- [x] `bytes`: Number of bytes transferred in the connection (with optional direction)
+- [x] `packets`: Number of packets transferred in the connection (with optional direction)
+- [ ] `ip saddr`: Source IP address of the connection
+- [ ] `ip daddr`: Destination IP address of the connection
+- [ ] `l3proto`: Layer 3 protocol (e.g. ipv4, ipv6)
+- [ ] `protocol`: Layer 4 protocol (e.g. tcp, udp)
+- [ ] `proto-src`: Source port/ID of the connection
+- [ ] `proto-dst`: Destination port/ID of the connection
+- [ ] `zone`: Connection tracking zone ID
+- [ ] `secmark`: Security mark
+- [ ] `avgpkt`: Average bytes per packet
+- [ ] `labels`: Connection tracking labels
+- [ ] `eventmask`: Connection event mask
+- [ ] `count`: Number of connections matching this rule (ct count)
 
 #### Meta
 - [ ] `iifname`: Input interface name
@@ -191,8 +196,8 @@
 - [ ] `oiftype`: Output interface hardware type
 - [ ] `length`: Length of the packet in bytes
 - [ ] `protocol`: EtherType protocol
-- [ ] `nfproto`
-- [ ] `l4proto`
+- [ ] `nfproto`: Netfilter protocol family (ipv4/ipv6)
+- [ ] `l4proto`: Layer 4 protocol (tcp/udp/icmp etc.)
 - [ ] `mark`: Packet mark
 - [ ] `priority`: tc class id
 - [ ] `skuid`: UID associated with originating socket
@@ -202,35 +207,44 @@
 - [ ] `cpu`: CPU ID
 - [ ] `iifgroup`: Input interface group
 - [ ] `oifgroup`: Output interface group
-- [ ] `cgroup`
+- [ ] `cgroup`: Control group ID of the originating process
 
 ### Statements
 
 #### Verdict statements
+- [ ] `accept`: Accept the packet
+- [ ] `drop`: Drop the packet silently
+- [ ] `return`: Return to the calling chain
+- [ ] `jump`: Jump to another chain (return after)
+- [ ] `goto`: Go to another chain (no return)
 
 #### Log
-- [ ] `level`: Log level
-- [ ] `group`
+- [ ] `level`: Log level (emerg/alert/crit/err/warn/notice/info/debug)
+- [ ] `group`: NFLOG group number for userspace logging
+- [ ] `prefix`: Log message prefix string
+- [ ] `snaplen`: Number of bytes to copy to userspace
+- [ ] `queue-threshold`: Number of packets before sending to userspace
 
 #### Reject
-- [ ] `with`
-- [ ] `type`
+- [ ] `with icmp type`: Reject with specific ICMP type
+- [ ] `with icmpx type`: Reject with inet-family ICMP type
+- [ ] `with tcp reset`: Reject TCP connection with RST
 
 #### Counter
-- [ ] `packets`
-- [ ] `bytes`
+- [ ] `packets`: Display/edit packet count
+- [ ] `bytes`: Display/edit byte count
 
 #### Limit
-- [x] `over`
-- [x] `rate`
-- [x] `unit`
-- [x] `burst`
-- [x] `type`
+- [x] `over`: Invert match (match if rate is exceeded)
+- [x] `rate`: Rate value
+- [x] `unit`: Rate time unit (second/minute/hour/day/week)
+- [x] `burst`: Burst size
+- [x] `type`: Limit type (packets/bytes)
 
 #### Nat
 - [ ] `dnat to`: Destination address translation
 - [ ] `snat to`: Source address translation
-- [ ] `masquerade`: Masquerade
+- [ ] `masquerade`: Masquerade (dynamic SNAT to outgoing interface address)
 
 #### Queue
-- [ ] `num`
+- [ ] `num`: Queue number or range to send packets to userspace
