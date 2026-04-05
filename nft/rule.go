@@ -845,7 +845,28 @@ func metaCompareToCondition(regVal *registerValue, cmp *compareContext) (Conditi
 // payloadCompareToCondition converts a payload comparison context into a Condition by interpreting protocol and field info.
 func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition, error) {
 	protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen)
-	value := decodePayloadValue(protocol, field, cmp.data)
+
+	var value interface{}
+	if regVal.hasBitwise && (field == "saddr" || field == "daddr") &&
+		len(cmp.data) > 0 && len(regVal.bitwiseMask) == len(cmp.data) {
+		// CIDR match: Payload{4} → Bitwise{mask} → Cmp{network_addr}
+		ip := net.IP(append([]byte{}, cmp.data...))
+		mask := net.IPMask(append([]byte{}, regVal.bitwiseMask...))
+		value = &IPAddress{IP: ip, Subnet: &net.IPNet{IP: ip, Mask: mask}}
+	} else if !regVal.hasBitwise && (field == "saddr" || field == "daddr") &&
+		regVal.payloadLen >= 1 && regVal.payloadLen <= 3 &&
+		len(cmp.data) == int(regVal.payloadLen) {
+		// Byte-aligned prefix: Payload{1-3} → Cmp (no Bitwise)
+		// e.g. /24 uses Payload{len=3} + Cmp{[192,168,1]}
+		padded := make([]byte, 4)
+		copy(padded, cmp.data)
+		maskLen := int(regVal.payloadLen) * 8
+		mask := net.CIDRMask(maskLen, 32)
+		ip := net.IP(padded)
+		value = &IPAddress{IP: ip, Subnet: &net.IPNet{IP: ip, Mask: mask}}
+	} else {
+		value = decodePayloadValue(protocol, field, cmp.data)
+	}
 
 	return Condition{
 		Type:      ConditionTypePayload,
@@ -1213,10 +1234,10 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32) (Payload
 		if offset == 9 && length == 1 {
 			return PayloadProtoIP, "protocol"
 		}
-		if offset == 12 && length == 4 {
+		if offset == 12 && length >= 1 && length <= 4 {
 			return PayloadProtoIP, "saddr"
 		}
-		if offset == 16 && length == 4 {
+		if offset == 16 && length >= 1 && length <= 4 {
 			return PayloadProtoIP, "daddr"
 		}
 		return PayloadProtoIP, fmt.Sprintf("offset_%d_len_%d", offset, length)
@@ -1452,6 +1473,51 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 		case *expr.Payload:
 			// Payload - csomag tartalmából tölt be adatot
 			payloadDesc := payloadToHumanReadable(v)
+			if payloadDesc == "saddr" || payloadDesc == "daddr" {
+				ipProto := "ip"
+				// CIDR: Payload{4} → Bitwise → Cmp
+				if i+2 < len(rule.Exprs) {
+					if bw, ok1 := rule.Exprs[i+1].(*expr.Bitwise); ok1 {
+						if cmp, ok2 := rule.Exprs[i+2].(*expr.Cmp); ok2 {
+							ip := net.IP(cmp.Data)
+							ipnet := &net.IPNet{IP: ip, Mask: net.IPMask(bw.Mask)}
+							op := nftexpr.CmpOpToString(cmp.Op)
+							if op == "==" {
+								parts = append(parts, fmt.Sprintf("%s %s %s", ipProto, payloadDesc, ipnet.String()))
+							} else {
+								parts = append(parts, fmt.Sprintf("%s %s %s %s", ipProto, payloadDesc, op, ipnet.String()))
+							}
+							i += 3
+							break
+						}
+					}
+				}
+				// Exact IP or byte-aligned prefix: Payload → Cmp
+				if i+1 < len(rule.Exprs) {
+					if cmp, ok := rule.Exprs[i+1].(*expr.Cmp); ok {
+						var valStr string
+						if len(cmp.Data) == 4 {
+							valStr = net.IP(cmp.Data).String()
+						} else if len(cmp.Data) >= 1 && len(cmp.Data) <= 3 {
+							// Byte-aligned prefix: pad to 4 bytes and build CIDR
+							padded := make([]byte, 4)
+							copy(padded, cmp.Data)
+							mask := net.CIDRMask(len(cmp.Data)*8, 32)
+							valStr = (&net.IPNet{IP: net.IP(padded), Mask: mask}).String()
+						} else {
+							valStr = fmt.Sprintf("0x%x", cmp.Data)
+						}
+						op := nftexpr.CmpOpToString(cmp.Op)
+						if op == "==" {
+							parts = append(parts, fmt.Sprintf("%s %s %s", ipProto, payloadDesc, valStr))
+						} else {
+							parts = append(parts, fmt.Sprintf("%s %s %s %s", ipProto, payloadDesc, op, valStr))
+						}
+						i += 2
+						break
+					}
+				}
+			}
 			regMap[v.DestRegister] = payloadDesc
 			i++
 			//fmt.Printf("Payload regMap: %v\n", regMap)
@@ -1624,10 +1690,10 @@ func payloadToHumanReadable(p *expr.Payload) string {
 		if p.Offset == 9 && p.Len == 1 {
 			return "ip protocol"
 		}
-		if p.Offset == 12 && p.Len == 4 {
-			return "saddr" // source address
+		if p.Offset == 12 && p.Len >= 1 && p.Len <= 4 {
+			return "saddr" // source address (len 1-3: byte-aligned prefix, len 4: full address)
 		}
-		if p.Offset == 16 && p.Len == 4 {
+		if p.Offset == 16 && p.Len >= 1 && p.Len <= 4 {
 			return "daddr" // destination address
 		}
 	}

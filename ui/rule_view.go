@@ -223,7 +223,30 @@ func (r ruleView) View() string {
 
 		// Payload
 		if condition.Payload != nil {
-			content.WriteString(fmt.Sprintf("Condition Payload: %+v\n", condition.Payload))
+			p := condition.Payload
+			if (p.Protocol == nft.PayloadProtoIP || p.Protocol == nft.PayloadProtoIP6) &&
+				(p.Field == "saddr" || p.Field == "daddr") {
+				op := string(condition.Operation)
+				if op == "==" {
+					op = ""
+				} else {
+					op += " "
+				}
+				var valStr string
+				switch v := p.Value.(type) {
+				case *nft.IPAddress:
+					if v.Subnet != nil {
+						valStr = v.Subnet.String()
+					} else {
+						valStr = v.IP.String()
+					}
+				default:
+					valStr = fmt.Sprintf("%v", p.Value)
+				}
+				content.WriteString(fmt.Sprintf("%s %s %s%s\n", p.Protocol, p.Field, op, valStr))
+			} else {
+				content.WriteString(fmt.Sprintf("Condition Payload: %+v\n", condition.Payload))
+			}
 		}
 
 		// Limit

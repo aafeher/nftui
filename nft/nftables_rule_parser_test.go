@@ -2,6 +2,7 @@ package nft
 
 import (
 	"encoding/binary"
+	"net"
 	"testing"
 
 	"github.com/google/nftables"
@@ -664,6 +665,351 @@ func TestNftablesToRuleDefinition_MultipleCTConditions(t *testing.T) {
 	}
 	if rd.Conditions[1].Operation != CompareOpNeq {
 		t.Errorf("cond[1] op = %q, want !=", rd.Conditions[1].Operation)
+	}
+}
+
+// --- IP saddr / daddr (payload) conditions ---
+
+func TestNftablesToRuleDefinition_IPSaddrExact(t *testing.T) {
+	// ip saddr 192.168.1.1 accept
+	rawIP := []byte{192, 168, 1, 1}
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: rawIP},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.Type != ConditionTypePayload {
+		t.Errorf("type = %q, want %q", c.Type, ConditionTypePayload)
+	}
+	if c.Payload.Protocol != PayloadProtoIP {
+		t.Errorf("Protocol = %q, want %q", c.Payload.Protocol, PayloadProtoIP)
+	}
+	if c.Payload.Field != "saddr" {
+		t.Errorf("Field = %q, want %q", c.Payload.Field, "saddr")
+	}
+	if c.Operation != CompareOpEq {
+		t.Errorf("Operation = %q, want %q", c.Operation, CompareOpEq)
+	}
+	addr, ok := c.Payload.Value.(*IPAddress)
+	if !ok {
+		t.Fatalf("Value type = %T, want *IPAddress", c.Payload.Value)
+	}
+	if !addr.IP.Equal(net.IP(rawIP)) {
+		t.Errorf("IP = %s, want 192.168.1.1", addr.IP)
+	}
+	if addr.Subnet != nil {
+		t.Errorf("Subnet should be nil for exact IP, got %s", addr.Subnet)
+	}
+}
+
+func TestNftablesToRuleDefinition_IPDaddrExact(t *testing.T) {
+	// ip daddr 10.0.0.1 drop
+	rawIP := []byte{10, 0, 0, 1}
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 16, Len: 4, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: rawIP},
+		&expr.Verdict{Kind: expr.VerdictDrop},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.Payload.Protocol != PayloadProtoIP {
+		t.Errorf("Protocol = %q, want %q", c.Payload.Protocol, PayloadProtoIP)
+	}
+	if c.Payload.Field != "daddr" {
+		t.Errorf("Field = %q, want %q", c.Payload.Field, "daddr")
+	}
+	addr, ok := c.Payload.Value.(*IPAddress)
+	if !ok {
+		t.Fatalf("Value type = %T, want *IPAddress", c.Payload.Value)
+	}
+	if !addr.IP.Equal(net.IP(rawIP)) {
+		t.Errorf("IP = %s, want 10.0.0.1", addr.IP)
+	}
+	if addr.Subnet != nil {
+		t.Errorf("Subnet should be nil for exact IP, got %s", addr.Subnet)
+	}
+}
+
+func TestNftablesToRuleDefinition_IPSaddrCIDR(t *testing.T) {
+	// ip saddr 192.168.1.0/24 accept
+	// kernel encodes: Payload → Bitwise{mask=/24} → Cmp{network_addr}
+	networkAddr := []byte{192, 168, 1, 0}
+	mask24 := []byte{255, 255, 255, 0}
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 4, Mask: mask24, Xor: []byte{0, 0, 0, 0}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: networkAddr},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.Type != ConditionTypePayload {
+		t.Errorf("type = %q, want %q", c.Type, ConditionTypePayload)
+	}
+	if c.Payload.Field != "saddr" {
+		t.Errorf("Field = %q, want %q", c.Payload.Field, "saddr")
+	}
+	if c.Operation != CompareOpEq {
+		t.Errorf("Operation = %q, want %q", c.Operation, CompareOpEq)
+	}
+	addr, ok := c.Payload.Value.(*IPAddress)
+	if !ok {
+		t.Fatalf("Value type = %T, want *IPAddress", c.Payload.Value)
+	}
+	if addr.Subnet == nil {
+		t.Fatal("Subnet should be set for CIDR match")
+	}
+	if addr.Subnet.String() != "192.168.1.0/24" {
+		t.Errorf("Subnet = %q, want %q", addr.Subnet.String(), "192.168.1.0/24")
+	}
+}
+
+func TestNftablesToRuleDefinition_IPDaddrCIDR(t *testing.T) {
+	// ip daddr 10.0.0.0/8 drop
+	networkAddr := []byte{10, 0, 0, 0}
+	mask8 := []byte{255, 0, 0, 0}
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 16, Len: 4, DestRegister: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 4, Mask: mask8, Xor: []byte{0, 0, 0, 0}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: networkAddr},
+		&expr.Verdict{Kind: expr.VerdictDrop},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.Payload.Field != "daddr" {
+		t.Errorf("Field = %q, want %q", c.Payload.Field, "daddr")
+	}
+	addr, ok := c.Payload.Value.(*IPAddress)
+	if !ok {
+		t.Fatalf("Value type = %T, want *IPAddress", c.Payload.Value)
+	}
+	if addr.Subnet == nil {
+		t.Fatal("Subnet should be set for CIDR match")
+	}
+	if addr.Subnet.String() != "10.0.0.0/8" {
+		t.Errorf("Subnet = %q, want %q", addr.Subnet.String(), "10.0.0.0/8")
+	}
+}
+
+func TestNftablesToRuleDefinition_IPSaddrNeq(t *testing.T) {
+	// ip saddr != 192.168.1.1 drop
+	rawIP := []byte{192, 168, 1, 1}
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: rawIP},
+		&expr.Verdict{Kind: expr.VerdictDrop},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Operation != CompareOpNeq {
+		t.Errorf("Operation = %q, want %q", c.Operation, CompareOpNeq)
+	}
+	if c.Payload.Field != "saddr" {
+		t.Errorf("Field = %q, want %q", c.Payload.Field, "saddr")
+	}
+}
+
+func TestNftablesToRuleDefinition_IPDaddrNeq(t *testing.T) {
+	// ip daddr != 10.0.0.0/8 accept
+	networkAddr := []byte{10, 0, 0, 0}
+	mask8 := []byte{255, 0, 0, 0}
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 16, Len: 4, DestRegister: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 4, Mask: mask8, Xor: []byte{0, 0, 0, 0}},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: networkAddr},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Operation != CompareOpNeq {
+		t.Errorf("Operation = %q, want %q", c.Operation, CompareOpNeq)
+	}
+	addr, ok := c.Payload.Value.(*IPAddress)
+	if !ok {
+		t.Fatalf("Value type = %T, want *IPAddress", c.Payload.Value)
+	}
+	if addr.Subnet == nil {
+		t.Fatal("Subnet should be set for CIDR match")
+	}
+	if addr.Subnet.String() != "10.0.0.0/8" {
+		t.Errorf("Subnet = %q, want %q", addr.Subnet.String(), "10.0.0.0/8")
+	}
+}
+
+func TestNftablesToRuleDefinition_IPSaddrAndDaddr(t *testing.T) {
+	// ip saddr 192.168.1.0/24 ip daddr 10.0.0.1 accept
+	saddrNetwork := []byte{192, 168, 1, 0}
+	saddrMask := []byte{255, 255, 255, 0}
+	daddrRaw := []byte{10, 0, 0, 1}
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 4, Mask: saddrMask, Xor: []byte{0, 0, 0, 0}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: saddrNetwork},
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 16, Len: 4, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: daddrRaw},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 2 {
+		t.Fatalf("expected 2 conditions, got %d", len(rd.Conditions))
+	}
+
+	saddr := rd.Conditions[0]
+	if saddr.Payload.Field != "saddr" {
+		t.Errorf("cond[0] Field = %q, want saddr", saddr.Payload.Field)
+	}
+	saddrAddr, ok := saddr.Payload.Value.(*IPAddress)
+	if !ok {
+		t.Fatalf("cond[0] Value type = %T, want *IPAddress", saddr.Payload.Value)
+	}
+	if saddrAddr.Subnet == nil || saddrAddr.Subnet.String() != "192.168.1.0/24" {
+		t.Errorf("cond[0] Subnet = %v, want 192.168.1.0/24", saddrAddr.Subnet)
+	}
+
+	daddr := rd.Conditions[1]
+	if daddr.Payload.Field != "daddr" {
+		t.Errorf("cond[1] Field = %q, want daddr", daddr.Payload.Field)
+	}
+	daddrAddr, ok := daddr.Payload.Value.(*IPAddress)
+	if !ok {
+		t.Fatalf("cond[1] Value type = %T, want *IPAddress", daddr.Payload.Value)
+	}
+	if !daddrAddr.IP.Equal(net.IP(daddrRaw)) {
+		t.Errorf("cond[1] IP = %s, want 10.0.0.1", daddrAddr.IP)
+	}
+	if daddrAddr.Subnet != nil {
+		t.Errorf("cond[1] Subnet should be nil for exact IP, got %s", daddrAddr.Subnet)
+	}
+}
+
+func TestNftablesToRuleDefinition_IPSaddrCIDR_16(t *testing.T) {
+	// ip saddr 172.16.0.0/12 accept  (mask = 255.240.0.0)
+	networkAddr := []byte{172, 16, 0, 0}
+	mask12 := []byte{255, 240, 0, 0}
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 4, Mask: mask12, Xor: []byte{0, 0, 0, 0}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: networkAddr},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	addr, ok := c.Payload.Value.(*IPAddress)
+	if !ok {
+		t.Fatalf("Value type = %T, want *IPAddress", c.Payload.Value)
+	}
+	if addr.Subnet == nil {
+		t.Fatal("Subnet should be set for CIDR match")
+	}
+	if addr.Subnet.String() != "172.16.0.0/12" {
+		t.Errorf("Subnet = %q, want %q", addr.Subnet.String(), "172.16.0.0/12")
+	}
+}
+
+// --- Byte-aligned prefix (no Bitwise) ---
+
+func TestNftablesToRuleDefinition_IPSaddrByteAligned24(t *testing.T) {
+	// Kernel optimization: ip saddr 192.168.1.0/24 stored as Payload{len=3} + Cmp
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 3, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{192, 168, 1}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.Payload == nil || c.Payload.Field != "saddr" {
+		t.Fatalf("expected saddr payload condition, got %+v", c)
+	}
+	addr, ok := c.Payload.Value.(*IPAddress)
+	if !ok {
+		t.Fatalf("Value type = %T, want *IPAddress", c.Payload.Value)
+	}
+	if addr.Subnet == nil {
+		t.Fatal("Subnet should be set for byte-aligned prefix")
+	}
+	if addr.Subnet.String() != "192.168.1.0/24" {
+		t.Errorf("Subnet = %q, want 192.168.1.0/24", addr.Subnet.String())
+	}
+	if c.Operation != CompareOpEq {
+		t.Errorf("Operation = %q, want ==", c.Operation)
+	}
+}
+
+func TestNftablesToRuleDefinition_IPSaddrByteAligned16(t *testing.T) {
+	// ip saddr 192.168.0.0/16 via byte-aligned: Payload{len=2} + Cmp
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 2, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{192, 168}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	addr, ok := c.Payload.Value.(*IPAddress)
+	if !ok {
+		t.Fatalf("Value type = %T, want *IPAddress", c.Payload.Value)
+	}
+	if addr.Subnet == nil || addr.Subnet.String() != "192.168.0.0/16" {
+		t.Errorf("Subnet = %v, want 192.168.0.0/16", addr.Subnet)
+	}
+}
+
+func TestNftablesToRuleDefinition_IPSaddrByteAlignedNeq(t *testing.T) {
+	// ip saddr != 192.168.0.0/16 via byte-aligned: Payload{len=2} + Cmp{Neq}
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 2, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{192, 168}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Operation != CompareOpNeq {
+		t.Errorf("Operation = %q, want !=", c.Operation)
+	}
+	addr, ok := c.Payload.Value.(*IPAddress)
+	if !ok {
+		t.Fatalf("Value type = %T, want *IPAddress", c.Payload.Value)
+	}
+	if addr.Subnet == nil || addr.Subnet.String() != "192.168.0.0/16" {
+		t.Errorf("Subnet = %v, want 192.168.0.0/16", addr.Subnet)
 	}
 }
 

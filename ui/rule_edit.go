@@ -64,6 +64,8 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 
 	fields := []FieldEditor{
 		NewPositionField(rd),
+		NewIPSaddrField(rd),
+		NewIPDaddrField(rd),
 		NewCtStateField(rd),
 		NewCtDirectionField(rd),
 		NewCtStatusField(rd),

@@ -172,7 +172,11 @@ func TestPayloadToHumanReadable(t *testing.T) {
 		{"icmp type", expr.Payload{Base: unix.NFT_PAYLOAD_TRANSPORT_HEADER, Offset: 0, Len: 1}, "icmp type"},
 		{"ip protocol", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 9, Len: 1}, "ip protocol"},
 		{"saddr", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 12, Len: 4}, "saddr"},
+		{"saddr prefix /24", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 12, Len: 3}, "saddr"},
+		{"saddr prefix /16", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 12, Len: 2}, "saddr"},
+		{"saddr prefix /8", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 12, Len: 1}, "saddr"},
 		{"daddr", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 16, Len: 4}, "daddr"},
+		{"daddr prefix /24", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 16, Len: 3}, "daddr"},
 		{"unknown transport", expr.Payload{Base: unix.NFT_PAYLOAD_TRANSPORT_HEADER, Offset: 99, Len: 4}, "payload[transport header+99:4]"},
 		{"unknown network", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 99, Len: 4}, "payload[network header+99:4]"},
 	}
