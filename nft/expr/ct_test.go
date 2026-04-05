@@ -312,7 +312,7 @@ func TestSerializeCt(t *testing.T) {
 				},
 			},
 			pos:     0,
-			wantStr: "ct protocol 6",
+			wantStr: "ct protocol tcp",
 			wantIdx: 2,
 		},
 		{
@@ -921,6 +921,277 @@ func TestExprCtToCt(t *testing.T) {
 			}
 			if gotIdx != tt.wantIdx {
 				t.Errorf("ExprCtToCt() gotIdx = %d, want %d", gotIdx, tt.wantIdx)
+			}
+		})
+	}
+}
+
+// --- CtL3Proto conversion ---
+
+func TestUint8ToCtL3Proto(t *testing.T) {
+	tests := []struct {
+		input uint8
+		want  CtL3Proto
+	}{
+		{2, CtL3ProtoIPv4},
+		{10, CtL3ProtoIPv6},
+		{0, CtL3Proto("0")}, // unknown → numeric string
+		{255, CtL3Proto("255")},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.want), func(t *testing.T) {
+			if got := Uint8ToCtL3Proto(tt.input); got != tt.want {
+				t.Errorf("Uint8ToCtL3Proto(%d) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCtL3ProtoToUint8(t *testing.T) {
+	tests := []struct {
+		input CtL3Proto
+		want  uint8
+	}{
+		{CtL3ProtoIPv4, 2},
+		{CtL3ProtoIPv6, 10},
+		{"", 2}, // unknown defaults to ipv4
+		{"other", 2},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.input), func(t *testing.T) {
+			if got := CtL3ProtoToUint8(tt.input); got != tt.want {
+				t.Errorf("CtL3ProtoToUint8(%q) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDecodeCTValue_L3Proto(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		want CtL3Proto
+	}{
+		{"ipv4 1-byte", []byte{2}, CtL3ProtoIPv4},
+		{"ipv6 1-byte", []byte{10}, CtL3ProtoIPv6},
+		{"ipv4 4-byte LE", []byte{2, 0, 0, 0}, CtL3ProtoIPv4},
+		{"ipv6 4-byte LE", []byte{10, 0, 0, 0}, CtL3ProtoIPv6},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DecodeCTValue(expr.CtKeyL3PROTOCOL, tt.data)
+			v, ok := got.(CtL3Proto)
+			if !ok {
+				t.Fatalf("DecodeCTValue returned %T, want CtL3Proto", got)
+			}
+			if v != tt.want {
+				t.Errorf("DecodeCTValue(L3PROTOCOL, %v) = %q, want %q", tt.data, v, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatCtValue_L3Proto(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		want string
+	}{
+		{"ipv4", []byte{2}, "ipv4"},
+		{"ipv6", []byte{10}, "ipv6"},
+		{"ipv4 LE", []byte{2, 0, 0, 0}, "ipv4"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatCtValue(expr.CtKeyL3PROTOCOL, tt.data)
+			if got != tt.want {
+				t.Errorf("formatCtValue(L3PROTOCOL, %v) = %q, want %q", tt.data, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSerializeCt_L3Proto(t *testing.T) {
+	tests := []struct {
+		name    string
+		ct      *expr.Ct
+		exprs   []expr.Any
+		wantStr string
+		wantIdx int
+	}{
+		{
+			name: "l3proto ipv4",
+			ct:   &expr.Ct{Key: unix.NFT_CT_L3PROTOCOL, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_L3PROTOCOL, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{2}},
+			},
+			wantStr: "ct l3protocol ipv4",
+			wantIdx: 2,
+		},
+		{
+			name: "l3proto ipv6",
+			ct:   &expr.Ct{Key: unix.NFT_CT_L3PROTOCOL, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_L3PROTOCOL, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{10}},
+			},
+			wantStr: "ct l3protocol ipv6",
+			wantIdx: 2,
+		},
+		{
+			name: "l3proto != ipv4",
+			ct:   &expr.Ct{Key: unix.NFT_CT_L3PROTOCOL, Register: 1},
+			exprs: []expr.Any{
+				&expr.Ct{Key: unix.NFT_CT_L3PROTOCOL, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{2}},
+			},
+			wantStr: "ct l3protocol != ipv4",
+			wantIdx: 2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, idx := SerializeCt(tt.ct, tt.exprs, 0, nil)
+			if got != tt.wantStr {
+				t.Errorf("SerializeCt() = %q, want %q", got, tt.wantStr)
+			}
+			if idx != tt.wantIdx {
+				t.Errorf("SerializeCt() idx = %d, want %d", idx, tt.wantIdx)
+			}
+		})
+	}
+}
+
+// --- CtProtocol conversion ---
+
+func TestUint8ToCtProtocol(t *testing.T) {
+	tests := []struct {
+		input uint8
+		want  CtProtocol
+	}{
+		{1, CtProtocolICMP},
+		{6, CtProtocolTCP},
+		{17, CtProtocolUDP},
+		{33, CtProtocolDCCP},
+		{58, CtProtocolICMPv6},
+		{132, CtProtocolSCTP},
+		{0, CtProtocol("0")},
+		{255, CtProtocol("255")},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.want), func(t *testing.T) {
+			if got := Uint8ToCtProtocol(tt.input); got != tt.want {
+				t.Errorf("Uint8ToCtProtocol(%d) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCtProtocolToUint8(t *testing.T) {
+	tests := []struct {
+		input CtProtocol
+		want  uint8
+	}{
+		{CtProtocolICMP, 1},
+		{CtProtocolTCP, 6},
+		{CtProtocolUDP, 17},
+		{CtProtocolDCCP, 33},
+		{CtProtocolICMPv6, 58},
+		{CtProtocolSCTP, 132},
+		{"", 0},
+		{"unknown", 0},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.input), func(t *testing.T) {
+			if got := CtProtocolToUint8(tt.input); got != tt.want {
+				t.Errorf("CtProtocolToUint8(%q) = %d, want %d", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDecodeCTValue_Protocol(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		want CtProtocol
+	}{
+		{"tcp 1-byte", []byte{6}, CtProtocolTCP},
+		{"udp 1-byte", []byte{17}, CtProtocolUDP},
+		{"icmp 1-byte", []byte{1}, CtProtocolICMP},
+		{"dccp 1-byte", []byte{33}, CtProtocolDCCP},
+		{"icmpv6 1-byte", []byte{58}, CtProtocolICMPv6},
+		{"sctp 1-byte", []byte{132}, CtProtocolSCTP},
+		{"tcp 4-byte LE", []byte{6, 0, 0, 0}, CtProtocolTCP},
+		{"udp 4-byte LE", []byte{17, 0, 0, 0}, CtProtocolUDP},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DecodeCTValue(expr.CtKeyPROTOCOL, tt.data)
+			v, ok := got.(CtProtocol)
+			if !ok {
+				t.Fatalf("DecodeCTValue returned %T, want CtProtocol", got)
+			}
+			if v != tt.want {
+				t.Errorf("DecodeCTValue(PROTOCOL, %v) = %q, want %q", tt.data, v, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatCtValue_Protocol(t *testing.T) {
+	tests := []struct {
+		name string
+		data []byte
+		want string
+	}{
+		{"tcp", []byte{6}, "tcp"},
+		{"udp", []byte{17}, "udp"},
+		{"icmp", []byte{1}, "icmp"},
+		{"icmpv6", []byte{58}, "icmpv6"},
+		{"sctp", []byte{132}, "sctp"},
+		{"dccp", []byte{33}, "dccp"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatCtValue(expr.CtKeyPROTOCOL, tt.data)
+			if got != tt.want {
+				t.Errorf("formatCtValue(PROTOCOL, %v) = %q, want %q", tt.data, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSerializeCt_Protocol(t *testing.T) {
+	tests := []struct {
+		name    string
+		data    []byte
+		op      expr.CmpOp
+		wantStr string
+	}{
+		{"protocol tcp", []byte{6}, expr.CmpOpEq, "ct protocol tcp"},
+		{"protocol udp", []byte{17}, expr.CmpOpEq, "ct protocol udp"},
+		{"protocol icmp", []byte{1}, expr.CmpOpEq, "ct protocol icmp"},
+		{"protocol != tcp", []byte{6}, expr.CmpOpNeq, "ct protocol != tcp"},
+		{"protocol != udp", []byte{17}, expr.CmpOpNeq, "ct protocol != udp"},
+		{"protocol icmpv6", []byte{58}, expr.CmpOpEq, "ct protocol icmpv6"},
+		{"protocol sctp", []byte{132}, expr.CmpOpEq, "ct protocol sctp"},
+		{"protocol dccp", []byte{33}, expr.CmpOpEq, "ct protocol dccp"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ct := &expr.Ct{Key: unix.NFT_CT_PROTOCOL, Register: 1}
+			exprs := []expr.Any{
+				ct,
+				&expr.Cmp{Op: tt.op, Register: 1, Data: tt.data},
+			}
+			got, idx := SerializeCt(ct, exprs, 0, nil)
+			if got != tt.wantStr {
+				t.Errorf("SerializeCt() = %q, want %q", got, tt.wantStr)
+			}
+			if idx != 2 {
+				t.Errorf("SerializeCt() idx = %d, want 2", idx)
 			}
 		})
 	}

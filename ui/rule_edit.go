@@ -66,6 +66,8 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		NewPositionField(rd),
 		NewIPSaddrField(rd),
 		NewIPDaddrField(rd),
+		NewCtL3ProtoField(rd),  // 2 slots
+		NewCtProtocolField(rd), // 2 slots
 		NewCtStateField(rd),
 		NewCtDirectionField(rd),
 		NewCtStatusField(rd),

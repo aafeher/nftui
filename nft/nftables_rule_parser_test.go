@@ -1037,3 +1037,247 @@ func TestNftablesToRuleDefinition_UnknownExpr(t *testing.T) {
 		t.Errorf("expected 1 action (verdict), got %d", len(rd.Actions))
 	}
 }
+
+// --- ct l3proto ---
+
+func TestNftablesToRuleDefinition_CtL3ProtoIPv4(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: unix.NFT_CT_L3PROTOCOL, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{2}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.CT == nil || c.CT.Key != nftexpr.CtKeyL3Protocol {
+		t.Fatalf("expected CT l3protocol condition, got %+v", c)
+	}
+	v, ok := c.CT.Value.(nftexpr.CtL3Proto)
+	if !ok {
+		t.Fatalf("Value type = %T, want CtL3Proto", c.CT.Value)
+	}
+	if v != nftexpr.CtL3ProtoIPv4 {
+		t.Errorf("Value = %q, want ipv4", v)
+	}
+	if c.Operation != CompareOpEq {
+		t.Errorf("Operation = %q, want ==", c.Operation)
+	}
+}
+
+func TestNftablesToRuleDefinition_CtL3ProtoIPv6(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: unix.NFT_CT_L3PROTOCOL, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{10}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	v, ok := c.CT.Value.(nftexpr.CtL3Proto)
+	if !ok {
+		t.Fatalf("Value type = %T, want CtL3Proto", c.CT.Value)
+	}
+	if v != nftexpr.CtL3ProtoIPv6 {
+		t.Errorf("Value = %q, want ipv6", v)
+	}
+}
+
+func TestNftablesToRuleDefinition_CtL3ProtoNeq(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: unix.NFT_CT_L3PROTOCOL, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{2}},
+		&expr.Verdict{Kind: expr.VerdictDrop},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Operation != CompareOpNeq {
+		t.Errorf("Operation = %q, want !=", c.Operation)
+	}
+	v, ok := c.CT.Value.(nftexpr.CtL3Proto)
+	if !ok || v != nftexpr.CtL3ProtoIPv4 {
+		t.Errorf("Value = %v, want ipv4", c.CT.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_CtL3Proto4ByteLE(t *testing.T) {
+	// Kernel may send 4-byte little-endian for l3proto
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: unix.NFT_CT_L3PROTOCOL, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{2, 0, 0, 0}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	v, ok := rd.Conditions[0].CT.Value.(nftexpr.CtL3Proto)
+	if !ok || v != nftexpr.CtL3ProtoIPv4 {
+		t.Errorf("Value = %v, want ipv4", rd.Conditions[0].CT.Value)
+	}
+}
+
+// --- ct protocol ---
+
+func TestNftablesToRuleDefinition_CtProtocolTCP(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: unix.NFT_CT_PROTOCOL, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{6}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.CT == nil || c.CT.Key != nftexpr.CtKeyProtocol {
+		t.Fatalf("expected CT protocol condition, got %+v", c)
+	}
+	v, ok := c.CT.Value.(nftexpr.CtProtocol)
+	if !ok {
+		t.Fatalf("Value type = %T, want CtProtocol", c.CT.Value)
+	}
+	if v != nftexpr.CtProtocolTCP {
+		t.Errorf("Value = %q, want tcp", v)
+	}
+	if c.Operation != CompareOpEq {
+		t.Errorf("Operation = %q, want ==", c.Operation)
+	}
+}
+
+func TestNftablesToRuleDefinition_CtProtocolUDP(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: unix.NFT_CT_PROTOCOL, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{17}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	v, ok := rd.Conditions[0].CT.Value.(nftexpr.CtProtocol)
+	if !ok || v != nftexpr.CtProtocolUDP {
+		t.Errorf("Value = %v, want udp", rd.Conditions[0].CT.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_CtProtocolICMP(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: unix.NFT_CT_PROTOCOL, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{1}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	v, ok := rd.Conditions[0].CT.Value.(nftexpr.CtProtocol)
+	if !ok || v != nftexpr.CtProtocolICMP {
+		t.Errorf("Value = %v, want icmp", rd.Conditions[0].CT.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_CtProtocolAllValues(t *testing.T) {
+	tests := []struct {
+		byte  byte
+		proto nftexpr.CtProtocol
+	}{
+		{1, nftexpr.CtProtocolICMP},
+		{6, nftexpr.CtProtocolTCP},
+		{17, nftexpr.CtProtocolUDP},
+		{33, nftexpr.CtProtocolDCCP},
+		{58, nftexpr.CtProtocolICMPv6},
+		{132, nftexpr.CtProtocolSCTP},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.proto), func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Ct{Key: unix.NFT_CT_PROTOCOL, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{tt.byte}},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			v, ok := rd.Conditions[0].CT.Value.(nftexpr.CtProtocol)
+			if !ok || v != tt.proto {
+				t.Errorf("Value = %v, want %s", rd.Conditions[0].CT.Value, tt.proto)
+			}
+		})
+	}
+}
+
+func TestNftablesToRuleDefinition_CtProtocolNeq(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: unix.NFT_CT_PROTOCOL, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{6}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Operation != CompareOpNeq {
+		t.Errorf("Operation = %q, want !=", c.Operation)
+	}
+	v, ok := c.CT.Value.(nftexpr.CtProtocol)
+	if !ok || v != nftexpr.CtProtocolTCP {
+		t.Errorf("Value = %v, want tcp", c.CT.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_CtProtocol4ByteLE(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: unix.NFT_CT_PROTOCOL, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{6, 0, 0, 0}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	v, ok := rd.Conditions[0].CT.Value.(nftexpr.CtProtocol)
+	if !ok || v != nftexpr.CtProtocolTCP {
+		t.Errorf("Value = %v, want tcp", rd.Conditions[0].CT.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_CtL3ProtoAndProtocol(t *testing.T) {
+	// ct l3proto ipv4 ct protocol tcp accept
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: unix.NFT_CT_L3PROTOCOL, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{2}},
+		&expr.Ct{Key: unix.NFT_CT_PROTOCOL, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{6}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 2 {
+		t.Fatalf("expected 2 conditions, got %d", len(rd.Conditions))
+	}
+
+	l3 := rd.Conditions[0]
+	if l3.CT == nil || l3.CT.Key != nftexpr.CtKeyL3Protocol {
+		t.Errorf("cond[0] expected l3protocol, got %+v", l3)
+	}
+	if v, ok := l3.CT.Value.(nftexpr.CtL3Proto); !ok || v != nftexpr.CtL3ProtoIPv4 {
+		t.Errorf("cond[0] Value = %v, want ipv4", l3.CT.Value)
+	}
+
+	proto := rd.Conditions[1]
+	if proto.CT == nil || proto.CT.Key != nftexpr.CtKeyProtocol {
+		t.Errorf("cond[1] expected protocol, got %+v", proto)
+	}
+	if v, ok := proto.CT.Value.(nftexpr.CtProtocol); !ok || v != nftexpr.CtProtocolTCP {
+		t.Errorf("cond[1] Value = %v, want tcp", proto.CT.Value)
+	}
+}
+
+// beUint32 helper for 4-byte big-endian values used in some test payloads
+var _ = binary.BigEndian // ensure import used

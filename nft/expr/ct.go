@@ -123,6 +123,95 @@ const (
 	CtStatusHWOffload    CtStatus = "hw-offload"
 )
 
+// CtL3Proto represents the L3 (network layer) protocol family stored in a CT entry.
+type CtL3Proto string
+
+const (
+	CtL3ProtoIPv4 CtL3Proto = "ipv4"
+	CtL3ProtoIPv6 CtL3Proto = "ipv6"
+)
+
+// CtL3ProtoStrings lists selectable L3 protocol options (empty = not set).
+var CtL3ProtoStrings = []string{"", string(CtL3ProtoIPv4), string(CtL3ProtoIPv6)}
+
+// Uint8ToCtL3Proto converts a kernel NFPROTO_* value to a CtL3Proto.
+// NFPROTO_IPV4=2, NFPROTO_IPV6=10.
+func Uint8ToCtL3Proto(v uint8) CtL3Proto {
+	switch v {
+	case 10:
+		return CtL3ProtoIPv6
+	case 2:
+		return CtL3ProtoIPv4
+	default:
+		return CtL3Proto(fmt.Sprintf("%d", v))
+	}
+}
+
+// CtL3ProtoToUint8 converts a CtL3Proto to its kernel NFPROTO_* value.
+func CtL3ProtoToUint8(p CtL3Proto) uint8 {
+	switch p {
+	case CtL3ProtoIPv6:
+		return 10
+	default:
+		return 2 // NFPROTO_IPV4
+	}
+}
+
+// CtProtocol represents an IP L4 protocol stored in a CT entry.
+type CtProtocol string
+
+const (
+	CtProtocolICMP   CtProtocol = "icmp"
+	CtProtocolTCP    CtProtocol = "tcp"
+	CtProtocolUDP    CtProtocol = "udp"
+	CtProtocolDCCP   CtProtocol = "dccp"
+	CtProtocolICMPv6 CtProtocol = "icmpv6"
+	CtProtocolSCTP   CtProtocol = "sctp"
+)
+
+// CtProtocolStrings lists selectable L4 protocol options (empty = not set).
+var CtProtocolStrings = []string{"", string(CtProtocolICMP), string(CtProtocolTCP), string(CtProtocolUDP), string(CtProtocolDCCP), string(CtProtocolICMPv6), string(CtProtocolSCTP)}
+
+// Uint8ToCtProtocol converts an IPPROTO_* value to a CtProtocol.
+func Uint8ToCtProtocol(v uint8) CtProtocol {
+	switch v {
+	case 1:
+		return CtProtocolICMP
+	case 6:
+		return CtProtocolTCP
+	case 17:
+		return CtProtocolUDP
+	case 33:
+		return CtProtocolDCCP
+	case 58:
+		return CtProtocolICMPv6
+	case 132:
+		return CtProtocolSCTP
+	default:
+		return CtProtocol(fmt.Sprintf("%d", v))
+	}
+}
+
+// CtProtocolToUint8 converts a CtProtocol to its IPPROTO_* value.
+func CtProtocolToUint8(p CtProtocol) uint8 {
+	switch p {
+	case CtProtocolICMP:
+		return 1
+	case CtProtocolTCP:
+		return 6
+	case CtProtocolUDP:
+		return 17
+	case CtProtocolDCCP:
+		return 33
+	case CtProtocolICMPv6:
+		return 58
+	case CtProtocolSCTP:
+		return 132
+	default:
+		return 0
+	}
+}
+
 // CtKeyToString converts a CtKey enumeration value to its corresponding string representation.
 // See also https://wiki.nftables.org/wiki-nftables/index.php/Matching_connection_tracking_stateful_metainformation
 // nftables/expr/ct.go
@@ -654,13 +743,17 @@ func fillCtField(ct *Ct, key expr.CtKey, value interface{}) {
 			ct.Expiration = v
 		}
 	case expr.CtKeyPROTOCOL:
-		if v, ok := value.(uint8); ok {
+		if v, ok := value.(CtProtocol); ok {
+			ct.Protocol = CtProtocolToUint8(v)
+		} else if v, ok := value.(uint8); ok {
 			ct.Protocol = v
 		} else if v, ok := value.(uint32); ok {
 			ct.Protocol = uint8(v)
 		}
 	case expr.CtKeyL3PROTOCOL:
-		if v, ok := value.(uint8); ok {
+		if v, ok := value.(CtL3Proto); ok {
+			ct.L3Protocol = CtL3ProtoToUint8(v)
+		} else if v, ok := value.(uint8); ok {
 			ct.L3Protocol = v
 		} else if v, ok := value.(uint32); ok {
 			ct.L3Protocol = uint8(v)
@@ -854,12 +947,19 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 	}
 
 	switch key {
-	case expr.CtKeyPROTOCOL, expr.CtKeyL3PROTOCOL:
+	case expr.CtKeyL3PROTOCOL:
 		if len(data) == 1 {
-			return data[0]
+			return Uint8ToCtL3Proto(data[0])
 		}
 		if len(data) >= 4 {
-			return binary.LittleEndian.Uint32(data[:4])
+			return Uint8ToCtL3Proto(uint8(binary.LittleEndian.Uint32(data[:4])))
+		}
+	case expr.CtKeyPROTOCOL:
+		if len(data) == 1 {
+			return Uint8ToCtProtocol(data[0])
+		}
+		if len(data) >= 4 {
+			return Uint8ToCtProtocol(uint8(binary.LittleEndian.Uint32(data[:4])))
 		}
 	case expr.CtKeyPROTOSRC, expr.CtKeyPROTODST:
 		if len(data) == 2 {
@@ -1011,6 +1111,10 @@ func formatCtValue(key expr.CtKey, data []byte) string {
 	switch v := decoded.(type) {
 	case string:
 		return v
+	case CtL3Proto:
+		return string(v)
+	case CtProtocol:
+		return string(v)
 	case uint8, uint16, uint32, uint64:
 		return fmt.Sprintf("%v", v)
 	}

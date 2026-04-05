@@ -176,8 +176,8 @@
 - [x] `packets`: Number of packets transferred in the connection (with optional direction)
 - [x] `ip saddr`: Source IP address of the connection
 - [x] `ip daddr`: Destination IP address of the connection
-- [ ] `l3proto`: Layer 3 protocol (e.g. ipv4, ipv6)
-- [ ] `protocol`: Layer 4 protocol (e.g. tcp, udp)
+- [x] `l3proto`: Layer 3 protocol (e.g. ipv4, ipv6)
+- [x] `protocol`: Layer 4 protocol (e.g. tcp, udp)
 - [ ] `proto-src`: Source port/ID of the connection
 - [ ] `proto-dst`: Destination port/ID of the connection
 - [ ] `zone`: Connection tracking zone ID

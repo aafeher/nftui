@@ -85,6 +85,8 @@ func (r ruleView) View() string {
 	// CT Mezők fix sorrendben
 	{
 		keys := []nftexpr.CtKey{
+			nftexpr.CtKeyL3Protocol,
+			nftexpr.CtKeyProtocol,
 			nftexpr.CtKeyState,
 			nftexpr.CtKeyDirection,
 			nftexpr.CtKeyStatus,
@@ -119,6 +121,10 @@ func (r ruleView) View() string {
 
 					// Robusztusabb típuskezelés a megjelenítéshez
 					switch v := val.(type) {
+					case nftexpr.CtL3Proto:
+						content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v)))
+					case nftexpr.CtProtocol:
+						content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v)))
 					case nftexpr.CtState:
 						content.WriteString(fmt.Sprintf("%s %s\n", prefix, string(v)))
 					case []nftexpr.CtState:
