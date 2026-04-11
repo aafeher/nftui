@@ -380,6 +380,96 @@ func TestNftablesToRuleDefinition_CTPktsReply(t *testing.T) {
 	}
 }
 
+func TestNftablesToRuleDefinition_CTAvgpkt(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: expr.CtKeyAVGPKT, Register: 1, Direction: 255, OptDirection: false},
+		&expr.Cmp{Op: expr.CmpOpGt, Register: 1, Data: []byte{0, 0, 0, 0, 0, 0, 2, 0}}, // BE uint64 = 512
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.CT == nil {
+		t.Fatal("CT is nil")
+	}
+	if c.CT.Key != nftexpr.CtKeyAvgpkt {
+		t.Errorf("CT.Key = %q, want %q", c.CT.Key, nftexpr.CtKeyAvgpkt)
+	}
+	if c.CT.Direction != nftexpr.CtDirectionNone {
+		t.Errorf("Direction = %q, want %q", c.CT.Direction, nftexpr.CtDirectionNone)
+	}
+	if v, ok := c.CT.Value.(uint64); !ok || v != 512 {
+		t.Errorf("CT.Value = %v (%T), want uint64(512)", c.CT.Value, c.CT.Value)
+	}
+	if c.Operation != CompareOpGt {
+		t.Errorf("Operation = %q, want %q", c.Operation, CompareOpGt)
+	}
+}
+
+func TestNftablesToRuleDefinition_CTAvgpktOriginal(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: expr.CtKeyAVGPKT, Register: 1, Direction: 0, OptDirection: true},
+		&expr.Cmp{Op: expr.CmpOpGte, Register: 1, Data: []byte{0, 0, 0, 0, 0, 0, 0, 64}}, // BE uint64 = 64
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.CT == nil {
+		t.Fatal("CT is nil")
+	}
+	if c.CT.Key != nftexpr.CtKeyAvgpkt {
+		t.Errorf("CT.Key = %q, want %q", c.CT.Key, nftexpr.CtKeyAvgpkt)
+	}
+	if c.CT.Direction != nftexpr.CtDirectionOriginal {
+		t.Errorf("Direction = %q, want %q", c.CT.Direction, nftexpr.CtDirectionOriginal)
+	}
+	if v, ok := c.CT.Value.(uint64); !ok || v != 64 {
+		t.Errorf("CT.Value = %v (%T), want uint64(64)", c.CT.Value, c.CT.Value)
+	}
+	if c.Operation != CompareOpGte {
+		t.Errorf("Operation = %q, want %q", c.Operation, CompareOpGte)
+	}
+}
+
+func TestNftablesToRuleDefinition_CTAvgpktReply(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: expr.CtKeyAVGPKT, Register: 1, Direction: 1, OptDirection: true},
+		&expr.Cmp{Op: expr.CmpOpLt, Register: 1, Data: []byte{0, 0, 0, 0, 0, 0, 5, 0xDC}}, // BE uint64 = 1500
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.CT == nil {
+		t.Fatal("CT is nil")
+	}
+	if c.CT.Key != nftexpr.CtKeyAvgpkt {
+		t.Errorf("CT.Key = %q, want %q", c.CT.Key, nftexpr.CtKeyAvgpkt)
+	}
+	if c.CT.Direction != nftexpr.CtDirectionReply {
+		t.Errorf("Direction = %q, want %q", c.CT.Direction, nftexpr.CtDirectionReply)
+	}
+	if v, ok := c.CT.Value.(uint64); !ok || v != 1500 {
+		t.Errorf("CT.Value = %v (%T), want uint64(1500)", c.CT.Value, c.CT.Value)
+	}
+	if c.Operation != CompareOpLt {
+		t.Errorf("Operation = %q, want %q", c.Operation, CompareOpLt)
+	}
+}
+
 func TestNftablesToRuleDefinition_CTMarkNeq(t *testing.T) {
 	rd, err := NftablesToRuleDefinition(makeRule(
 		&expr.Ct{Key: expr.CtKeyMARK, Register: 1},

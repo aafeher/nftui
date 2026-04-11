@@ -193,6 +193,7 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 		nftexpr.CtKeyZone,
 		nftexpr.CtKeyBytes,
 		nftexpr.CtKeyPkts,
+		nftexpr.CtKeyAvgpkt,
 	}
 
 	labelWidth := 18

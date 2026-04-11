@@ -29,7 +29,7 @@ type Ct struct {
 	Labels          []string    `json:"labels,omitzero"`
 	Bytes           uint64      `json:"bytes,omitzero"`
 	Pkts            uint64      `json:"packets,omitzero"`
-	Avgpkt          uint32      `json:"avgpkt,omitzero"`
+	Avgpkt          uint64      `json:"avgpkt,omitzero"`
 	Zone            uint16      `json:"zone,omitzero"`
 	Eventmask       uint32      `json:"eventmask,omitzero"`
 }
@@ -791,8 +791,10 @@ func fillCtField(ct *Ct, key expr.CtKey, value interface{}) {
 			ct.Bytes = uint64(v)
 		}
 	case expr.CtKeyAVGPKT:
-		if v, ok := value.(uint32); ok {
+		if v, ok := value.(uint64); ok {
 			ct.Avgpkt = v
+		} else if v, ok := value.(uint32); ok {
+			ct.Avgpkt = uint64(v)
 		}
 	case expr.CtKeyHELPER:
 		if v, ok := value.(string); ok {
@@ -975,7 +977,7 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 		if len(data) == 16 {
 			return net.IP(data).String()
 		}
-	case expr.CtKeyPKTS, expr.CtKeyBYTES:
+	case expr.CtKeyPKTS, expr.CtKeyBYTES, expr.CtKeyAVGPKT:
 		if len(data) == 8 {
 			valBE := binary.BigEndian.Uint64(data)
 			valLE := binary.LittleEndian.Uint64(data)
