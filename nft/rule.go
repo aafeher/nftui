@@ -37,6 +37,7 @@ type Condition struct {
 	CT        *CTCondition
 	SetLookup *SetLookupCondition
 	Limit     *expr.Limit
+	Connlimit *expr.Connlimit
 	Custom    *CustomCondition
 }
 
@@ -55,6 +56,7 @@ const (
 	ConditionTypeCT        ConditionType = "ct"
 	ConditionTypeSetLookup ConditionType = "set_lookup"
 	ConditionTypeLimit     ConditionType = "limit"
+	ConditionTypeConnlimit ConditionType = "connlimit"
 	ConditionTypeCustom    ConditionType = "custom"
 )
 
@@ -702,6 +704,12 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 		case *expr.Limit:
 			cond := limitToCondition(v)
 			rd.Conditions = append(rd.Conditions, cond)
+			i++
+		case *expr.Connlimit:
+			rd.Conditions = append(rd.Conditions, Condition{
+				Type:      ConditionTypeConnlimit,
+				Connlimit: v,
+			})
 			i++
 		case *expr.Quota:
 			// TODO: quota kezelése
@@ -1602,7 +1610,7 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 			i++
 
 		case *expr.Connlimit:
-			// TODO
+			parts = append(parts, nftexpr.SerializeConnlimit(v))
 			i++
 
 		case *expr.Queue:

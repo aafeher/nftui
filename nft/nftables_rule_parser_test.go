@@ -1540,5 +1540,55 @@ func TestNftablesToRuleDefinition_CTZone(t *testing.T) {
 	}
 }
 
+func TestNftablesToRuleDefinition_CTCountOver(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Connlimit{Count: 100, Flags: 0}, // Flags=0 → "over"
+		&expr.Verdict{Kind: expr.VerdictDrop},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var found *Condition
+	for i := range rd.Conditions {
+		if rd.Conditions[i].Connlimit != nil {
+			found = &rd.Conditions[i]
+		}
+	}
+	if found == nil {
+		t.Fatal("no connlimit condition found")
+	}
+	if found.Connlimit.Count != 100 {
+		t.Errorf("Count = %d, want 100", found.Connlimit.Count)
+	}
+	if found.Connlimit.Flags != 0 {
+		t.Errorf("Flags = %d, want 0 (over)", found.Connlimit.Flags)
+	}
+}
+
+func TestNftablesToRuleDefinition_CTCount(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Connlimit{Count: 50, Flags: expr.NFT_CONNLIMIT_F_INV},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var found *Condition
+	for i := range rd.Conditions {
+		if rd.Conditions[i].Connlimit != nil {
+			found = &rd.Conditions[i]
+		}
+	}
+	if found == nil {
+		t.Fatal("no connlimit condition found")
+	}
+	if found.Connlimit.Count != 50 {
+		t.Errorf("Count = %d, want 50", found.Connlimit.Count)
+	}
+	if found.Connlimit.Flags != expr.NFT_CONNLIMIT_F_INV {
+		t.Errorf("Flags = %d, want NFT_CONNLIMIT_F_INV", found.Connlimit.Flags)
+	}
+}
+
 // beUint32 helper for 4-byte big-endian values used in some test payloads
 var _ = binary.BigEndian // ensure import used

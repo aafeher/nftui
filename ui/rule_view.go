@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
+	"github.com/google/nftables/expr"
 )
 
 type ruleView struct {
@@ -326,6 +327,22 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 			labelPart := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, label+":"))
 			sb.WriteString(labelPart + " " + grayStyle.Render("(üres)") + "\n")
 		}
+	}
+
+	// CT count (connlimit)
+	for _, condition := range rd.Conditions {
+		if condition.Connlimit == nil {
+			continue
+		}
+		labelPart := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "CT count:"))
+		over := condition.Connlimit.Flags&expr.NFT_CONNLIMIT_F_INV == 0
+		var valStr string
+		if over {
+			valStr = fmt.Sprintf("over %d", condition.Connlimit.Count)
+		} else {
+			valStr = fmt.Sprintf("%d", condition.Connlimit.Count)
+		}
+		sb.WriteString(labelPart + " " + valStr + "\n")
 	}
 
 	return sb.String()

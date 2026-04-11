@@ -185,7 +185,7 @@
 - [x] `avgpkt`: Average bytes per packet
 - [x] `label`: Connection tracking labels
 - [ ] `eventmask`: Connection event mask
-- [ ] `count`: Number of connections matching this rule (ct count)
+- [x] `count`: Number of connections matching this rule (ct count)
 
 #### Meta
 - [ ] `iifname`: Input interface name

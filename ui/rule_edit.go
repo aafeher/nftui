@@ -131,6 +131,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewCtBytesField(rd),      // slots 20,21,22
 				NewCtPktsField(rd),       // slots 23,24,25
 				NewCtAvgpktField(rd),     // slots 26,27,28
+				NewCtCountField(rd),      // slots 29,30
 			},
 		},
 		{
@@ -394,7 +395,8 @@ func (r ruleEdit) renderCTTab() string {
 	// tabs[1].fields indices (by array position, not slot number):
 	// 0=L3Proto, 1=Protocol, 2=ProtoSrc, 3=ProtoDst,
 	// 4=State, 5=Direction, 6=Status, 7=Labels,
-	// 8=Mark, 9=Expiration, 10=Helper, 11=Zone, 12=Bytes, 13=Pkts, 14=Avgpkt
+	// 8=Mark, 9=Expiration, 10=Helper, 11=Zone, 12=Bytes, 13=Pkts, 14=Avgpkt,
+	// 15=Count
 	f := r.tabs[1].fields
 	var sb strings.Builder
 
@@ -426,6 +428,10 @@ func (r ruleEdit) renderCTTab() string {
 
 	// Row 7: Bytes | Pkts | Avgpkt
 	sb.WriteString(r.row3(f[12].View(), f[13].View(), f[14].View()))
+	sb.WriteString("\n")
+
+	// Row 8: Count (over + value)
+	sb.WriteString(r.row2(f[15].View(), ""))
 	sb.WriteString("\n")
 
 	return sb.String()
