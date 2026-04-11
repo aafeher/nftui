@@ -123,13 +123,14 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewCtStateField(rd),      // slot 10
 				NewCtDirectionField(rd),  // slot 11
 				NewCtStatusField(rd),     // slot 12
-				NewCtMarkField(rd),       // slots 13,14
-				NewCtExpirationField(rd), // slot 15
-				NewCtHelperField(rd),     // slot 16
-				NewCtZoneField(rd),       // slots 17,18
-				NewCtBytesField(rd),      // slots 19,20,21
-				NewCtPktsField(rd),       // slots 22,23,24
-				NewCtAvgpktField(rd),     // slots 25,26,27
+				NewCtLabelsField(rd),     // slot 13
+				NewCtMarkField(rd),       // slots 14,15
+				NewCtExpirationField(rd), // slot 16
+				NewCtHelperField(rd),     // slot 17
+				NewCtZoneField(rd),       // slots 18,19
+				NewCtBytesField(rd),      // slots 20,21,22
+				NewCtPktsField(rd),       // slots 23,24,25
+				NewCtAvgpktField(rd),     // slots 26,27,28
 			},
 		},
 		{
@@ -392,8 +393,8 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 func (r ruleEdit) renderCTTab() string {
 	// tabs[1].fields indices (by array position, not slot number):
 	// 0=L3Proto, 1=Protocol, 2=ProtoSrc, 3=ProtoDst,
-	// 4=State, 5=Direction, 6=Status,
-	// 7=Mark, 8=Expiration, 9=Helper, 10=Zone, 11=Bytes, 12=Pkts, 13=Avgpkt
+	// 4=State, 5=Direction, 6=Status, 7=Labels,
+	// 8=Mark, 9=Expiration, 10=Helper, 11=Zone, 12=Bytes, 13=Pkts, 14=Avgpkt
 	f := r.tabs[1].fields
 	var sb strings.Builder
 
@@ -412,16 +413,19 @@ func (r ruleEdit) renderCTTab() string {
 	sb.WriteString(r.row2(f[5].View(), f[6].View()))
 	sb.WriteString("\n")
 
+	// Row 4b: Labels (full width — comma-separated bit indices)
+	sb.WriteString(f[7].View())
+
 	// Row 5: Mark | Expiration | Helper
-	sb.WriteString(r.row3(f[7].View(), f[8].View(), f[9].View()))
+	sb.WriteString(r.row3(f[8].View(), f[9].View(), f[10].View()))
 	sb.WriteString("\n")
 
 	// Row 6: Zone | (empty)
-	sb.WriteString(r.row2(f[10].View(), ""))
+	sb.WriteString(r.row2(f[11].View(), ""))
 	sb.WriteString("\n")
 
 	// Row 7: Bytes | Pkts | Avgpkt
-	sb.WriteString(r.row3(f[11].View(), f[12].View(), f[13].View()))
+	sb.WriteString(r.row3(f[12].View(), f[13].View(), f[14].View()))
 	sb.WriteString("\n")
 
 	return sb.String()

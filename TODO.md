@@ -183,7 +183,7 @@
 - [x] `zone`: Connection tracking zone ID
 - [ ] `secmark`: Security mark
 - [x] `avgpkt`: Average bytes per packet
-- [ ] `labels`: Connection tracking labels
+- [x] `label`: Connection tracking labels
 - [ ] `eventmask`: Connection event mask
 - [ ] `count`: Number of connections matching this rule (ct count)
 

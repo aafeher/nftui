@@ -470,6 +470,39 @@ func TestNftablesToRuleDefinition_CTAvgpktReply(t *testing.T) {
 	}
 }
 
+func TestNftablesToRuleDefinition_CTLabels(t *testing.T) {
+	mask := make([]byte, 16)
+	mask[0] = 0x05 // bits 0 and 2
+	zeros := make([]byte, 16)
+
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: expr.CtKeyLABELS, Register: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 16, Mask: mask, Xor: zeros},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: zeros},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.CT.Key != nftexpr.CtKeyLabels {
+		t.Errorf("CT.Key = %q, want %q", c.CT.Key, nftexpr.CtKeyLabels)
+	}
+	bits, ok := c.CT.Value.([]string)
+	if !ok {
+		t.Fatalf("CT.Value type = %T, want []string", c.CT.Value)
+	}
+	if len(bits) != 2 || bits[0] != "0" || bits[1] != "2" {
+		t.Errorf("CT.Value = %v, want [0 2]", bits)
+	}
+	if c.Operation != CompareOpEq {
+		t.Errorf("Operation = %q, want eq (normalized from neq+zeros)", c.Operation)
+	}
+}
+
 func TestNftablesToRuleDefinition_CTMarkNeq(t *testing.T) {
 	rd, err := NftablesToRuleDefinition(makeRule(
 		&expr.Ct{Key: expr.CtKeyMARK, Register: 1},

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/google/nftables"
@@ -806,6 +807,13 @@ func fillCtField(ct *Ct, key expr.CtKey, value interface{}) {
 		} else if v, ok := value.(uint32); ok {
 			ct.Zone = uint16(v)
 		}
+	case expr.CtKeyLABELS:
+		switch v := value.(type) {
+		case []string:
+			ct.Labels = append(ct.Labels, v...)
+		case string:
+			ct.Labels = append(ct.Labels, v)
+		}
 	case expr.CtKeyEVENTMASK:
 		if v, ok := value.(uint32); ok {
 			ct.Eventmask = v
@@ -995,6 +1003,8 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 		}
 	case expr.CtKeyHELPER:
 		return strings.TrimRight(string(data), "\x00")
+	case expr.CtKeyLABELS:
+		return LabelMaskToBitIndices(data)
 	case expr.CtKeyZONE:
 		if len(data) == 2 {
 			return binary.LittleEndian.Uint16(data)
@@ -1122,6 +1132,33 @@ func formatCtValue(key expr.CtKey, data []byte) string {
 	}
 
 	return formatData(data)
+}
+
+// LabelBitIndicesToMask converts a slice of bit index strings (e.g. ["0","3"])
+// to a 16-byte bitmask suitable for Bitwise.Mask.
+func LabelBitIndicesToMask(bits []string) []byte {
+	mask := make([]byte, 16)
+	for _, s := range bits {
+		n, err := strconv.Atoi(strings.TrimSpace(s))
+		if err != nil || n < 0 || n > 127 {
+			continue
+		}
+		mask[n/8] |= 1 << uint(n%8)
+	}
+	return mask
+}
+
+// LabelMaskToBitIndices is the inverse of LabelBitIndicesToMask.
+func LabelMaskToBitIndices(mask []byte) []string {
+	var bits []string
+	for byteIdx, b := range mask {
+		for bitIdx := 0; bitIdx < 8; bitIdx++ {
+			if b&(1<<uint(bitIdx)) != 0 {
+				bits = append(bits, fmt.Sprintf("%d", byteIdx*8+bitIdx))
+			}
+		}
+	}
+	return bits
 }
 
 func FormatDuration(seconds uint32) string {

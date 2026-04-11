@@ -187,6 +187,7 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 		nftexpr.CtKeyState,
 		nftexpr.CtKeyDirection,
 		nftexpr.CtKeyStatus,
+		nftexpr.CtKeyLabels,
 		nftexpr.CtKeyMark,
 		nftexpr.CtKeySecMark,
 		nftexpr.CtKeyExpiration,
@@ -296,6 +297,12 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 						}
 					}
 					valStr = op + "{" + strings.Join(s, ", ") + "}"
+				case []string:
+					if len(v) == 0 {
+						valStr = op + "{}"
+					} else {
+						valStr = op + "bits {" + strings.Join(v, ",") + "}"
+					}
 				case []any:
 					var s []string
 					for _, item := range v {
