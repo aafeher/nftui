@@ -180,6 +180,9 @@ func (f *CtPktsField) View() string {
 	if f.dirChanged() {
 		vDir = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vDir)
 	}
-	return grayStyle.Render("CT Packets") + "\n" + vVal + "\n" +
-		grayStyle.Render("CT Packets Direction") + "\n" + vDir + "\n"
+	inputs := lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.NewStyle().Width(24).Render(vVal),
+		lipgloss.NewStyle().Render(vDir),
+	)
+	return grayStyle.Render("CT Packets") + "\n" + inputs + "\n"
 }

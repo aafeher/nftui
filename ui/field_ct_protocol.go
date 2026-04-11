@@ -141,5 +141,9 @@ func (f *CtProtocolField) View() string {
 	if f.valueChanged() {
 		vVal = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vVal)
 	}
-	return grayStyle.Render("CT Protocol") + "\n" + vOp + "\n" + vVal + "\n"
+	inputs := lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.NewStyle().Width(10).Render(vOp),
+		lipgloss.NewStyle().Render(vVal),
+	)
+	return grayStyle.Render("CT Protocol") + "\n" + inputs + "\n"
 }

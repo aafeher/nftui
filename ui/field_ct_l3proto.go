@@ -141,5 +141,9 @@ func (f *CtL3ProtoField) View() string {
 	if f.valueChanged() {
 		vVal = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vVal)
 	}
-	return grayStyle.Render("CT L3 Proto") + "\n" + vOp + "\n" + vVal + "\n"
+	inputs := lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.NewStyle().Width(10).Render(vOp),
+		lipgloss.NewStyle().Render(vVal),
+	)
+	return grayStyle.Render("CT L3 Proto") + "\n" + inputs + "\n"
 }

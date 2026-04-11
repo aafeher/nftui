@@ -177,6 +177,9 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.ruleView.keys.Back):
 				m.activeView = "chain"
 				m.ruleView = nil
+				if m.chainView != nil {
+					m.chainView.RefreshRules()
+				}
 				return m, nil
 			case key.Matches(msg, m.ruleView.keys.Quit):
 				m.showQuitConfirm = true
@@ -193,6 +196,9 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, m.ruleEdit.keys.Back):
 				m.activeView = "chain"
 				m.ruleEdit = nil
+				if m.chainView != nil {
+					m.chainView.RefreshRules()
+				}
 				return m, nil
 			case key.Matches(msg, m.ruleEdit.keys.Quit):
 				m.showQuitConfirm = true

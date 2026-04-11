@@ -89,5 +89,9 @@ func (f *IPDaddrField) View() string {
 	if f.ipChanged() {
 		vIP = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vIP)
 	}
-	return grayStyle.Render("IP Destination Address") + "\n" + vOp + "\n" + vIP + "\n"
+	inputs := lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.NewStyle().Width(10).Render(vOp),
+		lipgloss.NewStyle().Render(vIP),
+	)
+	return grayStyle.Render("IP cél") + "\n" + inputs + "\n"
 }

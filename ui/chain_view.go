@@ -113,18 +113,26 @@ func (c chainView) Update(msg tea.Msg) (chainView, tea.Cmd) {
 		case key.Matches(msg, c.keys.OpenRuleView):
 			// F3 megnyomva - kiválasztott rule megnyitása
 			if c.cursor >= 0 && c.cursor < len(c.rules) {
-				selectedRule := c.rules[c.cursor]
+				table := c.table
+				chain := c.chain
+				handle := c.rules[c.cursor].Handle
+				cursor := c.cursor
+				fallback := c.rules[c.cursor]
 				return c, func() tea.Msg {
-					return ruleViewSelectedMsg{rule: selectedRule}
+					return ruleViewSelectedMsg{rule: fetchFreshRule(table, chain, handle, cursor, fallback)}
 				}
 			}
 			return c, nil
 		case key.Matches(msg, c.keys.OpenRuleEdit):
 			// F4 megnyomva - kiválasztott rule megnyitása
 			if c.cursor >= 0 && c.cursor < len(c.rules) {
-				selectedRule := c.rules[c.cursor]
+				table := c.table
+				chain := c.chain
+				handle := c.rules[c.cursor].Handle
+				cursor := c.cursor
+				fallback := c.rules[c.cursor]
 				return c, func() tea.Msg {
-					return ruleEditSelectedMsg{rule: selectedRule}
+					return ruleEditSelectedMsg{rule: fetchFreshRule(table, chain, handle, cursor, fallback)}
 				}
 			}
 			return c, nil
@@ -295,4 +303,33 @@ func (c chainView) getRulesForChain() []*nftables.Rule {
 		panic(err)
 	}
 	return rules
+}
+
+// RefreshRules re-fetches the chain's rules from the kernel.
+// Call this after a rule has been saved to ensure fresh data on next open.
+func (c *chainView) RefreshRules() {
+	rules, err := nft.ListRulesOfChain(&c.table.Table, c.chain)
+	if err == nil {
+		c.rules = rules
+	}
+}
+
+// fetchFreshRule re-fetches rules from the kernel and returns the rule matching
+// the given handle. Falls back to the in-memory rule if fetching fails.
+func fetchFreshRule(table *tableNode, chain *nftables.Chain, handle uint64, cursor int, fallback *nftables.Rule) *nftables.Rule {
+	fresh, err := nft.ListRulesOfChain(&table.Table, chain)
+	if err != nil {
+		return fallback
+	}
+	// Match by handle (most reliable)
+	for _, r := range fresh {
+		if r.Handle == handle {
+			return r
+		}
+	}
+	// Fall back to cursor position
+	if cursor < len(fresh) {
+		return fresh[cursor]
+	}
+	return fallback
 }

@@ -248,7 +248,7 @@ func TestNftablesToRuleDefinition_CTMark(t *testing.T) {
 }
 
 func TestNftablesToRuleDefinition_CTState(t *testing.T) {
-	// CT STATE: Ct → Bitwise{mask=LE(established)} → Cmp{Eq, data=LE(established)}
+	// CT STATE Pattern A: Ct → Bitwise{mask=X} → Cmp{Eq, data=X}  (e.g. ct state established)
 	stateMask := nftexpr.EncodeCtStates([]nftexpr.CtState{nftexpr.CtStateEstablished})
 
 	rd, err := NftablesToRuleDefinition(makeRule(
@@ -269,6 +269,42 @@ func TestNftablesToRuleDefinition_CTState(t *testing.T) {
 	}
 	if c.CT.Key != nftexpr.CtKey("state") {
 		t.Errorf("CT.Key = %q, want %q", c.CT.Key, "state")
+	}
+	if c.CT.Value != nftexpr.CtStateEstablished {
+		t.Errorf("CT.Value = %v (%T), want CtStateEstablished", c.CT.Value, c.CT.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_CTStateInvalid(t *testing.T) {
+	// CT STATE Pattern B: Ct → Bitwise{mask=X} → Cmp{Neq, zeros}  (e.g. ct state invalid)
+	// The kernel uses this pattern for single-bit state checks like invalid (bit 0x01).
+	invalidMask := nftexpr.EncodeCtStates([]nftexpr.CtState{nftexpr.CtStateInvalid}) // [1,0,0,0]
+	zeros := []byte{0x00, 0x00, 0x00, 0x00}
+
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: expr.CtKeySTATE, Register: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 4, Mask: invalidMask, Xor: zeros},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: zeros},
+		&expr.Verdict{Kind: expr.VerdictDrop},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.Type != ConditionTypeCT {
+		t.Errorf("type = %q, want %q", c.Type, ConditionTypeCT)
+	}
+	if c.CT.Key != nftexpr.CtKey("state") {
+		t.Errorf("CT.Key = %q, want %q", c.CT.Key, "state")
+	}
+	if c.CT.Value != nftexpr.CtStateInvalid {
+		t.Errorf("CT.Value = %v (%T), want CtStateInvalid", c.CT.Value, c.CT.Value)
+	}
+	if c.Operation != CompareOpEq {
+		t.Errorf("Operation = %q, want %q (Neq+zeros normalized to Eq)", c.Operation, CompareOpEq)
 	}
 }
 

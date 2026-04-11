@@ -883,14 +883,25 @@ func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Cond
 func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition, error) {
 	ctKey := nftexpr.CtKeyToString(regVal.ctKey)
 
-	// For STATUS, the kernel encodes "ct status X" as Ct + Bitwise{mask=X} + Cmp{Neq, zeros}.
-	// The actual status bits are in the Bitwise mask, not in cmp.data (which is all zeros).
-	// Cmp{Neq, zeros} semantically means "bit is set", which normalizes to CompareOpEq.
+	// The kernel can encode bitmask CT conditions (STATE, STATUS) in two ways:
+	//   Pattern A: Bitwise{mask=X} + Cmp{Eq, data=X}   — data equals mask
+	//   Pattern B: Bitwise{mask=X} + Cmp{Neq, zeros}   — data is all zeros
+	// Pattern B means "AND result != 0" which semantically is "bit is set" → normalize to Eq
+	// using the Bitwise mask as data.
+	// The kernel uses Pattern B for STATUS always, and also for STATE when the result
+	// of the Bitwise AND with a single bit is checked (e.g. ct state invalid).
 	data := cmp.data
 	op := cmp.op
-	if regVal.hasBitwise && regVal.ctKey == expr.CtKeySTATUS {
-		data = regVal.bitwiseMask
-		if op == expr.CmpOpNeq {
+	if regVal.hasBitwise && op == expr.CmpOpNeq {
+		allZeros := true
+		for _, b := range cmp.data {
+			if b != 0 {
+				allZeros = false
+				break
+			}
+		}
+		if allZeros {
+			data = regVal.bitwiseMask
 			op = expr.CmpOpEq
 		}
 	}

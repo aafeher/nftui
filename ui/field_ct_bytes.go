@@ -180,6 +180,9 @@ func (f *CtBytesField) View() string {
 	if f.dirChanged() {
 		vDir = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vDir)
 	}
-	return grayStyle.Render("CT Bytes") + "\n" + vVal + "\n" +
-		grayStyle.Render("CT Bytes Direction") + "\n" + vDir + "\n"
+	inputs := lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.NewStyle().Width(24).Render(vVal),
+		lipgloss.NewStyle().Render(vDir),
+	)
+	return grayStyle.Render("CT Bytes") + "\n" + inputs + "\n"
 }
