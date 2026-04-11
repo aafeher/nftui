@@ -180,7 +180,7 @@
 - [x] `protocol`: Layer 4 protocol (e.g. tcp, udp)
 - [x] `proto-src`: Source port/ID of the connection
 - [x] `proto-dst`: Destination port/ID of the connection
-- [ ] `zone`: Connection tracking zone ID
+- [x] `zone`: Connection tracking zone ID
 - [ ] `secmark`: Security mark
 - [ ] `avgpkt`: Average bytes per packet
 - [ ] `labels`: Connection tracking labels

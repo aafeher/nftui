@@ -103,10 +103,20 @@ func (f *IPSaddrField) View() string {
 
 // compareOpToExprCmpOp converts a nft.CompareOp to the expr.CmpOp used by the kernel.
 func compareOpToExprCmpOp(op nft.CompareOp) expr.CmpOp {
-	if op == nft.CompareOpNeq {
+	switch op {
+	case nft.CompareOpNeq:
 		return expr.CmpOpNeq
+	case nft.CompareOpLt:
+		return expr.CmpOpLt
+	case nft.CompareOpLte:
+		return expr.CmpOpLte
+	case nft.CompareOpGt:
+		return expr.CmpOpGt
+	case nft.CompareOpGte:
+		return expr.CmpOpGte
+	default:
+		return expr.CmpOpEq
 	}
-	return expr.CmpOpEq
 }
 
 // extractIPAddrOp returns the comparison operator for the saddr or daddr condition.

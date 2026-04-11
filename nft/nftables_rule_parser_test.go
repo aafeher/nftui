@@ -1375,5 +1375,47 @@ func TestNftablesToRuleDefinition_CTProtoDst(t *testing.T) {
 	}
 }
 
+func TestNftablesToRuleDefinition_CTZone(t *testing.T) {
+	tests := []struct {
+		name   string
+		zone   uint16
+		op     expr.CmpOp
+		wantOp CompareOp
+	}{
+		{"zone == 1", 1, expr.CmpOpEq, CompareOpEq},
+		{"zone != 0", 0, expr.CmpOpNeq, CompareOpNeq},
+		{"zone == 42", 42, expr.CmpOpEq, CompareOpEq},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			zoneData := make([]byte, 2)
+			binary.LittleEndian.PutUint16(zoneData, tt.zone)
+
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Ct{Key: expr.CtKeyZONE, Register: 1},
+				&expr.Cmp{Op: tt.op, Register: 1, Data: zoneData},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(rd.Conditions) != 1 {
+				t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+			}
+			c := rd.Conditions[0]
+			if c.CT.Key != nftexpr.CtKeyZone {
+				t.Errorf("CT.Key = %q, want %q", c.CT.Key, nftexpr.CtKeyZone)
+			}
+			if v, ok := c.CT.Value.(uint16); !ok || v != tt.zone {
+				t.Errorf("CT.Value = %v (%T), want uint16(%d)", c.CT.Value, c.CT.Value, tt.zone)
+			}
+			if c.Operation != tt.wantOp {
+				t.Errorf("Operation = %q, want %q", c.Operation, tt.wantOp)
+			}
+		})
+	}
+}
+
 // beUint32 helper for 4-byte big-endian values used in some test payloads
 var _ = binary.BigEndian // ensure import used

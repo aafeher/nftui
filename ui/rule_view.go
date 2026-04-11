@@ -190,6 +190,7 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 		nftexpr.CtKeyMark,
 		nftexpr.CtKeyExpiration,
 		nftexpr.CtKeyHelper,
+		nftexpr.CtKeyZone,
 		nftexpr.CtKeyBytes,
 		nftexpr.CtKeyPkts,
 	}

@@ -126,8 +126,9 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewCtMarkField(rd),       // slot 13
 				NewCtExpirationField(rd), // slot 14
 				NewCtHelperField(rd),     // slot 15
-				NewCtBytesField(rd),      // slots 16,17
-				NewCtPktsField(rd),       // slots 18,19
+				NewCtZoneField(rd),       // slots 16,17
+				NewCtBytesField(rd),      // slots 18,19
+				NewCtPktsField(rd),       // slots 20,21
 			},
 		},
 		{
@@ -391,7 +392,7 @@ func (r ruleEdit) renderCTTab() string {
 	// tabs[1].fields indices:
 	// 0=L3Proto, 1=Protocol, 2=ProtoSrc, 3=ProtoDst,
 	// 4=State, 5=Direction, 6=Status,
-	// 7=Mark, 8=Expiration, 9=Helper, 10=Bytes, 11=Pkts
+	// 7=Mark, 8=Expiration, 9=Helper, 10=Zone, 11=Bytes, 12=Pkts
 	f := r.tabs[1].fields
 	var sb strings.Builder
 
@@ -414,8 +415,12 @@ func (r ruleEdit) renderCTTab() string {
 	sb.WriteString(r.row3(f[7].View(), f[8].View(), f[9].View()))
 	sb.WriteString("\n")
 
-	// Row 6: Bytes | Pkts
-	sb.WriteString(r.row2(f[10].View(), f[11].View()))
+	// Row 6: Zone | (empty)
+	sb.WriteString(r.row2(f[10].View(), ""))
+	sb.WriteString("\n")
+
+	// Row 7: Bytes | Pkts
+	sb.WriteString(r.row2(f[11].View(), f[12].View()))
 	sb.WriteString("\n")
 
 	return sb.String()
