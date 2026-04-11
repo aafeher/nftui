@@ -123,13 +123,13 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewCtStateField(rd),      // slot 10
 				NewCtDirectionField(rd),  // slot 11
 				NewCtStatusField(rd),     // slot 12
-				NewCtMarkField(rd),       // slot 13
-				NewCtExpirationField(rd), // slot 14
-				NewCtHelperField(rd),     // slot 15
-				NewCtZoneField(rd),       // slots 16,17
-				NewCtBytesField(rd),      // slots 18,19
-				NewCtPktsField(rd),       // slots 20,21
-				NewCtAvgpktField(rd),     // slots 22,23,24
+				NewCtMarkField(rd),       // slots 13,14
+				NewCtExpirationField(rd), // slot 15
+				NewCtHelperField(rd),     // slot 16
+				NewCtZoneField(rd),       // slots 17,18
+				NewCtBytesField(rd),      // slots 19,20,21
+				NewCtPktsField(rd),       // slots 22,23,24
+				NewCtAvgpktField(rd),     // slots 25,26,27
 			},
 		},
 		{
@@ -390,10 +390,10 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 
 // renderCTTab renders the CT (Connection Tracking) tab content.
 func (r ruleEdit) renderCTTab() string {
-	// tabs[1].fields indices:
+	// tabs[1].fields indices (by array position, not slot number):
 	// 0=L3Proto, 1=Protocol, 2=ProtoSrc, 3=ProtoDst,
 	// 4=State, 5=Direction, 6=Status,
-	// 7=Mark, 8=Expiration, 9=Helper, 10=Zone, 11=Bytes, 12=Pkts, 13=Avgpkt (op+value+dir)
+	// 7=Mark, 8=Expiration, 9=Helper, 10=Zone, 11=Bytes, 12=Pkts, 13=Avgpkt
 	f := r.tabs[1].fields
 	var sb strings.Builder
 

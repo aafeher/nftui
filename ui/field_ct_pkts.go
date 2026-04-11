@@ -12,14 +12,21 @@ import (
 	nftexpr "nftui/nft/expr"
 )
 
+// CtPktsField edits the ct pkts condition.
+// Supports all relational operators and optional direction (original/reply).
 type CtPktsField struct {
+	opInput        Select
 	valueInput     NumberInput
 	directionInput Select
+	originalOp     nft.CompareOp
 	originalValue  uint64
 	originalDir    nftexpr.CtDirection
 }
 
 func NewCtPktsField(rd *nft.Rule) *CtPktsField {
+	opInput := NewSelect([]string{"==", "!=", "<", "<=", ">", ">="})
+	opInput.Width = 6
+
 	valueInput := NewNumberInput(0, 9_223_372_036_854_775_807)
 	valueInput.Placeholder = "0"
 	valueInput.CharLimit = 20
@@ -28,6 +35,7 @@ func NewCtPktsField(rd *nft.Rule) *CtPktsField {
 	directionInput := NewSelect(append([]string{""}, nftexpr.CtDirectionStrings...))
 	directionInput.Width = 10
 
+	var originalOp nft.CompareOp = nft.CompareOpEq
 	var originalValue uint64
 	var originalDir nftexpr.CtDirection
 
@@ -36,38 +44,48 @@ func NewCtPktsField(rd *nft.Rule) *CtPktsField {
 			if p, ok := condition.CT.Value.(uint64); ok {
 				originalValue = p
 			}
+			originalOp = condition.Operation
 			originalDir = condition.CT.Direction
 		}
 	}
 
+	opInput.SetValue(string(originalOp))
 	if originalValue > 0 {
 		valueInput.SetValue(fmt.Sprint(originalValue))
-	} else {
-		valueInput.SetValue("")
 	}
 	directionInput.SetValue(string(originalDir))
 
 	return &CtPktsField{
+		opInput:        opInput,
 		valueInput:     valueInput,
 		directionInput: directionInput,
+		originalOp:     originalOp,
 		originalValue:  originalValue,
 		originalDir:    originalDir,
 	}
 }
 
-func (f *CtPktsField) FocusSlots() int { return 2 }
+func (f *CtPktsField) FocusSlots() int { return 3 }
 
 func (f *CtPktsField) Focus(subIndex int) {
-	if subIndex == 0 {
+	switch subIndex {
+	case 0:
+		f.opInput.Focus()
+	case 1:
 		f.valueInput.Focus()
-	} else {
+	default:
 		f.directionInput.Focus()
 	}
 }
 
 func (f *CtPktsField) Blur() {
+	f.opInput.Blur()
 	f.valueInput.Blur()
 	f.directionInput.Blur()
+}
+
+func (f *CtPktsField) opChanged() bool {
+	return nft.CompareOp(f.opInput.Value()) != f.originalOp
 }
 
 func (f *CtPktsField) valueChanged() bool {
@@ -80,12 +98,14 @@ func (f *CtPktsField) dirChanged() bool {
 }
 
 func (f *CtPktsField) Changed() bool {
-	return f.valueChanged() || f.dirChanged()
+	return f.opChanged() || f.valueChanged() || f.dirChanged()
 }
 
 func (f *CtPktsField) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
-	if f.valueInput.Focused() {
+	if f.opInput.Focused {
+		f.opInput, cmd = f.opInput.Update(msg)
+	} else if f.valueInput.Focused() {
 		f.valueInput, cmd = f.valueInput.Update(msg)
 	} else if f.directionInput.Focused {
 		f.directionInput, cmd = f.directionInput.Update(msg)
@@ -102,6 +122,7 @@ func (f *CtPktsField) Save(rule *nftables.Rule) {
 		return
 	}
 	newPkts := val
+	newOp := compareOpToExprCmpOp(nft.CompareOp(f.opInput.Value()))
 	newDirectionStr := f.directionInput.Value()
 	var newDirection nftexpr.CtDirection
 	if newDirectionStr != "" {
@@ -109,32 +130,32 @@ func (f *CtPktsField) Save(rule *nftables.Rule) {
 	} else {
 		newDirection = nftexpr.CtDirectionNone
 	}
+	pktsData := binary.LittleEndian.AppendUint64(nil, newPkts)
 
 	found := false
 	for i, re := range rule.Exprs {
-		switch e := re.(type) {
-		case *expr.Ct:
-			if e.Key == expr.CtKeyPKTS {
-				found = true
-				if newDirection == nftexpr.CtDirectionOriginal {
-					e.Direction = 0
-					e.OptDirection = true
-				} else if newDirection == nftexpr.CtDirectionReply {
-					e.Direction = 1
-					e.OptDirection = true
-				} else {
-					e.Direction = 255
-					e.OptDirection = false
-				}
-				if i+1 < len(rule.Exprs) {
-					if cmp, ok := rule.Exprs[i+1].(*expr.Cmp); ok {
-						cmp.Data = binary.LittleEndian.AppendUint64(nil, newPkts)
-					}
+		if e, ok := re.(*expr.Ct); ok && e.Key == expr.CtKeyPKTS {
+			found = true
+			if newDirection == nftexpr.CtDirectionOriginal {
+				e.Direction = 0
+				e.OptDirection = true
+			} else if newDirection == nftexpr.CtDirectionReply {
+				e.Direction = 1
+				e.OptDirection = true
+			} else {
+				e.Direction = 255
+				e.OptDirection = false
+			}
+			if i+1 < len(rule.Exprs) {
+				if cmp, ok := rule.Exprs[i+1].(*expr.Cmp); ok {
+					cmp.Op = newOp
+					cmp.Data = pktsData
 				}
 			}
 		}
 	}
-	if !found && newPkts > 0 {
+
+	if !found && (newPkts > 0 || f.opChanged()) {
 		insertIdx := 0
 		for i, re := range rule.Exprs {
 			if _, ok := re.(*expr.Ct); ok {
@@ -152,19 +173,15 @@ func (f *CtPktsField) Save(rule *nftables.Rule) {
 		}
 		newExprs := make([]expr.Any, 0, len(rule.Exprs)+2)
 		newExprs = append(newExprs, rule.Exprs[:insertIdx]...)
-		newExprs = append(newExprs, &expr.Ct{
-			Key:          expr.CtKeyPKTS,
-			Register:     1,
-			Direction:    dir,
-			OptDirection: optDir,
-		}, &expr.Cmp{
-			Op:       expr.CmpOpEq,
-			Register: 1,
-			Data:     binary.LittleEndian.AppendUint64(nil, newPkts),
-		})
+		newExprs = append(newExprs,
+			&expr.Ct{Key: expr.CtKeyPKTS, Register: 1, Direction: dir, OptDirection: optDir},
+			&expr.Cmp{Op: newOp, Register: 1, Data: pktsData},
+		)
 		newExprs = append(newExprs, rule.Exprs[insertIdx:]...)
 		rule.Exprs = newExprs
 	}
+
+	f.originalOp = nft.CompareOp(f.opInput.Value())
 	f.originalValue = newPkts
 	f.originalDir = newDirection
 	f.valueInput.Blur()
@@ -172,6 +189,10 @@ func (f *CtPktsField) Save(rule *nftables.Rule) {
 }
 
 func (f *CtPktsField) View() string {
+	vOp := f.opInput.View()
+	if f.opChanged() {
+		vOp = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vOp)
+	}
 	vVal := f.valueInput.View()
 	if f.valueChanged() {
 		vVal = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vVal)
@@ -181,6 +202,7 @@ func (f *CtPktsField) View() string {
 		vDir = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vDir)
 	}
 	inputs := lipgloss.JoinHorizontal(lipgloss.Top,
+		lipgloss.NewStyle().Width(8).Render(vOp),
 		lipgloss.NewStyle().Width(24).Render(vVal),
 		lipgloss.NewStyle().Render(vDir),
 	)
