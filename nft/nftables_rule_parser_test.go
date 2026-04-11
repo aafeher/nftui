@@ -1315,5 +1315,65 @@ func TestNftablesToRuleDefinition_CtL3ProtoAndProtocol(t *testing.T) {
 	}
 }
 
+func TestNftablesToRuleDefinition_CTProtoSrc(t *testing.T) {
+	// ct original proto-src 80: Ct{PROTOSRC, Dir=0, OptDir=true} → Cmp{Eq, BE(80)}
+	port := beUint16(80)
+
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: expr.CtKeyPROTOSRC, Register: 1, Direction: 0, OptDirection: true},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: port},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.CT.Key != nftexpr.CtKeyProtoSrc {
+		t.Errorf("CT.Key = %q, want %q", c.CT.Key, nftexpr.CtKeyProtoSrc)
+	}
+	if v, ok := c.CT.Value.(uint16); !ok || v != 80 {
+		t.Errorf("CT.Value = %v (%T), want uint16(80)", c.CT.Value, c.CT.Value)
+	}
+	if c.CT.Direction != nftexpr.CtDirectionOriginal {
+		t.Errorf("Direction = %q, want %q", c.CT.Direction, nftexpr.CtDirectionOriginal)
+	}
+	if c.Operation != CompareOpEq {
+		t.Errorf("Operation = %q, want CompareOpEq", c.Operation)
+	}
+}
+
+func TestNftablesToRuleDefinition_CTProtoDst(t *testing.T) {
+	// ct reply proto-dst 443 (!=): Ct{PROTODST, Dir=1, OptDir=true} → Cmp{Neq, BE(443)}
+	port := beUint16(443)
+
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: expr.CtKeyPROTODST, Register: 1, Direction: 1, OptDirection: true},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: port},
+		&expr.Verdict{Kind: expr.VerdictDrop},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.CT.Key != nftexpr.CtKeyProtoDst {
+		t.Errorf("CT.Key = %q, want %q", c.CT.Key, nftexpr.CtKeyProtoDst)
+	}
+	if v, ok := c.CT.Value.(uint16); !ok || v != 443 {
+		t.Errorf("CT.Value = %v (%T), want uint16(443)", c.CT.Value, c.CT.Value)
+	}
+	if c.CT.Direction != nftexpr.CtDirectionReply {
+		t.Errorf("Direction = %q, want %q", c.CT.Direction, nftexpr.CtDirectionReply)
+	}
+	if c.Operation != CompareOpNeq {
+		t.Errorf("Operation = %q, want CompareOpNeq", c.Operation)
+	}
+}
+
 // beUint32 helper for 4-byte big-endian values used in some test payloads
 var _ = binary.BigEndian // ensure import used

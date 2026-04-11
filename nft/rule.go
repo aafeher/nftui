@@ -909,7 +909,8 @@ func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition
 	value := nftexpr.DecodeCTValue(regVal.ctKey, data)
 
 	direction := nftexpr.CtDirectionNone
-	if regVal.ctKey == expr.CtKeyBYTES || regVal.ctKey == expr.CtKeyPKTS || regVal.ctKey == expr.CtKeyAVGPKT {
+	if regVal.ctKey == expr.CtKeyBYTES || regVal.ctKey == expr.CtKeyPKTS || regVal.ctKey == expr.CtKeyAVGPKT ||
+		regVal.ctKey == expr.CtKeyPROTOSRC || regVal.ctKey == expr.CtKeyPROTODST {
 		if regVal.ctDirection == 0 {
 			direction = nftexpr.CtDirectionOriginal
 		} else if regVal.ctDirection == 1 {

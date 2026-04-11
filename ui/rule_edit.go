@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"nftui/nft"
+
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
-	"nftui/nft"
 )
 
 // ruleEditKeyMap defines key bindings for navigation and actions within the rule editing interface.
@@ -117,14 +118,16 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 			fields: []FieldEditor{
 				NewCtL3ProtoField(rd),    // slots 0,1
 				NewCtProtocolField(rd),   // slots 2,3
-				NewCtStateField(rd),      // slot 4
-				NewCtDirectionField(rd),  // slot 5
-				NewCtStatusField(rd),     // slot 6
-				NewCtMarkField(rd),       // slot 7
-				NewCtExpirationField(rd), // slot 8
-				NewCtHelperField(rd),     // slot 9
-				NewCtBytesField(rd),      // slots 10,11
-				NewCtPktsField(rd),       // slots 12,13
+				NewCtProtoSrcField(rd),   // slots 4,5,6
+				NewCtProtoDstField(rd),   // slots 7,8,9
+				NewCtStateField(rd),      // slot 10
+				NewCtDirectionField(rd),  // slot 11
+				NewCtStatusField(rd),     // slot 12
+				NewCtMarkField(rd),       // slot 13
+				NewCtExpirationField(rd), // slot 14
+				NewCtHelperField(rd),     // slot 15
+				NewCtBytesField(rd),      // slots 16,17
+				NewCtPktsField(rd),       // slots 18,19
 			},
 		},
 		{
@@ -386,8 +389,9 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 // renderCTTab renders the CT (Connection Tracking) tab content.
 func (r ruleEdit) renderCTTab() string {
 	// tabs[1].fields indices:
-	// 0=L3Proto, 1=Protocol, 2=State, 3=Direction,
-	// 4=Status, 5=Mark, 6=Expiration, 7=Helper, 8=Bytes, 9=Pkts
+	// 0=L3Proto, 1=Protocol, 2=ProtoSrc, 3=ProtoDst,
+	// 4=State, 5=Direction, 6=Status,
+	// 7=Mark, 8=Expiration, 9=Helper, 10=Bytes, 11=Pkts
 	f := r.tabs[1].fields
 	var sb strings.Builder
 
@@ -395,19 +399,23 @@ func (r ruleEdit) renderCTTab() string {
 	sb.WriteString(r.row2(f[0].View(), f[1].View()))
 	sb.WriteString("\n")
 
-	// Row 2: State (full width — multiselect with many options)
-	sb.WriteString(f[2].View())
-
-	// Row 3: Direction | Status
-	sb.WriteString(r.row2(f[3].View(), f[4].View()))
+	// Row 2: proto-src | proto-dst
+	sb.WriteString(r.row2(f[2].View(), f[3].View()))
 	sb.WriteString("\n")
 
-	// Row 4: Mark | Expiration | Helper
-	sb.WriteString(r.row3(f[5].View(), f[6].View(), f[7].View()))
+	// Row 3: State (full width — multiselect with many options)
+	sb.WriteString(f[4].View())
+
+	// Row 4: Direction | Status
+	sb.WriteString(r.row2(f[5].View(), f[6].View()))
 	sb.WriteString("\n")
 
-	// Row 5: Bytes | Pkts
-	sb.WriteString(r.row2(f[8].View(), f[9].View()))
+	// Row 5: Mark | Expiration | Helper
+	sb.WriteString(r.row3(f[7].View(), f[8].View(), f[9].View()))
+	sb.WriteString("\n")
+
+	// Row 6: Bytes | Pkts
+	sb.WriteString(r.row2(f[10].View(), f[11].View()))
 	sb.WriteString("\n")
 
 	return sb.String()

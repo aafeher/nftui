@@ -182,6 +182,8 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 	keys := []nftexpr.CtKey{
 		nftexpr.CtKeyL3Protocol,
 		nftexpr.CtKeyProtocol,
+		nftexpr.CtKeyProtoSrc,
+		nftexpr.CtKeyProtoDst,
 		nftexpr.CtKeyState,
 		nftexpr.CtKeyDirection,
 		nftexpr.CtKeyStatus,
@@ -195,7 +197,8 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 	labelWidth := 18
 
 	for _, ctKey := range keys {
-		label := fmt.Sprintf("CT %s", ctKey)
+		displayKey := strings.ReplaceAll(string(ctKey), "_", "-")
+		label := fmt.Sprintf("CT %s", displayKey)
 		found := false
 
 		for _, condition := range rd.Conditions {
@@ -218,7 +221,7 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 				dirPrefix = "reply "
 			}
 			if dirPrefix != "" {
-				label = fmt.Sprintf("CT %s%s", dirPrefix, ctKey)
+				label = fmt.Sprintf("CT %s%s", dirPrefix, displayKey)
 			}
 
 			labelPart := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, label+":"))
@@ -258,6 +261,8 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 					} else {
 						valStr = op + "{" + strings.Join(s, ", ") + "}"
 					}
+				case uint16:
+					valStr = fmt.Sprintf("%s%d", op, v)
 				case uint32:
 					if ctKey == nftexpr.CtKeyMark {
 						valStr = fmt.Sprintf("%s0x%08x", op, v)
