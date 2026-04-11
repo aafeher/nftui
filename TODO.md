@@ -182,7 +182,7 @@
 - [x] `proto-dst`: Destination port/ID of the connection
 - [x] `zone`: Connection tracking zone ID
 - [ ] `secmark`: Security mark
-- [ ] `avgpkt`: Average bytes per packet
+- [x] `avgpkt`: Average bytes per packet
 - [ ] `labels`: Connection tracking labels
 - [ ] `eventmask`: Connection event mask
 - [ ] `count`: Number of connections matching this rule (ct count)
