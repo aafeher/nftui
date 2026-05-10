@@ -135,6 +135,17 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					tm.scrollOffset = tm.cursor - tm.maxHeight + 1
 				}
 			}
+		case "e":
+			items := tm.getFlattenedItems()
+			if tm.cursor < len(items) {
+				selected := items[tm.cursor]
+				if selected.isRoot {
+					t := &selected.table.Table
+					return tm, func() tea.Msg {
+						return tableEditSelectedMsg{table: t}
+					}
+				}
+			}
 		case "f3":
 			items := tm.getFlattenedItems()
 			if tm.cursor < len(items) {

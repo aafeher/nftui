@@ -15,6 +15,11 @@ type newRuleCreatedMsg struct{ rule *nftables.Rule }
 // Displayed directly in the chain view as a status line, not in the main view.
 type chainOpErrMsg struct{ err error }
 
+type tableEditSelectedMsg struct{ table *nftables.Table }
+type tableRenamedMsg struct{}
+type tableOpErrMsg struct{ err error }
+type tableTreeRefreshedMsg struct{ nodes []*tableNode }
+
 type statTablesMsg []*nftables.Table
 type statChainsMsg []*nftables.Chain
 type statRulesAcceptMsg []*nftables.Rule
@@ -120,5 +125,43 @@ func insertNewRuleBeforeCmd(table *tableNode, chain *nftables.Chain, rules []*nf
 			return chainOpErrMsg{err: err}
 		}
 		return newRuleCreatedMsg{rule: rule}
+	}
+}
+
+func renameTableCmd(table *nftables.Table, newName string) tea.Cmd {
+	return func() tea.Msg {
+		if err := nft.RenameTable(table, newName); err != nil {
+			return tableOpErrMsg{err: err}
+		}
+		return tableRenamedMsg{}
+	}
+}
+
+// loadTableTreeCmd rebuilds the tableTreeModel from the kernel without panicking.
+func loadTableTreeCmd() tea.Cmd {
+	return func() tea.Msg {
+		tables, err := nft.ListTables()
+		if err != nil {
+			return errMsg(err)
+		}
+		nodes := make([]*tableNode, 0, len(tables))
+		for _, t := range tables {
+			chains, err := nft.ListChainsOfTable(t)
+			if err != nil {
+				chains = nil
+			}
+			chainNodes := make([]*chainNode, 0, len(chains))
+			for _, c := range chains {
+				rules, _ := nft.ListRulesOfChain(t, c)
+				chainNodes = append(chainNodes, &chainNode{Chain: *c, Rules: rules})
+			}
+			rulesOfTable, _ := nft.ListRulesOfTable(t)
+			nodes = append(nodes, &tableNode{
+				Table:  *t,
+				Chains: chainNodes,
+				Rules:  rulesOfTable,
+			})
+		}
+		return tableTreeRefreshedMsg{nodes: nodes}
 	}
 }

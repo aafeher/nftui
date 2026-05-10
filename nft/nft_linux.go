@@ -5,6 +5,7 @@ package nft
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
@@ -180,6 +181,72 @@ func CountRulesByType(rules []*nftables.Rule) (accept int, drop int, other int) 
 		}
 	}
 	return
+}
+
+// nftCLIFamily maps a TableFamily to the family name accepted by the nft(8)
+// CLI tool, which differs from TableFamilyToString for ipv4/ipv6 ("ip"/"ip6"
+// rather than "ipv4"/"ipv6").
+func nftCLIFamily(f nftables.TableFamily) string {
+	switch f {
+	case nftables.TableFamilyIPv4:
+		return "ip"
+	case nftables.TableFamilyIPv6:
+		return "ip6"
+	case nftables.TableFamilyINet:
+		return "inet"
+	case nftables.TableFamilyARP:
+		return "arp"
+	case nftables.TableFamilyBridge:
+		return "bridge"
+	case nftables.TableFamilyNetdev:
+		return "netdev"
+	default:
+		return TableFamilyToString(f)
+	}
+}
+
+// RenameTable renames a table by shelling out to nft(8). It dumps the current
+// table as nft script, rewrites the header to the new name, appends a delete of
+// the old table, and applies the whole thing atomically with `nft -f -`.
+//
+// We use the nft CLI rather than constructing the rename via netlink because
+// faithfully recreating every set property the kernel tracks (per-element
+// stateful expressions, userdata flags, descriptor sizes for constant sets,
+// concatenated key types, etc.) requires fields that google/nftables doesn't
+// fully decode in NFT_MSG_GETSET responses. Round-tripping that incomplete
+// state back into a fresh AddSet() reliably trips kernel EINVAL on the element
+// stage. The nft CLI already gets all of this right.
+func RenameTable(table *nftables.Table, newName string) error {
+	if newName == table.Name {
+		return nil
+	}
+
+	family := nftCLIFamily(table.Family)
+
+	dump, err := exec.Command("nft", "list", "table", family, table.Name).Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return fmt.Errorf("nft list table: %v: %s", err, exitErr.Stderr)
+		}
+		return fmt.Errorf("nft list table: %v", err)
+	}
+
+	oldHeader := fmt.Sprintf("table %s %s {", family, table.Name)
+	newHeader := fmt.Sprintf("table %s %s {", family, newName)
+	rewritten := strings.Replace(string(dump), oldHeader, newHeader, 1)
+	if rewritten == string(dump) {
+		return fmt.Errorf("could not rewrite table header (looked for %q)", oldHeader)
+	}
+
+	script := rewritten + fmt.Sprintf("\ndelete table %s %s\n", family, table.Name)
+
+	cmd := exec.Command("nft", "-f", "-")
+	cmd.Stdin = strings.NewReader(script)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("nft -f failed: %v\n%s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 // DeleteRule removes the given rule from the kernel.

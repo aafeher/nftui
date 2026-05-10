@@ -15,21 +15,24 @@ import (
 type errMsg error
 
 type keyMap struct {
-	Up      key.Binding
-	Down    key.Binding
-	Filter  key.Binding
-	Refresh key.Binding
-	Quit    key.Binding
+	Up        key.Binding
+	Down      key.Binding
+	Expand    key.Binding
+	EditTable key.Binding
+	OpenChain key.Binding
+	Filter    key.Binding
+	Refresh   key.Binding
+	Quit      key.Binding
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Filter, k.Refresh, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Expand, k.EditTable, k.OpenChain, k.Refresh, k.Quit}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Filter},
-		{k.Refresh, k.Quit},
+		{k.Up, k.Down, k.Expand, k.EditTable, k.OpenChain},
+		{k.Filter, k.Refresh, k.Quit},
 	}
 }
 
@@ -52,7 +55,8 @@ type MainWindow struct {
 	chainView             *chainView
 	ruleView              *ruleView
 	ruleEdit              *ruleEdit
-	activeView            string // "main", "chain", "ruleView", "ruleEdit"
+	tableEdit             *tableEdit
+	activeView            string // "main", "chain", "ruleView", "ruleEdit", "tableEdit"
 	help                  help.Model
 	width                 int
 	height                int
@@ -85,6 +89,18 @@ func InitialMainWindow() MainWindow {
 		Down: key.NewBinding(
 			key.WithKeys("down", "j"),
 			key.WithHelp("↓/j", "down"),
+		),
+		Expand: key.NewBinding(
+			key.WithKeys("enter", "right"),
+			key.WithHelp("enter/→", "expand/collapse"),
+		),
+		EditTable: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "edit table"),
+		),
+		OpenChain: key.NewBinding(
+			key.WithKeys("f3"),
+			key.WithHelp("f3", "open chain"),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("/"),
@@ -155,6 +171,35 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeView = "ruleEdit"
 		return m, nil
 
+	case tableEditSelectedMsg:
+		te := newTableEdit(msg.table)
+		te.width = m.width
+		te.height = m.height
+		m.tableEdit = &te
+		m.activeView = "tableEdit"
+		return m, nil
+
+	case tableRenamedMsg:
+		m.tableEdit = nil
+		m.activeView = "main"
+		m.loading = true
+		return m, tea.Batch(
+			loadTableTreeCmd(),
+			loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd(),
+		)
+
+	case tableTreeRefreshedMsg:
+		m.tableTree.nodes = msg.nodes
+		return m, nil
+
+	case tableOpErrMsg:
+		if m.tableEdit != nil {
+			updatedTE, cmd := m.tableEdit.Update(msg)
+			m.tableEdit = &updatedTE
+			return m, cmd
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		if m.activeView == "chain" && m.chainView != nil {
 			// While a modal (e.g. delete confirm) is active, route all keys through chainView.
@@ -193,6 +238,22 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			default:
 				updatedRuleView, cmd := m.ruleView.Update(msg)
 				m.ruleView = &updatedRuleView
+				return m, cmd
+			}
+		}
+
+		if m.activeView == "tableEdit" && m.tableEdit != nil {
+			switch {
+			case key.Matches(msg, m.tableEdit.keys.Back):
+				m.activeView = "main"
+				m.tableEdit = nil
+				return m, nil
+			case key.Matches(msg, m.tableEdit.keys.Quit):
+				m.showQuitConfirm = true
+				return m, nil
+			default:
+				updatedTE, cmd := m.tableEdit.Update(msg)
+				m.tableEdit = &updatedTE
 				return m, cmd
 			}
 		}
@@ -319,6 +380,22 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m MainWindow) View() string {
 	if !m.ready {
 		return "Initializing...\n"
+	}
+
+	if m.activeView == "tableEdit" && m.tableEdit != nil {
+		teContent := m.tableEdit.View()
+		if m.showQuitConfirm {
+			confirmBox := lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("220")).
+				Padding(1, 2).
+				Width(40).
+				Align(lipgloss.Center).
+				Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
+			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, teContent+"\n"+overlay)
+		}
+		return teContent
 	}
 
 	if m.activeView == "chain" && m.chainView != nil {

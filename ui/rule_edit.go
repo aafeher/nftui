@@ -15,22 +15,25 @@ import (
 
 // ruleEditKeyMap defines key bindings for navigation and actions within the rule editing interface.
 type ruleEditKeyMap struct {
-	PrevTab key.Binding
-	NextTab key.Binding
-	Back    key.Binding
-	Save    key.Binding
-	Quit    key.Binding
+	PrevTab   key.Binding
+	NextTab   key.Binding
+	NextField key.Binding
+	PrevField key.Binding
+	Back      key.Binding
+	Save      key.Binding
+	Quit      key.Binding
 }
 
 // ShortHelp returns a slice of key bindings for primary actions.
 func (k ruleEditKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.PrevTab, k.NextTab, k.Back, k.Save, k.Quit}
+	return []key.Binding{k.PrevTab, k.NextTab, k.NextField, k.PrevField, k.Save, k.Back, k.Quit}
 }
 
 // FullHelp returns a matrix of key bindings for detailed interface navigation.
 func (k ruleEditKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.PrevTab, k.NextTab, k.Back, k.Save, k.Quit},
+		{k.PrevTab, k.NextTab, k.NextField, k.PrevField},
+		{k.Save, k.Back, k.Quit},
 	}
 }
 
@@ -88,6 +91,14 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		NextTab: key.NewBinding(
 			key.WithKeys("f6"),
 			key.WithHelp("f6", "következő fül"),
+		),
+		NextField: key.NewBinding(
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "következő mező"),
+		),
+		PrevField: key.NewBinding(
+			key.WithKeys("shift+tab"),
+			key.WithHelp("shift+tab", "előző mező"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "f3"),
