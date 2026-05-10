@@ -17,6 +17,7 @@ type chainOpErrMsg struct{ err error }
 
 type tableEditSelectedMsg struct{ table *nftables.Table }
 type tableRenamedMsg struct{}
+type tableCreatedMsg struct{}
 type tableOpErrMsg struct{ err error }
 type tableTreeRefreshedMsg struct{ nodes []*tableNode }
 
@@ -134,6 +135,15 @@ func renameTableCmd(table *nftables.Table, newName string) tea.Cmd {
 			return tableOpErrMsg{err: err}
 		}
 		return tableRenamedMsg{}
+	}
+}
+
+func createTableCmd(family nftables.TableFamily, name string) tea.Cmd {
+	return func() tea.Msg {
+		if err := nft.CreateTable(family, name); err != nil {
+			return tableOpErrMsg{err: err}
+		}
+		return tableCreatedMsg{}
 	}
 }
 

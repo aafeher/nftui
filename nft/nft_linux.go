@@ -183,6 +183,19 @@ func CountRulesByType(rules []*nftables.Rule) (accept int, drop int, other int) 
 	return
 }
 
+// CreateTable creates a new empty table in the kernel with the given family and name.
+func CreateTable(family nftables.TableFamily, name string) error {
+	conn, err := nftables.New()
+	if err != nil {
+		return fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	conn.AddTable(&nftables.Table{Name: name, Family: family})
+	if err := conn.Flush(); err != nil {
+		return fmt.Errorf("failed to create table: %v", err)
+	}
+	return nil
+}
+
 // nftCLIFamily maps a TableFamily to the family name accepted by the nft(8)
 // CLI tool, which differs from TableFamilyToString for ipv4/ipv6 ("ip"/"ip6"
 // rather than "ipv4"/"ipv6").

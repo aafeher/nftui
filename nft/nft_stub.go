@@ -24,6 +24,10 @@ func RenameTable(_ *nftables.Table, _ string) error {
 	return fmt.Errorf("Az nftables csak Linux rendszeren érhető el.")
 }
 
+func CreateTable(_ nftables.TableFamily, _ string) error {
+	return fmt.Errorf("Az nftables csak Linux rendszeren érhető el.")
+}
+
 func DeleteRule(_ *nftables.Rule) error {
 	return fmt.Errorf("Az nftables csak Linux rendszeren érhető el.")
 }

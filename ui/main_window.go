@@ -19,6 +19,7 @@ type keyMap struct {
 	Down      key.Binding
 	Expand    key.Binding
 	EditTable key.Binding
+	NewTable  key.Binding
 	OpenChain key.Binding
 	Filter    key.Binding
 	Refresh   key.Binding
@@ -26,12 +27,12 @@ type keyMap struct {
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Expand, k.EditTable, k.OpenChain, k.Refresh, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Expand, k.EditTable, k.NewTable, k.OpenChain, k.Refresh, k.Quit}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Expand, k.EditTable, k.OpenChain},
+		{k.Up, k.Down, k.Expand, k.EditTable, k.NewTable, k.OpenChain},
 		{k.Filter, k.Refresh, k.Quit},
 	}
 }
@@ -56,7 +57,8 @@ type MainWindow struct {
 	ruleView              *ruleView
 	ruleEdit              *ruleEdit
 	tableEdit             *tableEdit
-	activeView            string // "main", "chain", "ruleView", "ruleEdit", "tableEdit"
+	tableCreate           *tableCreate
+	activeView            string // "main", "chain", "ruleView", "ruleEdit", "tableEdit", "tableCreate"
 	help                  help.Model
 	width                 int
 	height                int
@@ -97,6 +99,10 @@ func InitialMainWindow() MainWindow {
 		EditTable: key.NewBinding(
 			key.WithKeys("e"),
 			key.WithHelp("e", "edit table"),
+		),
+		NewTable: key.NewBinding(
+			key.WithKeys("n"),
+			key.WithHelp("n", "new table"),
 		),
 		OpenChain: key.NewBinding(
 			key.WithKeys("f3"),
@@ -188,6 +194,15 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd(),
 		)
 
+	case tableCreatedMsg:
+		m.tableCreate = nil
+		m.activeView = "main"
+		m.loading = true
+		return m, tea.Batch(
+			loadTableTreeCmd(),
+			loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd(),
+		)
+
 	case tableTreeRefreshedMsg:
 		m.tableTree.nodes = msg.nodes
 		return m, nil
@@ -196,6 +211,11 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.tableEdit != nil {
 			updatedTE, cmd := m.tableEdit.Update(msg)
 			m.tableEdit = &updatedTE
+			return m, cmd
+		}
+		if m.tableCreate != nil {
+			updatedTC, cmd := m.tableCreate.Update(msg)
+			m.tableCreate = &updatedTC
 			return m, cmd
 		}
 		return m, nil
@@ -258,6 +278,22 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		if m.activeView == "tableCreate" && m.tableCreate != nil {
+			switch {
+			case key.Matches(msg, m.tableCreate.keys.Back):
+				m.activeView = "main"
+				m.tableCreate = nil
+				return m, nil
+			case key.Matches(msg, m.tableCreate.keys.Quit):
+				m.showQuitConfirm = true
+				return m, nil
+			default:
+				updatedTC, cmd := m.tableCreate.Update(msg)
+				m.tableCreate = &updatedTC
+				return m, cmd
+			}
+		}
+
 		if m.activeView == "ruleEdit" && m.ruleEdit != nil {
 			switch {
 			case key.Matches(msg, m.ruleEdit.keys.Back):
@@ -301,6 +337,13 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			m.err = nil
 			return m, tea.Batch(loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd())
+		case key.Matches(msg, m.keys.NewTable):
+			tc := newTableCreate()
+			tc.width, tc.height = m.width, m.height
+			tc.applyFocus()
+			m.tableCreate = &tc
+			m.activeView = "tableCreate"
+			return m, nil
 		}
 		if !m.loading && m.err == nil {
 			var cmd tea.Cmd
@@ -396,6 +439,22 @@ func (m MainWindow) View() string {
 			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, teContent+"\n"+overlay)
 		}
 		return teContent
+	}
+
+	if m.activeView == "tableCreate" && m.tableCreate != nil {
+		tcContent := m.tableCreate.View()
+		if m.showQuitConfirm {
+			confirmBox := lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("220")).
+				Padding(1, 2).
+				Width(40).
+				Align(lipgloss.Center).
+				Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
+			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, tcContent+"\n"+overlay)
+		}
+		return tcContent
 	}
 
 	if m.activeView == "chain" && m.chainView != nil {
