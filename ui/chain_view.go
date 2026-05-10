@@ -221,34 +221,34 @@ func (c chainView) View() string {
 		return ""
 	}
 
-	// Fejléc
+	// Header
 	header := blueBoldStyle.Render("nftui nftables manager")
 
 	divider := grayStyle.
 		Width(c.width).
 		Render(strings.Repeat("─", c.width))
 
-	// Statisztika dobozok
+	// Statistics boxes
 	boxWidth := (c.width - 8) / 4
 	if boxWidth < 20 {
 		boxWidth = 20
 	}
 
-	// Chain név
+	// Chain name
 	chainNameContent := yellowBoldStyle.Render(c.chain.Name) + " chain details"
 	chainNameBox := normalGrayBorder.
 		Width(boxWidth).
 		Padding(0, 1).
 		Render(chainNameContent)
 
-	// Table név
+	// Table name
 	tableContent := blueStyle.Render(c.table.Table.Name) + " table"
 	tableBox := normalGrayBorder.
 		Width(boxWidth).
 		Padding(0, 1).
 		Render(tableContent)
 
-	// Rules szám
+	// Rules count
 	rulesForChain := c.getRulesForChain()
 	rulesCount := fmt.Sprintf("%d rules", len(rulesForChain))
 	rulesBox := normalGrayBorder.
@@ -325,7 +325,7 @@ func (c chainView) View() string {
 		content.WriteString(defaultBoldStyle.Render("Rules:"))
 		content.WriteString("\n\n")
 
-		// Lista renderelése kurzorral
+		// Render list with cursor
 		maxHeight := c.height - 20
 		startIdx := c.scrollOffset
 		endIdx := len(c.rules)
@@ -376,7 +376,7 @@ func (c chainView) View() string {
 			Padding(1, 2).
 			Width(50).
 			Align(lipgloss.Center).
-			Render("Valóban törölni szeretnéd a kiválasztott szabályt?\n\n[Y]es / [N]o")
+			Render("Are you sure you want to delete the selected rule?\n\n[Y]es / [N]o")
 
 		overlay := lipgloss.Place(c.width, c.height,
 			lipgloss.Center, lipgloss.Center,

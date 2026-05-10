@@ -24,13 +24,13 @@ func BitwiseToHumanReadable(b *expr.Bitwise, regMap map[uint32]string) string {
 		srcContent = fmt.Sprintf("register_%d", b.SourceRegister)
 	}
 
-	// Speciális kezelés CT state esetén
+	// Special handling for CT state
 	if srcContent == string(CtKeyState) {
-		// Megpróbáljuk dekódolni a maszkot emberi nyelvre (pl. 8 -> new)
+		// Try to decode mask to human language (pl. 8 -> new)
 		decoded := DecodeCTValue(expr.CtKeySTATE, b.Mask)
 
-		// Ha az Xor csupa nulla (ami az alapértelmezett maszkolásnál így van),
-		// akkor egyszerűen visszatérhetünk a névvel.
+		// If Xor is all zeros (which is the case with default masking),
+		// then we can simply return the name.
 		isXorZero := true
 		for _, v := range b.Xor {
 			if v != 0 {

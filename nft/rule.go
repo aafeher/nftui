@@ -218,12 +218,12 @@ type CTCondition struct {
 // SetLookupCondition specifies a condition to match data within a named set using a specific field.
 type SetLookupCondition struct {
 	SetName string
-	Field   string // melyik mezőt keressük a setben
+	Field   string // which field to look for in the set
 }
 
 // CustomCondition represents a user-defined condition with an expression and associated data for custom logic.
 type CustomCondition struct {
-	Expression string      // az eredeti kifejezés
+	Expression string      // the original expression
 	Data       interface{} // extra adatok
 }
 
@@ -231,7 +231,7 @@ type CustomCondition struct {
 type Action struct {
 	Type ActionType
 
-	// Típus-specifikus mezők
+	// Type-specific fields
 	Verdict *VerdictAction
 	NAT     *NATAction
 	Log     *LogAction
@@ -276,7 +276,7 @@ const (
 // VerdictAction represents an action with a specific verdict type and an optional target chain for jump/goto actions.
 type VerdictAction struct {
 	Kind  VerdictKind
-	Chain string // jump/goto esetén a cél chain
+	Chain string // target chain for jump/goto
 }
 
 // VerdictKind represents the type of verdict action to be taken in a networking or rule-checking context.
@@ -442,7 +442,7 @@ type SetAction struct {
 // SetElement represents a single element in a set with a key and an optional associated value.
 type SetElement struct {
 	Key   interface{}
-	Value interface{} // map esetén
+	Value interface{} // for map
 }
 
 // RedirectAction represents an action that performs redirection, optionally specifying a range of destination ports.
@@ -467,7 +467,7 @@ type CustomAction struct {
 // IPAddress represents an IP address and its associated subnet within a network configuration.
 type IPAddress struct {
 	IP     net.IP
-	Subnet *net.IPNet // CIDR esetén
+	Subnet *net.IPNet // for CIDR
 }
 
 // PortSpec represents a specification for defining port configurations including single, ranged, or set-based ports.
@@ -591,10 +591,10 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 		Actions:    []Action{},
 	}
 
-	// Regiszter követés - tároljuk, hogy melyik regiszterbe mit töltöttünk
+	// Register tracking - store what is loaded into which register
 	regMap := make(map[uint32]*registerValue)
 
-	// Összehasonlítások összegyűjtése (AND kapcsolat)
+	// Collecting comparisons (AND relation)
 	var pendingCompares []*compareContext
 
 	i := 0
@@ -611,7 +611,7 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			}
 			i++
 		case *expr.Range:
-			// Tartomány ellenőrzés
+			// Range check
 			regVal := regMap[v.Register]
 			if regVal != nil {
 				cond, err := rangeToCondition(regVal, v)
@@ -627,7 +627,7 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			}
 			i++
 		case *expr.Cmp:
-			// Összehasonlítás - betesszük a pending listába
+			// Comparison - put in pending list
 			regVal := regMap[v.Register]
 			if regVal == nil {
 				regVal = &registerValue{valueType: regTypeUnknown}
@@ -651,7 +651,7 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			i++
 		case *expr.Objref:
 			// Objektum referencia (quota, counter, ct helper, stb.)
-			// TODO: implementálás
+			// TODO: implementation
 			i++
 		case *expr.Payload:
 			regMap[v.DestRegister] = &registerValue{
@@ -676,7 +676,7 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			}
 			i++
 		case *expr.Bitwise:
-			// Bitwise művelet - módosítja a regiszter értékét
+			// Bitwise operation - modifies register value
 			if srcVal, ok := regMap[v.SourceRegister]; ok {
 				regMap[v.DestRegister] = &registerValue{
 					valueType:   srcVal.valueType,
@@ -712,7 +712,7 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			})
 			i++
 		case *expr.Quota:
-			// TODO: quota kezelése
+			// TODO: handling quota
 			i++
 		case *expr.Dynset:
 			action := dynsetToAction(v, regMap)
@@ -739,7 +739,7 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			rd.Actions = append(rd.Actions, action)
 			i++
 		default:
-			// Ismeretlen expression - custom condition-ként tároljuk
+			// Unknown expression - stored as custom condition
 			rd.Conditions = append(rd.Conditions, Condition{
 				Type: ConditionTypeCustom,
 				Custom: &CustomCondition{
@@ -751,7 +751,7 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 		}
 	}
 
-	// Pending összehasonlítások feldolgozása
+	// Processing pending comparisons
 	for _, cmp := range pendingCompares {
 		cond, err := compareToCondition(cmp)
 		if err == nil {
@@ -762,7 +762,7 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 	return rd, nil
 }
 
-// Segédtípusok és struktúrák
+// Helper types and structures
 
 // registerValueType defines an enumeration of possible register value types used within the system for type differentiation.
 type registerValueType int
@@ -1063,7 +1063,7 @@ func natToAction(n *expr.NAT, regMap map[uint32]*registerValue) (Action, error) 
 	var addrRange *AddressRange
 	var portRange *PortRange
 
-	// Cím tartomány dekódolása
+	// Decode address range
 	if n.RegAddrMin != 0 {
 		if minReg, ok := regMap[n.RegAddrMin]; ok && minReg.immediateData != nil {
 			fromIP := net.IP(minReg.immediateData)
@@ -1082,7 +1082,7 @@ func natToAction(n *expr.NAT, regMap map[uint32]*registerValue) (Action, error) 
 		}
 	}
 
-	// Port tartomány dekódolása
+	// Decode port range
 	if n.RegProtoMin != 0 {
 		if minReg, ok := regMap[n.RegProtoMin]; ok && minReg.immediateData != nil {
 			fromPort := binary.BigEndian.Uint16(minReg.immediateData)
@@ -1238,7 +1238,7 @@ func queueToAction(q *expr.Queue) Action {
 
 // dynsetToAction converts a Dynset expression into a corresponding Action with a SetAction type.
 func dynsetToAction(d *expr.Dynset, regMap map[uint32]*registerValue) Action {
-	// TODO: teljes implementáció
+	// TODO: full implementation
 	return Action{
 		Type: ActionTypeSet,
 		Set: &SetAction{
@@ -1303,12 +1303,12 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 
 // decodeMetaValue decodes a metadata value based on the key and raw binary data provided.
 func decodeMetaValue(key expr.MetaKey, data []byte) interface{} {
-	// Interface index kezelése
+	// Interface index handling
 	if key == unix.NFT_META_IIF || key == unix.NFT_META_OIF {
 		if len(data) == 4 {
 			// Big-endian uint32
 			ifIndex := binary.BigEndian.Uint32(data)
-			// Interface index -> név konverzió
+			// Interface index -> name conversion
 			if iface, err := net.InterfaceByIndex(int(ifIndex)); err == nil {
 				return iface.Name
 			}

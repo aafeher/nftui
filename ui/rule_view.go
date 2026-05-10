@@ -46,19 +46,19 @@ func newRuleView(rule *nftables.Rule) ruleView {
 	km := ruleViewKeyMap{
 		PrevTab: key.NewBinding(
 			key.WithKeys("f5"),
-			key.WithHelp("f5", "előző fül"),
+			key.WithHelp("f5", "prev tab"),
 		),
 		NextTab: key.NewBinding(
 			key.WithKeys("f6"),
-			key.WithHelp("f6", "következő fül"),
+			key.WithHelp("f6", "next tab"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "f3"),
-			key.WithHelp("esc/f3", "vissza"),
+			key.WithHelp("esc/f3", "back"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
-			key.WithHelp("q", "kilépés"),
+			key.WithHelp("q", "quit"),
 		),
 	}
 
@@ -87,7 +87,7 @@ func (r ruleView) Update(msg tea.Msg) (ruleView, tea.Cmd) {
 
 // renderTabBar renders the horizontal tab strip.
 func (r ruleView) renderTabBar() string {
-	tabNames := []string{"Általános", "CT", "Hálózat", "Limit"}
+	tabNames := []string{"General", "CT", "Network", "Limit"}
 	var parts []string
 	for i, name := range tabNames {
 		label := "  " + name + "  "
@@ -107,17 +107,17 @@ func (r ruleView) renderTabBar() string {
 func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 	var sb strings.Builder
 
-	sb.WriteString(grayBoldStyle.Render("Pozíció: "))
+	sb.WriteString(grayBoldStyle.Render("Position: "))
 	sb.WriteString(fmt.Sprintf("%d\n", rd.Position))
 
 	if rd.Comment != "" {
-		sb.WriteString(grayBoldStyle.Render("Megjegyzés: "))
+		sb.WriteString(grayBoldStyle.Render("Comment: "))
 		sb.WriteString(rd.Comment + "\n")
 	}
 
 	if len(rd.Actions) > 0 {
 		sb.WriteString("\n")
-		sb.WriteString(grayBoldStyle.Render("Műveletek:"))
+		sb.WriteString(grayBoldStyle.Render("Actions:"))
 		sb.WriteString("\n")
 		for _, action := range rd.Actions {
 			switch action.Type {
@@ -169,7 +169,7 @@ func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 
 	if rd.Counter != nil {
 		sb.WriteString("\n")
-		sb.WriteString(grayBoldStyle.Render("Számláló: "))
+		sb.WriteString(grayBoldStyle.Render("Counter: "))
 		sb.WriteString(fmt.Sprintf("%d packets, %d bytes\n", rd.Counter.Packets, rd.Counter.Bytes))
 	}
 
@@ -233,7 +233,7 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 
 			var valStr string
 			if val == nil {
-				valStr = "(nincs érték)"
+				valStr = "(no value)"
 			} else {
 				switch v := val.(type) {
 				case nftexpr.CtL3Proto:
@@ -325,7 +325,7 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 
 		if !found {
 			labelPart := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, label+":"))
-			sb.WriteString(labelPart + " " + grayStyle.Render("(üres)") + "\n")
+			sb.WriteString(labelPart + " " + grayStyle.Render("(empty)") + "\n")
 		}
 	}
 
@@ -386,11 +386,11 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		switch p.Field {
 		case "saddr":
 			saddrFound = true
-			label := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "IP forrás:"))
+			label := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "IP src:"))
 			sb.WriteString(label + " " + fmt.Sprintf("%s%s %s\n", op, string(p.Protocol), valStr))
 		case "daddr":
 			daddrFound = true
-			label := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "IP cél:"))
+			label := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "IP dst:"))
 			sb.WriteString(label + " " + fmt.Sprintf("%s%s %s\n", op, string(p.Protocol), valStr))
 		default:
 			label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, string(p.Protocol)+" "+p.Field+":"))
@@ -399,12 +399,12 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 	}
 
 	if !saddrFound {
-		label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "IP forrás:"))
-		sb.WriteString(label + " " + grayStyle.Render("(üres)") + "\n")
+		label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "IP src:"))
+		sb.WriteString(label + " " + grayStyle.Render("(empty)") + "\n")
 	}
 	if !daddrFound {
-		label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "IP cél:"))
-		sb.WriteString(label + " " + grayStyle.Render("(üres)") + "\n")
+		label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "IP dst:"))
+		sb.WriteString(label + " " + grayStyle.Render("(empty)") + "\n")
 	}
 
 	// Meta conditions
@@ -415,7 +415,7 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		}
 		if !hasMeta {
 			sb.WriteString("\n")
-			sb.WriteString(grayBoldStyle.Render("Meta feltételek:"))
+			sb.WriteString(grayBoldStyle.Render("Meta conditions:"))
 			sb.WriteString("\n")
 			hasMeta = true
 		}
@@ -462,7 +462,7 @@ func (r ruleView) renderLimitTab(rd *nft.Rule) string {
 	}
 
 	if limitCond == nil {
-		sb.WriteString(grayStyle.Render("(Nincsenek limit feltételek)"))
+		sb.WriteString(grayStyle.Render("(No limit conditions)"))
 		sb.WriteString("\n")
 		return sb.String()
 	}
@@ -496,7 +496,7 @@ func (r ruleView) View() string {
 	ruleDefinition, _ := nft.NftablesToRuleDefinition(r.rule)
 
 	var content strings.Builder
-	content.WriteString(blueStyle.Render("| Szabály megtekintése |"))
+	content.WriteString(blueStyle.Render("| View rule |"))
 	content.WriteString("\n\n")
 
 	// Tab bar

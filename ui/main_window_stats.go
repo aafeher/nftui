@@ -18,6 +18,7 @@ type chainOpErrMsg struct{ err error }
 type tableEditSelectedMsg struct{ table *nftables.Table }
 type tableRenamedMsg struct{}
 type tableCreatedMsg struct{}
+type tableDeletedMsg struct{}
 type tableOpErrMsg struct{ err error }
 type tableTreeRefreshedMsg struct{ nodes []*tableNode }
 
@@ -80,6 +81,15 @@ func deleteRuleCmd(rule *nftables.Rule) tea.Cmd {
 			return chainOpErrMsg{err: err}
 		}
 		return ruleDeletedMsg{}
+	}
+}
+
+func deleteTableCmd(table *nftables.Table) tea.Cmd {
+	return func() tea.Msg {
+		if err := nft.DeleteTable(table); err != nil {
+			return tableOpErrMsg{err: err}
+		}
+		return tableDeletedMsg{}
 	}
 }
 

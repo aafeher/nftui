@@ -86,31 +86,31 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 	km := ruleEditKeyMap{
 		PrevTab: key.NewBinding(
 			key.WithKeys("f5"),
-			key.WithHelp("f5", "előző fül"),
+			key.WithHelp("f5", "prev tab"),
 		),
 		NextTab: key.NewBinding(
 			key.WithKeys("f6"),
-			key.WithHelp("f6", "következő fül"),
+			key.WithHelp("f6", "next tab"),
 		),
 		NextField: key.NewBinding(
 			key.WithKeys("tab"),
-			key.WithHelp("tab", "következő mező"),
+			key.WithHelp("tab", "next field"),
 		),
 		PrevField: key.NewBinding(
 			key.WithKeys("shift+tab"),
-			key.WithHelp("shift+tab", "előző mező"),
+			key.WithHelp("shift+tab", "prev field"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "f3"),
-			key.WithHelp("esc/f3", "vissza"),
+			key.WithHelp("esc/f3", "back"),
 		),
 		Save: key.NewBinding(
 			key.WithKeys("f2"),
-			key.WithHelp("f2", "mentés"),
+			key.WithHelp("f2", "save"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
-			key.WithHelp("q", "kilépés"),
+			key.WithHelp("q", "quit"),
 		),
 	}
 
@@ -118,7 +118,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 
 	tabs := []editTab{
 		{
-			name: "Általános",
+			name: "General",
 			fields: []FieldEditor{
 				NewPositionField(rd),
 				NewCommentField(rd),
@@ -146,7 +146,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 			},
 		},
 		{
-			name: "Hálózat",
+			name: "Network",
 			fields: []FieldEditor{
 				NewIPSaddrField(rd), // slots 0,1
 				NewIPDaddrField(rd), // slots 2,3
@@ -244,7 +244,7 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 			saveCmd := func() tea.Msg {
 				err := nft.ApplyRuleChange(r.rule)
 				if err != nil {
-					return fmt.Errorf("mentési hiba: %w", err)
+					return fmt.Errorf("save error: %w", err)
 				}
 				return nil
 			}
@@ -320,7 +320,7 @@ func (r ruleEdit) row3(a, b, c string) string {
 	)
 }
 
-// renderGeneralTab renders the Általános (General) tab content.
+// renderGeneralTab renders the General tab content.
 func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	var sb strings.Builder
 
@@ -341,7 +341,7 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	// Actions (read-only)
 	if len(rd.Actions) > 0 {
 		sb.WriteString("\n")
-		sb.WriteString(grayBoldStyle.Render("Műveletek:"))
+		sb.WriteString(grayBoldStyle.Render("Actions:"))
 		sb.WriteString("\n")
 		for _, action := range rd.Actions {
 			switch action.Type {
@@ -394,7 +394,7 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	// Counter stats
 	if rd.Counter != nil {
 		sb.WriteString("\n")
-		sb.WriteString(grayBoldStyle.Render("Számláló: "))
+		sb.WriteString(grayBoldStyle.Render("Counter: "))
 		sb.WriteString(fmt.Sprintf("%d packets, %d bytes\n", rd.Counter.Packets, rd.Counter.Bytes))
 	}
 
@@ -448,7 +448,7 @@ func (r ruleEdit) renderCTTab() string {
 	return sb.String()
 }
 
-// renderNetworkTab renders the Hálózat (Network) tab content.
+// renderNetworkTab renders the Network tab content.
 func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 	// tabs[2].fields: 0=IPSaddr, 1=IPDaddr
 	f := r.tabs[2].fields
@@ -463,7 +463,7 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 		if condition.Meta != nil && condition.Meta.Key != "" {
 			if !hasMisc {
 				sb.WriteString("\n")
-				sb.WriteString(grayBoldStyle.Render("Egyéb feltételek:"))
+				sb.WriteString(grayBoldStyle.Render("Other conditions:"))
 				sb.WriteString("\n")
 				hasMisc = true
 			}
@@ -479,7 +479,7 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 		if condition.SetLookup != nil {
 			if !hasMisc {
 				sb.WriteString("\n")
-				sb.WriteString(grayBoldStyle.Render("Egyéb feltételek:"))
+				sb.WriteString(grayBoldStyle.Render("Other conditions:"))
 				sb.WriteString("\n")
 				hasMisc = true
 			}
@@ -488,7 +488,7 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 		if condition.Custom != nil {
 			if !hasMisc {
 				sb.WriteString("\n")
-				sb.WriteString(grayBoldStyle.Render("Egyéb feltételek:"))
+				sb.WriteString(grayBoldStyle.Render("Other conditions:"))
 				sb.WriteString("\n")
 				hasMisc = true
 			}
@@ -527,7 +527,7 @@ func (r ruleEdit) View() string {
 	ruleDefinition, _ := nft.NftablesToRuleDefinition(r.rule)
 
 	var content strings.Builder
-	content.WriteString(blueStyle.Render("| Szabály szerkesztése |"))
+	content.WriteString(blueStyle.Render("| Edit rule |"))
 	content.WriteString("\n\n")
 
 	// Tab bar

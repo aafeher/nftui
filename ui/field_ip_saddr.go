@@ -98,7 +98,7 @@ func (f *IPSaddrField) View() string {
 		lipgloss.NewStyle().Width(10).Render(vOp),
 		lipgloss.NewStyle().Render(vIP),
 	)
-	return grayStyle.Render("IP forrás") + "\n" + inputs + "\n"
+	return grayStyle.Render("IP src") + "\n" + inputs + "\n"
 }
 
 // compareOpToExprCmpOp converts a nft.CompareOp to the expr.CmpOp used by the kernel.

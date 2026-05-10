@@ -529,7 +529,7 @@ func SerializeCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (
 	//}
 
 	if pos+1 < len(exprs) {
-		// Ha következő Cmp
+		// If next Cmp
 		if cmp, ok := exprs[pos+1].(*expr.Cmp); ok {
 			//fmt.Printf("SerializeCT() cmp: %+v\n", cmp)
 			value := formatCtValue(ct.Key, cmp.Data)
@@ -537,7 +537,7 @@ func SerializeCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (
 			//fmt.Printf("177: value: %s - op: %+v\n", value, op)
 			return fmt.Sprintf("%s %s", ctStr, op), 2
 		}
-		// Ha következő Bitwise
+		// If next Bitwise
 		if bitwise, ok := exprs[pos+1].(*expr.Bitwise); ok {
 			//fmt.Printf("SerializeCT() bitwise: %+v\n", bitwise)
 			value := formatCtValue(ct.Key, bitwise.Mask)
@@ -554,12 +554,12 @@ func SerializeCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (
 				return fmt.Sprintf("%s %s", ctStr, value), 3
 			}
 		}
-		// Ha következő Lookup
+		// If next Lookup
 		if lookup, ok := exprs[pos+1].(*expr.Lookup); ok {
 			//fmt.Printf("SerializeCT() lookup: %+v\n", lookup)
 			return SerializeLookupWithKey(lookup, ctStr, ct.Key, sets), 2
 		}
-		// Ha következő Range
+		// If next Range
 		if rng, ok := exprs[pos+1].(*expr.Range); ok {
 			from := formatCtValue(ct.Key, rng.FromData)
 			to := formatCtValue(ct.Key, rng.ToData)
@@ -596,7 +596,7 @@ func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (C
 	if pos+1 < len(exprs) {
 		switch v := exprs[pos+1].(type) {
 		case *expr.Cmp:
-			// Egyszerű összehasonlítás (pl. ct direction original)
+			// Simple comparison (e.g. ct direction original)
 			value := DecodeCTValue(ct.Key, v.Data)
 			fillCtField(&ctObj, ct.Key, value)
 			if ct.Key == expr.CtKeyEXPIRATION {
@@ -605,7 +605,7 @@ func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (C
 			skip = 2
 
 		case *expr.Bitwise:
-			// Maszkolt állapotok (pl. ct state {established, related} vagy ct status {expected})
+			// Masked states (e.g. ct state {established, related} or ct status {expected})
 			decoded := DecodeCTValue(ct.Key, v.Mask)
 
 			isXorZero := true
@@ -630,7 +630,7 @@ func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (C
 			}
 			skip = 2
 
-			// Ha a bitwise után van még egy CMP, azt is átugorjuk (általában a maszkolás eredményét nézi)
+			// If there is another CMP after bitwise, skip it too (usually checks the mask result)
 			if pos+2 < len(exprs) {
 				if _, ok := exprs[pos+2].(*expr.Cmp); ok {
 					skip = 3
@@ -638,17 +638,17 @@ func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (C
 			}
 
 		case *expr.Lookup:
-			// Halmaz alapú keresés (pl. ct mark @trusted_marks)
-			// A lookup-ból kinyerjük a set elemeit és betöltjük a megfelelő mezőbe
+			// Set based search (e.g. ct mark @trusted_marks)
+			// Extract set elements from lookup and load into appropriate field
 			if ct.Key == expr.CtKeyEXPIRATION && v.Invert {
 				ctObj.ExpirationOp = "!="
 			}
 			for _, set := range sets {
 				if set.Name == v.SetName || (v.SetName == "" && set.ID == v.SetID) {
-					// Megjegyzés: Itt a TUI környezetben nem biztos, hogy le tudjuk kérni az elemeket
-					// de a már meglévő set.Elements-et (ha van) használhatjuk.
-					// A valódi nftables.Conn.GetSetElements hívás itt problémás lehet tesztekben.
-					// Mivel nftables.Set-ben nincs közvetlen Elements mező.
+					// Note: Here in TUI environment we might not be able to get elements
+					// but we can use existing set.Elements (if any).
+					// The real nftables.Conn.GetSetElements call here can be problematic in tests.
+					// Since nftables.Set has no direct Elements field.
 					// In a real TUI environment, sets are usually pre-fetched.
 					// For now, we keep the structure but avoid direct connection calls here if possible,
 					// or use the provided sets.
@@ -699,7 +699,7 @@ func GetCtOp(exprs []expr.Any, pos int) expr.CmpOp {
 			return cmp.Op
 		}
 	}
-	return expr.CmpOpEq // Alapértelmezett a ==
+	return expr.CmpOpEq // Default is ==
 }
 
 // fillCtField updates the specified field in the Ct struct based on the provided key and value.
@@ -863,7 +863,7 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 	if key == expr.CtKeySTATUS && len(data) >= 4 {
 		status := binary.LittleEndian.Uint32(data[:4])
 		statuses := []CtStatus{}
-		// Itt érdemes lenne a többi bitet is vizsgálni, ha szükséges
+		// It might be worth examining the other bits here if necessary
 		if status&CtStatusBitExpected != 0 {
 			statuses = append(statuses, CtStatusExpected)
 		}
@@ -914,22 +914,22 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 
 	if key == expr.CtKeyEXPIRATION {
 		if len(data) >= 4 {
-			// A ct expiration általában BigEndian a kernelben, de néha LittleEndian-nek tűnik a regiszterekben
-			// Megpróbáljuk mindkét irányból, ha az egyik túl nagy értéket ad
+			// ct expiration is usually BigEndian in kernel, but sometimes appears as LittleEndian in registers
+			// Try both ways if one gives a too large value
 			valBE := binary.BigEndian.Uint32(data[len(data)-4:])
 			valLE := binary.LittleEndian.Uint32(data[:4])
 
 			//fmt.Printf("DecodeCTValue: key=%v len=%d BE=%v LE=%v\n", key, len(data), valBE, valLE)
 
-			// Az nftables-ben az expiration általában ms-ben vagy s-ben van.
-			// Ha a BE érték irreálisan nagy (pl. > 100 év s-ben), akkor próbáljuk a LE-t.
-			// 100 év s-ben kb. 3,153,600,000. 2^32-1 kb. 4,294,967,295.
-			// 30 s LE-ben: [30, 0, 0, 0], BE-ként olvasva 30 << 24 = 503,316,480.
-			// 30 s BE-ben: [0, 0, 0, 30], BE-ként olvasva 30.
-			// 30 s-nak megfelelő ms (30000) BE-ben: [0, 0, 117, 48]
+			// In nftables expiration is usually in ms or s.
+			// If BE value is unrealistically large (e.g. > 100 years in s), try LE.
+			// 100 years in s is approx. 3,153,600,000. 2^32-1 kb. 4,294,967,295.
+			// 30 s LE-ben: [30, 0, 0, 0], read as BE 30 << 24 = 503,316,480.
+			// 30 s BE-ben: [0, 0, 0, 30], read as BE 30.
+			// 30 ms equivalent of s (30000) BE-ben: [0, 0, 117, 48]
 			// 9409d10h8m az 812,964,480 s.
 			// 812,964,480 BE-ben: [48, 116, 212, 0]
-			// 812,964,480 LE-ben: [0, 212, 116, 48] -> BE-ként olvasva 13943856.
+			// 812,964,480 LE-ben: [0, 212, 116, 48] -> read as BE 13943856.
 
 			var val uint32
 			if valBE > 1000000 && valLE < 1000000 {
@@ -938,15 +938,15 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 				val = valBE
 			}
 
-			// Az nftables a kernelből gyakran ms-ben kapja az expiration értéket, de s-ben jeleníti meg.
-			// Ha az érték 30000, az valójában 30s.
-			// A 8h20m pontosan 30000 másodperc, ami arra utal, hogy 30000 ms-t kaptunk, de s-ként kezeltük.
-			// Ha az érték túl nagynak tűnik, de 1000-rel osztva értelmes, akkor ms-ben van.
-			// Ugyanakkor az nftables forráskódja szerint bizonyos kernel verziók óta ez változhat.
-			// A legegyszerűbb, ha a 1000-rel való osztást alkalmazzuk, ha az érték > 0 és osztható 1000-rel,
-			// vagy ha egy bizonyos küszöb felett van.
+			// nftables often gets expiration in ms from kernel, but displays it in s.
+			// If the value 30000, is actually 30s.
+			// 8h20m is exactly 30000 seconds, which implies we got 30000 ms but treated it as s.
+			// If the value seems too large, but makes sense when divided by 1000, it's in ms.
+			// However, according to nftables source code, this might change since certain kernel versions.
+			// The simplest is to apply division by 1000 if value > 0 and divisible by 1000,
+			// or if it is above a certain threshold.
 			if val >= 1000 {
-				// Az nftables CLI-ben is van hasonló logika:
+				// nftables CLI also has similar logic:
 				// div_round_up(timeout, 1000)
 				return val / 1000
 			}
@@ -989,10 +989,10 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 		if len(data) == 8 {
 			valBE := binary.BigEndian.Uint64(data)
 			valLE := binary.LittleEndian.Uint64(data)
-			// Ha a BE érték irreálisan nagy (pl. > 10^15, ami több petabájt),
-			// de a LE érték kisebb és hihetőbb, akkor a LE-t használjuk.
-			// Az nftables számlálók gyakran LittleEndian-ként jönnek a regiszterekben
-			// bizonyos rendszereken, de az nftables netlink üzeneteiben BigEndian-ok.
+			// If BE value is unrealistically large (e.g. > 10^15, which is several petabytes),
+			// but LE value is smaller and more believable, then we use LE.
+			// nftables counters often come as LittleEndian in registers
+			// on certain systems, but are BigEndian in nftables netlink messages.
 			if valBE > 0x0000FFFFFFFFFFFF && valLE < 0x0000FFFFFFFFFFFF {
 				return valLE
 			}

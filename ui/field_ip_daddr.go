@@ -93,5 +93,5 @@ func (f *IPDaddrField) View() string {
 		lipgloss.NewStyle().Width(10).Render(vOp),
 		lipgloss.NewStyle().Render(vIP),
 	)
-	return grayStyle.Render("IP cél") + "\n" + inputs + "\n"
+	return grayStyle.Render("IP dst") + "\n" + inputs + "\n"
 }

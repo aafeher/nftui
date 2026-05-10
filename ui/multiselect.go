@@ -106,8 +106,8 @@ func (s MultiSelect) View() string {
 			if !isCursor {
 				//style = style.Foreground(lipgloss.Color("220")).Bold(true)
 			} else {
-				// Ha a kurzor rajta van és ki van választva, adjunk valami jelzést
-				// A Select.go-ban a s.Changed-nél használta a 220-as színt (arany/sárga)
+				// If the cursor is on it and it's selected, give some indication
+				// In Select.go, used color 220 (gold/yellow) for s.Changed
 				//style = style.Foreground(lipgloss.Color("220"))
 			}
 		}

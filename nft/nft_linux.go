@@ -196,6 +196,19 @@ func CreateTable(family nftables.TableFamily, name string) error {
 	return nil
 }
 
+// DeleteTable deletes a specific table, along with all chains/rules it contains.
+func DeleteTable(table *nftables.Table) error {
+	conn, err := nftables.New()
+	if err != nil {
+		return fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	conn.DelTable(table)
+	if err := conn.Flush(); err != nil {
+		return fmt.Errorf("failed to delete table: %v", err)
+	}
+	return nil
+}
+
 // nftCLIFamily maps a TableFamily to the family name accepted by the nft(8)
 // CLI tool, which differs from TableFamilyToString for ipv4/ipv6 ("ip"/"ip6"
 // rather than "ipv4"/"ipv6").

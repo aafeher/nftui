@@ -11,8 +11,8 @@ func FormatImmediate(immediate *expr.Immediate) string {
 }
 
 func SerializeImmediate(imm *expr.Immediate) string {
-	// Immediate érték betöltése - általában más expression-ökkel együtt
-	// használva jelenik meg (pl. meta mark set 1)
+	// Load immediate value - usually appears with other expressions
+	// used together (e.g. meta mark set 1)
 	if len(imm.Data) > 0 {
 		return formatData(imm.Data)
 	}

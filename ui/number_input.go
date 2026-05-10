@@ -61,7 +61,7 @@ func (ni NumberInput) GetValue() int {
 	return val
 }
 
-// GetUint64 visszaadja a számértéket uint64-ként
+// GetUint64 returns the numeric value as uint64
 func (ni NumberInput) GetUint64() (uint64, error) {
 	val := ni.Value()
 	if val == "" {

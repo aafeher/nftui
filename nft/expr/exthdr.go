@@ -29,7 +29,7 @@ func SerializeExthdr(e *expr.Exthdr, exprs []expr.Any, pos int) (string, int) {
 
 	field := fmt.Sprintf("%s %s", hdrType, "field")
 
-	// Következő Cmp?
+	// Next Cmp?
 	if pos+1 < len(exprs) {
 		if cmp, ok := exprs[pos+1].(*expr.Cmp); ok {
 			value := formatData(cmp.Data)

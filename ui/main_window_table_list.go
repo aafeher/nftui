@@ -22,12 +22,13 @@ type chainNode struct {
 	Rules []*nftables.Rule
 }
 type tableTreeModel struct {
-	nodes        []*tableNode
-	cursor       int
-	activeRoot   *tableNode
-	maxHeight    int
-	scrollOffset int
-	width        int
+	nodes             []*tableNode
+	cursor            int
+	activeRoot        *tableNode
+	maxHeight         int
+	scrollOffset      int
+	width             int
+	showDeleteConfirm bool
 }
 
 type flatItem struct {
@@ -117,6 +118,26 @@ func (tm tableTreeModel) getFlattenedItems() []flatItem {
 func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if tm.showDeleteConfirm {
+			switch msg.String() {
+			case "y", "Y":
+				items := tm.getFlattenedItems()
+				if tm.cursor < len(items) {
+					selected := items[tm.cursor]
+					if selected.isRoot {
+						tm.showDeleteConfirm = false
+						return tm, deleteTableCmd(&selected.table.Table)
+					}
+				}
+				tm.showDeleteConfirm = false
+				return tm, nil
+			case "n", "N", "esc":
+				tm.showDeleteConfirm = false
+				return tm, nil
+			}
+			return tm, nil
+		}
+
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return tm, tea.Quit
@@ -135,6 +156,14 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					tm.scrollOffset = tm.cursor - tm.maxHeight + 1
 				}
 			}
+		case "d":
+			items := tm.getFlattenedItems()
+			if tm.cursor < len(items) {
+				selected := items[tm.cursor]
+				if selected.isRoot {
+					tm.showDeleteConfirm = true
+				}
+			}
 		case "e":
 			items := tm.getFlattenedItems()
 			if tm.cursor < len(items) {
@@ -151,7 +180,7 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if tm.cursor < len(items) {
 				selected := items[tm.cursor]
 				if !selected.isRoot && selected.chain != nil {
-					// Üzenet küldése a chain kiválasztásáról
+					// Send message about chain selection
 					return tm, func() tea.Msg {
 						return chainSelectedMsg{
 							chain: selected.chain,
@@ -174,7 +203,7 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 					}
 				} else {
-					//fmt.Printf("Kiválasztott elem: %s/%s\n", selected.table.Table.Name, selected.chain.Name)
+					//fmt.Printf("Selected item: %s/%s\n", selected.table.Table.Name, selected.chain.Name)
 				}
 			}
 		case "left", "esc":
@@ -282,7 +311,7 @@ func (tm tableTreeModel) View() string {
 			}
 
 			if isActive {
-				// Számoljuk ki a látható karakterek számát (ANSI kódok nélkül)
+				// Calculate the number of visible characters (without ANSI codes)
 				visibleLength := lipgloss.Width(line)
 				padding := terminalWidth - visibleLength
 				if padding > 0 {
@@ -376,7 +405,7 @@ func (tm tableTreeModel) View() string {
 			line := fmt.Sprintf("%s%s%s%s%s", cursorStyled, spaces, dashStyled, space1, label)
 
 			if isActive {
-				// Számoljuk ki a látható karakterek számát (ANSI kódok nélkül)
+				// Calculate the number of visible characters (without ANSI codes)
 				visibleLength := lipgloss.Width(line)
 				padding := terminalWidth - visibleLength
 				if padding > 0 {
@@ -389,5 +418,35 @@ func (tm tableTreeModel) View() string {
 		}
 	}
 
-	return b.String()
+	base := b.String()
+
+	if tm.showDeleteConfirm {
+		items := tm.getFlattenedItems()
+		if tm.cursor < len(items) {
+			selected := items[tm.cursor]
+			if selected.isRoot {
+				warning := ""
+				if selected.chainsCount > 0 || selected.rulesCount > 0 {
+					warning = "\n\nWARNING: The table is not empty! Deleting it will delete all chains and rules inside."
+				}
+				confirmText := fmt.Sprintf("Are you sure you want to delete the '%s' table?%s\n\n[Y]es / [N]o", selected.tableName, warning)
+
+				confirmBox := lipgloss.NewStyle().
+					Border(lipgloss.RoundedBorder()).
+					BorderForeground(lipgloss.Color("196")).
+					Padding(1, 2).
+					Width(60).
+					Align(lipgloss.Center).
+					Render(confirmText)
+
+				overlay := lipgloss.Place(tm.width, tm.maxHeight,
+					lipgloss.Center, lipgloss.Center,
+					confirmBox,
+				)
+				return lipgloss.Place(tm.width, tm.maxHeight, lipgloss.Left, lipgloss.Top, base+"\n"+overlay)
+			}
+		}
+	}
+
+	return base
 }

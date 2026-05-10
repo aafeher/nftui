@@ -21,11 +21,11 @@ func SerializeNAT(n *expr.NAT) string {
 		natType = "nat"
 	}
 
-	// Addr és Port tartományok formázása
+	// Formatting Addr and Port ranges
 	addr := ""
 	if n.RegAddrMin > 0 {
-		// Itt kellene regiszter értékeket kiolvasni
-		// Egyszerűsített verzió
+		// Register values should be read here
+		// Simplified version
 		addr = "ADDRESS"
 	}
 

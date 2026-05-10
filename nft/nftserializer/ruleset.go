@@ -199,12 +199,12 @@ func SerializeRule(rule *nftables.Rule) string {
 			//str := nftexpr.SerializeLookup(v)
 			set, err := nft.GetSetByName(rule.Table, v.SetName)
 			if err != nil {
-				log.Printf("nem sikerült lekérni a set-et ID=%d: %v", v.SetID, err)
+				log.Printf("failed to get set ID=%d: %v", v.SetID, err)
 				continue
 			}
 			elements := nft.GetSetElements(set)
 			if err != nil {
-				log.Printf("nem sikerült lekérni a set elemeit: %v", err)
+				log.Printf("failed to get set elements: %v", err)
 				continue
 			}
 			lookupParts := []string{}

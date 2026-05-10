@@ -200,7 +200,7 @@ func formatData(data []byte) string {
 		return "0x"
 	}
 
-	// CT Direction vagy más 1 bájtos nulla érték kezelése
+	// Handling CT Direction or other 1 byte zero values
 	if len(data) == 1 {
 		return fmt.Sprintf("%d", data[0])
 	}
@@ -245,27 +245,27 @@ func isPrintable(data []byte) bool {
 	return true
 }
 
-// InterfaceIndexToName konvertálja az interface indexet (byte tömbként) interface névre.
-// A byte tömb little-endian formátumban tartalmazza a 32 bites interface indexet.
-// Forrás: https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation
-// Az iif (interface index) egy 32 bit integer, ami gyorsabb mint az iifname string összehasonlítás.
+// InterfaceIndexToName converts interface index (as byte array) to interface name.
+// The byte array contains the 32 bit interface index in little-endian format.
+// Source: https://wiki.nftables.org/wiki-nftables/index.php/Matching_packet_metainformation
+// iif (interface index) is a 32 bit integer, which is faster than iifname string comparison.
 func InterfaceIndexToName(data []byte) string {
 	if len(data) != 4 {
 		return ""
 	}
 
-	// Little-endian konverzió: a legkisebb byte az első
+	// Little-endian conversion: the smallest byte is first
 	ifIndex := uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16 | uint32(data[3])<<24
 
-	// Speciális esetek
+	// Special cases
 	if ifIndex == 0 {
 		return "any"
 	}
 
-	// Interface név lekérése a rendszerről
+	// Get interface name from system
 	iface, err := net.InterfaceByIndex(int(ifIndex))
 	if err != nil {
-		// Ha nem található az interface, akkor az index számot adjuk vissza
+		// If interface is not found, return the index number
 		return fmt.Sprintf("%d", ifIndex)
 	}
 
@@ -280,11 +280,11 @@ func DataToHumanReadable(data []byte, context string) string {
 		return "0"
 	}
 
-	// Egyetlen byte - protokoll szám vagy port
+	// Single byte - protocol number or port
 	if len(data) == 1 {
 		val := data[0]
 
-		// Ha protokoll, akkor írjuk ki emberien
+		// If protocol, write it humanly
 		if strings.Contains(context, "protocol") || context == "l4proto" {
 			switch val {
 			case 1:
@@ -300,7 +300,7 @@ func DataToHumanReadable(data []byte, context string) string {
 			}
 		}
 
-		// ICMP típusok
+		// ICMP types
 		if strings.Contains(context, "icmp type") {
 			switch val {
 			case 0:
@@ -317,21 +317,21 @@ func DataToHumanReadable(data []byte, context string) string {
 		return fmt.Sprintf("%d", val)
 	}
 
-	// 2 byte - port szám
+	// 2 bytes - port number
 	if len(data) == 2 && (strings.Contains(context, "port") || strings.Contains(context, "sport") || strings.Contains(context, "dport")) {
 		port := uint16(data[0])<<8 | uint16(data[1])
 
 		return fmt.Sprintf("%d", port)
 	}
 
-	// 4 byte - IP cím
+	// 4 bytes - IP address
 	if len(data) == 4 && (strings.Contains(context, "addr") || strings.Contains(context, "saddr") || strings.Contains(context, "daddr")) {
 		return fmt.Sprintf("%d.%d.%d.%d", data[0], data[1], data[2], data[3])
 	}
 
-	// Interfész név (nullával végződő string)
+	// Interface name (null-terminated string)
 	if strings.Contains(context, "ifname") {
-		// Találjuk meg a null terminátort
+		// Find null terminator
 		end := len(data)
 		for i, b := range data {
 			if b == 0 {
@@ -342,6 +342,6 @@ func DataToHumanReadable(data []byte, context string) string {
 		return fmt.Sprintf("\"%s\"", string(data[:end]))
 	}
 
-	// Egyébként hex formátumban
+	// Otherwise in hex format
 	return fmt.Sprintf("0x%x", data)
 }

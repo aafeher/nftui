@@ -7,7 +7,7 @@
 - [x] view: Show table details
 - [x] edit: Modify table properties
 - [x] create: Add a new table
-- [ ] delete: Remove a table
+- [x] delete: Remove a table
 
 ### Chains
 - [x] list: Display all chains

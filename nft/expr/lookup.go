@@ -24,19 +24,19 @@ func SerializeLookup(lookup *expr.Lookup, register string, sets []*nftables.Set)
 	var elementsString string
 	for _, set := range sets {
 		if set.Name == setName {
-			// A tesztkörnyezetben a GetSetElements pánikot okozhat, ha a Conn nincs megfelelően inicializálva.
-			// Csak akkor hívjuk meg, ha nincs mockolva vagy ha szükség van rá.
-			// Itt egy egyszerűsített megoldást alkalmazunk a tesztekhez.
+			// In test environment GetSetElements might cause panic if Conn is not properly initialized.
+			// Only call if not mocked or if needed.
+			// Here we apply a simplified solution for tests.
 			if set.ID == 0 && (set.Name == "" || set.Name == "exp_set") {
 				elementsString = fmt.Sprintf("@%s", set.Name)
 				continue
 			}
 
-			// Megpróbáljuk lekérni az elemeket, de nem halunk bele ha nem sikerül (pl. tesztben)
+			// Try to get elements, but don't panic if it fails (e.g. in test)
 			conn := &nftables.Conn{}
 			elements, err := conn.GetSetElements(set)
 			if err != nil {
-				// Ha hiba van (pl. nincs net kapcsolat), csak a set nevét használjuk
+				// If there is an error (e.g. no net connection), just use the set name
 				elementsString = fmt.Sprintf("@%s", set.Name)
 				continue
 			}
@@ -100,7 +100,7 @@ func SerializeLookupWithKey(lookup *expr.Lookup, register string, key expr.CtKey
 }
 
 func formatElement(el nftables.SetElement, set *nftables.Set) string {
-	// A set típusától függően alakítjuk át a bájtokat
+	// Convert bytes depending on set type
 	switch set.KeyType {
 	case nftables.TypeIPAddr:
 		return net.IP(el.Key).String()
@@ -118,6 +118,6 @@ func formatElement(el nftables.SetElement, set *nftables.Set) string {
 		return fmt.Sprintf("%v", ctStates)
 	}
 
-	// Ha ismeretlen a típus, hexadecimális formátumban adjuk vissza
+	// If type is unknown, return in hexadecimal format
 	return fmt.Sprintf("%x", el.Key)
 }
