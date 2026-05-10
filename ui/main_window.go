@@ -157,6 +157,12 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if m.activeView == "chain" && m.chainView != nil {
+			// While a modal (e.g. delete confirm) is active, route all keys through chainView.
+			if m.chainView.IsModal() {
+				updatedChainView, cmd := m.chainView.Update(msg)
+				m.chainView = &updatedChainView
+				return m, cmd
+			}
 			switch {
 			case key.Matches(msg, m.chainView.keys.Back):
 				m.activeView = "main"
@@ -244,6 +250,39 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, cmd
 		}
+
+	case chainOpErrMsg:
+		if m.chainView != nil {
+			m.chainView.statusMsg = msg.err.Error()
+		}
+		return m, nil
+
+	case ruleDeletedMsg:
+		if m.chainView != nil {
+			prevCursor := m.chainView.cursor
+			m.chainView.RefreshRules()
+			if prevCursor >= len(m.chainView.rules) && len(m.chainView.rules) > 0 {
+				m.chainView.cursor = len(m.chainView.rules) - 1
+			}
+		}
+		return m, nil
+
+	case ruleMovedMsg:
+		if m.chainView != nil {
+			m.chainView.RefreshRules()
+			if msg.newCursor >= 0 && msg.newCursor < len(m.chainView.rules) {
+				m.chainView.cursor = msg.newCursor
+			}
+		}
+		return m, nil
+
+	case newRuleCreatedMsg:
+		rv := newRuleEdit(msg.rule)
+		rv.width = m.width
+		rv.height = m.height
+		m.ruleEdit = &rv
+		m.activeView = "ruleEdit"
+		return m, nil
 
 	case statTablesMsg:
 		m.loading = false

@@ -182,6 +182,132 @@ func CountRulesByType(rules []*nftables.Rule) (accept int, drop int, other int) 
 	return
 }
 
+// DeleteRule removes the given rule from the kernel.
+func DeleteRule(rule *nftables.Rule) error {
+	conn, err := nftables.New()
+	if err != nil {
+		return fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	conn.DelRule(rule)
+	if err := conn.Flush(); err != nil {
+		return fmt.Errorf("failed to delete rule: %v", err)
+	}
+	return nil
+}
+
+// MoveRuleUp moves rules[idx] one position earlier in the chain.
+// The operation is a delete + re-insert before the preceding rule.
+func MoveRuleUp(rules []*nftables.Rule, idx int) error {
+	if idx <= 0 || idx >= len(rules) {
+		return nil
+	}
+	conn, err := nftables.New()
+	if err != nil {
+		return fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	r := rules[idx]
+	conn.DelRule(r)
+	newRule := &nftables.Rule{
+		Table:    r.Table,
+		Chain:    r.Chain,
+		Position: rules[idx-1].Handle,
+		Exprs:    r.Exprs,
+		UserData: r.UserData,
+	}
+	conn.InsertRule(newRule)
+	if err := conn.Flush(); err != nil {
+		return fmt.Errorf("failed to move rule up: %v", err)
+	}
+	return nil
+}
+
+// MoveRuleDown moves rules[idx] one position later in the chain.
+// The operation is a delete + re-insert after the following rule.
+func MoveRuleDown(rules []*nftables.Rule, idx int) error {
+	if idx < 0 || idx >= len(rules)-1 {
+		return nil
+	}
+	conn, err := nftables.New()
+	if err != nil {
+		return fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	r := rules[idx]
+	conn.DelRule(r)
+	newRule := &nftables.Rule{
+		Table:    r.Table,
+		Chain:    r.Chain,
+		Position: rules[idx+1].Handle,
+		Exprs:    r.Exprs,
+		UserData: r.UserData,
+	}
+	conn.AddRule(newRule)
+	if err := conn.Flush(); err != nil {
+		return fmt.Errorf("failed to move rule down: %v", err)
+	}
+	return nil
+}
+
+// AddNewRuleToChain appends a minimal accept rule at the end of the chain
+// and returns the freshly created rule (with its kernel-assigned Handle).
+func AddNewRuleToChain(table *nftables.Table, chain *nftables.Chain) (*nftables.Rule, error) {
+	conn, err := nftables.New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	newRule := &nftables.Rule{
+		Table: table,
+		Chain: chain,
+		Exprs: []expr.Any{
+			&expr.Verdict{Kind: expr.VerdictAccept},
+		},
+	}
+	conn.AddRule(newRule)
+	if err := conn.Flush(); err != nil {
+		return nil, fmt.Errorf("failed to add rule: %v", err)
+	}
+	fresh, err := ListRulesOfChain(table, chain)
+	if err != nil || len(fresh) == 0 {
+		return newRule, err
+	}
+	return fresh[len(fresh)-1], nil
+}
+
+// InsertNewRuleBefore inserts a minimal accept rule before rules[idx]
+// and returns the freshly created rule (with its kernel-assigned Handle).
+func InsertNewRuleBefore(table *nftables.Table, chain *nftables.Chain, rules []*nftables.Rule, idx int) (*nftables.Rule, error) {
+	conn, err := nftables.New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	newRule := &nftables.Rule{
+		Table: table,
+		Chain: chain,
+		Exprs: []expr.Any{
+			&expr.Verdict{Kind: expr.VerdictAccept},
+		},
+	}
+	if idx > 0 {
+		newRule.Position = rules[idx-1].Handle
+		conn.AddRule(newRule)
+	} else {
+		conn.InsertRule(newRule)
+	}
+	if err := conn.Flush(); err != nil {
+		return nil, fmt.Errorf("failed to insert rule: %v", err)
+	}
+	fresh, err := ListRulesOfChain(table, chain)
+	if err != nil {
+		return newRule, err
+	}
+	if idx < len(fresh) {
+		return fresh[idx], nil
+	}
+	if len(fresh) > 0 {
+		return fresh[len(fresh)-1], nil
+	}
+	return newRule, nil
+}
+
 func logLevelToString(logLevel expr.LogLevel) string {
 	switch logLevel {
 	case expr.LogLevelEmerg:
