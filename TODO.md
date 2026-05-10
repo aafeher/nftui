@@ -5,8 +5,8 @@
 ### Tables
 - [x] list: Display all tables
 - [x] view: Show table details
-- [ ] edit: Modify table properties
-- [ ] create: Add a new table
+- [x] edit: Modify table properties
+- [x] create: Add a new table
 - [ ] delete: Remove a table
 
 ### Chains
@@ -20,9 +20,9 @@
 - [x] list: Display all rules in a chain
 - [x] view: Show rule details and conditions
 - [x] edit: Modify an existing rule
-- [ ] create: Add a new rule
-- [ ] delete: Remove a rule
-- [ ] move (up/down): Reorder rules within a chain
+- [x] create: Add a new rule
+- [x] delete: Remove a rule
+- [x] move (up/down): Reorder rules within a chain
 
 ## Rules
 
@@ -39,8 +39,8 @@
 - [ ] `ttl`: Time to live
 - [ ] `protocol`: Upper layer protocol
 - [ ] `checksum`: IP header checksum
-- [ ] `saddr`: Source address
-- [ ] `daddr`: Destination address
+- [x] `saddr`: Source address
+- [x] `daddr`: Destination address
 - [ ] `version`: IP header version
 - [ ] `hdrlength`: IP header length
 
