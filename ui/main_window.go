@@ -415,6 +415,18 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// If the table tree has a modal (e.g. delete confirmation) open, route
+		// every key through the tree without consulting MainWindow's own
+		// bindings — otherwise the modal's "n"/"y" answers would leak to
+		// NewTable/Quit handlers and (e.g.) opening a new-table window.
+		if m.tableTree.IsModal() {
+			updatedTableTree, cmd := m.tableTree.Update(msg)
+			if ttm, ok := updatedTableTree.(tableTreeModel); ok {
+				m.tableTree = ttm
+			}
+			return m, cmd
+		}
+
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			m.showQuitConfirm = true

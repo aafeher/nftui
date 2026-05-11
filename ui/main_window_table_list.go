@@ -31,6 +31,14 @@ type tableTreeModel struct {
 	showDeleteConfirm bool
 }
 
+// IsModal reports whether the tree is currently showing a modal dialog (e.g.
+// delete confirmation). Used by MainWindow to route all keys through the tree
+// when modal, so that keys like "n" (no) don't escape to MainWindow's own
+// bindings (e.g. NewTable).
+func (tm tableTreeModel) IsModal() bool {
+	return tm.showDeleteConfirm
+}
+
 type flatItem struct {
 	tableFamily string
 	tableName   string
