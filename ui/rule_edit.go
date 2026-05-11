@@ -175,7 +175,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		activeTab:    0,
 		tabFocusSlot: make([]int, len(tabs)),
 		keys:         km,
-		help:         help.New(),
+		help:         newHelpModel(),
 	}
 }
 

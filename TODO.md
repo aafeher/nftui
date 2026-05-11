@@ -13,7 +13,7 @@
 - [x] list: Display all chains
 - [x] view: Show chain details
 - [x] edit: Modify chain properties (hook, policy, priority)
-- [ ] create: Add a new chain
+- [x] create: Add a new chain
 - [ ] delete: Remove a chain
 
 ### Rules

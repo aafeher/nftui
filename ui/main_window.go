@@ -20,6 +20,7 @@ type keyMap struct {
 	Expand    key.Binding
 	Edit      key.Binding
 	NewTable  key.Binding
+	NewChain  key.Binding
 	OpenChain key.Binding
 	Filter    key.Binding
 	Refresh   key.Binding
@@ -27,12 +28,12 @@ type keyMap struct {
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Expand, k.Edit, k.NewTable, k.OpenChain, k.Refresh, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Expand, k.Edit, k.NewTable, k.NewChain, k.OpenChain, k.Refresh, k.Quit}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Expand, k.Edit, k.NewTable, k.OpenChain},
+		{k.Up, k.Down, k.Expand, k.Edit, k.NewTable, k.NewChain, k.OpenChain},
 		{k.Filter, k.Refresh, k.Quit},
 	}
 }
@@ -59,7 +60,8 @@ type MainWindow struct {
 	tableEdit             *tableEdit
 	tableCreate           *tableCreate
 	chainEdit             *chainEdit
-	activeView            string // "main", "chain", "ruleView", "ruleEdit", "tableEdit", "tableCreate", "chainEdit"
+	chainCreate           *chainCreate
+	activeView            string // "main", "chain", "ruleView", "ruleEdit", "tableEdit", "tableCreate", "chainEdit", "chainCreate"
 	help                  help.Model
 	width                 int
 	height                int
@@ -105,6 +107,10 @@ func InitialMainWindow() MainWindow {
 			key.WithKeys("n"),
 			key.WithHelp("n", "new table"),
 		),
+		NewChain: key.NewBinding(
+			key.WithKeys("c"),
+			key.WithHelp("c", "new chain"),
+		),
 		OpenChain: key.NewBinding(
 			key.WithKeys("f3"),
 			key.WithHelp("f3", "open chain"),
@@ -127,7 +133,7 @@ func InitialMainWindow() MainWindow {
 		loading:         true,
 		tableTree:       ttm,
 		activeView:      "main",
-		help:            help.New(),
+		help:            newHelpModel(),
 		keys:            km,
 		showQuitConfirm: false,
 	}
@@ -194,6 +200,14 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.activeView = "chainEdit"
 		return m, nil
 
+	case chainCreateSelectedMsg:
+		cc := newChainCreate(msg.table)
+		cc.width = m.width
+		cc.height = m.height
+		m.chainCreate = &cc
+		m.activeView = "chainCreate"
+		return m, nil
+
 	case tableRenamedMsg:
 		m.tableEdit = nil
 		m.activeView = "main"
@@ -214,6 +228,15 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case chainUpdatedMsg:
 		m.chainEdit = nil
+		m.activeView = "main"
+		m.loading = true
+		return m, tea.Batch(
+			loadTableTreeCmd(),
+			loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd(),
+		)
+
+	case chainCreatedMsg:
+		m.chainCreate = nil
 		m.activeView = "main"
 		m.loading = true
 		return m, tea.Batch(
@@ -328,6 +351,22 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		if m.activeView == "chainCreate" && m.chainCreate != nil {
+			switch {
+			case key.Matches(msg, m.chainCreate.keys.Back):
+				m.activeView = "main"
+				m.chainCreate = nil
+				return m, nil
+			case key.Matches(msg, m.chainCreate.keys.Quit):
+				m.showQuitConfirm = true
+				return m, nil
+			default:
+				updatedCC, cmd := m.chainCreate.Update(msg)
+				m.chainCreate = &updatedCC
+				return m, cmd
+			}
+		}
+
 		if m.activeView == "ruleEdit" && m.ruleEdit != nil {
 			switch {
 			case key.Matches(msg, m.ruleEdit.keys.Back):
@@ -393,6 +432,11 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.activeView == "chainEdit" && m.chainEdit != nil {
 			updatedCE, cmd := m.chainEdit.Update(msg)
 			m.chainEdit = &updatedCE
+			return m, cmd
+		}
+		if m.activeView == "chainCreate" && m.chainCreate != nil {
+			updatedCC, cmd := m.chainCreate.Update(msg)
+			m.chainCreate = &updatedCC
 			return m, cmd
 		}
 		if m.chainView != nil {
@@ -510,6 +554,22 @@ func (m MainWindow) View() string {
 			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, ceContent+"\n"+overlay)
 		}
 		return ceContent
+	}
+
+	if m.activeView == "chainCreate" && m.chainCreate != nil {
+		ccContent := m.chainCreate.View()
+		if m.showQuitConfirm {
+			confirmBox := lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("220")).
+				Padding(1, 2).
+				Width(40).
+				Align(lipgloss.Center).
+				Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
+			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, ccContent+"\n"+overlay)
+		}
+		return ccContent
 	}
 
 	if m.activeView == "chain" && m.chainView != nil {

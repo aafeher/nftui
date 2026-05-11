@@ -126,7 +126,7 @@ func newChainEdit(chain *nftables.Chain) chainEdit {
 		focusSlot:    0,
 		slotCount:    slotCount,
 		keys:         km,
-		help:         help.New(),
+		help:         newHelpModel(),
 	}
 	ce.applyFocus()
 	return ce

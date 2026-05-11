@@ -25,6 +25,9 @@ type tableTreeRefreshedMsg struct{ nodes []*tableNode }
 type chainEditSelectedMsg struct{ chain *nftables.Chain }
 type chainUpdatedMsg struct{}
 
+type chainCreateSelectedMsg struct{ table *nftables.Table }
+type chainCreatedMsg struct{}
+
 type statTablesMsg []*nftables.Table
 type statChainsMsg []*nftables.Chain
 type statRulesAcceptMsg []*nftables.Rule
@@ -166,6 +169,15 @@ func updateChainCmd(oldChain *nftables.Chain, newSpec *nftables.Chain) tea.Cmd {
 			return chainOpErrMsg{err: err}
 		}
 		return chainUpdatedMsg{}
+	}
+}
+
+func createChainCmd(table *nftables.Table, spec *nftables.Chain) tea.Cmd {
+	return func() tea.Msg {
+		if err := nft.CreateChain(table, spec); err != nil {
+			return chainOpErrMsg{err: err}
+		}
+		return chainCreatedMsg{}
 	}
 }
 

@@ -110,7 +110,7 @@ func newChainView(chain *nftables.Chain, table *tableNode) chainView {
 		chain: chain,
 		table: table,
 		rules: rules,
-		help:  help.New(),
+		help:  newHelpModel(),
 		keys:  km,
 	}
 }

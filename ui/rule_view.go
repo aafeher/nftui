@@ -64,7 +64,7 @@ func newRuleView(rule *nftables.Rule) ruleView {
 
 	return ruleView{
 		rule: rule,
-		help: help.New(),
+		help: newHelpModel(),
 		keys: km,
 	}
 }

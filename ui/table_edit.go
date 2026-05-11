@@ -63,7 +63,7 @@ func newTableEdit(table *nftables.Table) tableEdit {
 		table: table,
 		input: ti,
 		keys:  km,
-		help:  help.New(),
+		help:  newHelpModel(),
 	}
 }
 

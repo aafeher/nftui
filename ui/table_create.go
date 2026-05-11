@@ -105,7 +105,7 @@ func newTableCreate() tableCreate {
 		nameInput:    ti,
 		focusSlot:    tcSlotFamily,
 		keys:         km,
-		help:         help.New(),
+		help:         newHelpModel(),
 	}
 }
 

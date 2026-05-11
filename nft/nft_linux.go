@@ -275,6 +275,36 @@ func RenameTable(table *nftables.Table, newName string) error {
 	return nil
 }
 
+// CreateChain creates a new chain in the given table. The spec must have its
+// Name set; for a base chain, Hooknum, Priority, Type and Policy should be
+// set as well; for a regular (non-base) chain all of those should be left
+// nil/empty. The Table field of spec is ignored; the caller's table argument
+// is used instead.
+func CreateChain(table *nftables.Table, spec *nftables.Chain) error {
+	if table == nil {
+		return fmt.Errorf("CreateChain: table is nil")
+	}
+	if spec == nil || spec.Name == "" {
+		return fmt.Errorf("CreateChain: spec or its Name is empty")
+	}
+	conn, err := nftables.New()
+	if err != nil {
+		return fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	conn.AddChain(&nftables.Chain{
+		Name:     spec.Name,
+		Table:    table,
+		Type:     spec.Type,
+		Hooknum:  spec.Hooknum,
+		Priority: spec.Priority,
+		Policy:   spec.Policy,
+	})
+	if err := conn.Flush(); err != nil {
+		return fmt.Errorf("failed to create chain: %v", err)
+	}
+	return nil
+}
+
 // UpdateChain updates an existing chain's mutable properties.
 //
 // The kernel's nft_chain_update path treats type, hook and priority as

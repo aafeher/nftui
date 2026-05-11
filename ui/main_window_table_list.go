@@ -181,6 +181,17 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+		case "c":
+			items := tm.getFlattenedItems()
+			if tm.cursor < len(items) {
+				selected := items[tm.cursor]
+				if selected.table != nil {
+					t := &selected.table.Table
+					return tm, func() tea.Msg {
+						return chainCreateSelectedMsg{table: t}
+					}
+				}
+			}
 		case "f3":
 			items := tm.getFlattenedItems()
 			if tm.cursor < len(items) {
