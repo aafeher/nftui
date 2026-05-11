@@ -27,6 +27,7 @@ type chainUpdatedMsg struct{}
 
 type chainCreateSelectedMsg struct{ table *nftables.Table }
 type chainCreatedMsg struct{}
+type chainDeletedMsg struct{}
 
 type statTablesMsg []*nftables.Table
 type statChainsMsg []*nftables.Chain
@@ -178,6 +179,15 @@ func createChainCmd(table *nftables.Table, spec *nftables.Chain) tea.Cmd {
 			return chainOpErrMsg{err: err}
 		}
 		return chainCreatedMsg{}
+	}
+}
+
+func deleteChainCmd(chain *nftables.Chain) tea.Cmd {
+	return func() tea.Msg {
+		if err := nft.DeleteChain(chain); err != nil {
+			return chainOpErrMsg{err: err}
+		}
+		return chainDeletedMsg{}
 	}
 }
 

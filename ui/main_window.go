@@ -19,6 +19,7 @@ type keyMap struct {
 	Down      key.Binding
 	Expand    key.Binding
 	Edit      key.Binding
+	Delete    key.Binding
 	NewTable  key.Binding
 	NewChain  key.Binding
 	OpenChain key.Binding
@@ -28,12 +29,13 @@ type keyMap struct {
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Expand, k.Edit, k.NewTable, k.NewChain, k.OpenChain, k.Refresh, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Expand, k.Edit, k.Delete, k.NewTable, k.NewChain, k.OpenChain, k.Refresh, k.Quit}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Expand, k.Edit, k.NewTable, k.NewChain, k.OpenChain},
+		{k.Up, k.Down, k.Expand, k.Edit, k.Delete},
+		{k.NewTable, k.NewChain, k.OpenChain},
 		{k.Filter, k.Refresh, k.Quit},
 	}
 }
@@ -96,12 +98,16 @@ func InitialMainWindow() MainWindow {
 			key.WithHelp("↓/j", "down"),
 		),
 		Expand: key.NewBinding(
-			key.WithKeys("enter", "right"),
-			key.WithHelp("enter/→", "expand/collapse"),
+			key.WithKeys("enter", "right", "left"),
+			key.WithHelp("enter/→/←", "expand/collapse"),
 		),
 		Edit: key.NewBinding(
 			key.WithKeys("e"),
 			key.WithHelp("e", "edit"),
+		),
+		Delete: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "delete"),
 		),
 		NewTable: key.NewBinding(
 			key.WithKeys("n"),
@@ -238,6 +244,13 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case chainCreatedMsg:
 		m.chainCreate = nil
 		m.activeView = "main"
+		m.loading = true
+		return m, tea.Batch(
+			loadTableTreeCmd(),
+			loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd(),
+		)
+
+	case tableDeletedMsg, chainDeletedMsg:
 		m.loading = true
 		return m, tea.Batch(
 			loadTableTreeCmd(),

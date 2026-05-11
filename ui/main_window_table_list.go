@@ -128,6 +128,10 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						tm.showDeleteConfirm = false
 						return tm, deleteTableCmd(&selected.table.Table)
 					}
+					if selected.chain != nil {
+						tm.showDeleteConfirm = false
+						return tm, deleteChainCmd(selected.chain)
+					}
 				}
 				tm.showDeleteConfirm = false
 				return tm, nil
@@ -160,7 +164,7 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			items := tm.getFlattenedItems()
 			if tm.cursor < len(items) {
 				selected := items[tm.cursor]
-				if selected.isRoot {
+				if selected.isRoot || selected.chain != nil {
 					tm.showDeleteConfirm = true
 				}
 			}
@@ -441,27 +445,37 @@ func (tm tableTreeModel) View() string {
 		items := tm.getFlattenedItems()
 		if tm.cursor < len(items) {
 			selected := items[tm.cursor]
-			if selected.isRoot {
+			var confirmText string
+			switch {
+			case selected.isRoot:
 				warning := ""
 				if selected.chainsCount > 0 || selected.rulesCount > 0 {
 					warning = "\n\nWARNING: The table is not empty! Deleting it will delete all chains and rules inside."
 				}
-				confirmText := fmt.Sprintf("Are you sure you want to delete the '%s' table?%s\n\n[Y]es / [N]o", selected.tableName, warning)
-
-				confirmBox := lipgloss.NewStyle().
-					Border(lipgloss.RoundedBorder()).
-					BorderForeground(lipgloss.Color("196")).
-					Padding(1, 2).
-					Width(60).
-					Align(lipgloss.Center).
-					Render(confirmText)
-
-				overlay := lipgloss.Place(tm.width, tm.maxHeight,
-					lipgloss.Center, lipgloss.Center,
-					confirmBox,
-				)
-				return lipgloss.Place(tm.width, tm.maxHeight, lipgloss.Left, lipgloss.Top, base+"\n"+overlay)
+				confirmText = fmt.Sprintf("Are you sure you want to delete the '%s' table?%s\n\n[Y]es / [N]o", selected.tableName, warning)
+			case selected.chain != nil:
+				warning := ""
+				if selected.rulesCount > 0 {
+					warning = fmt.Sprintf("\n\nWARNING: The chain has %d rule(s). Deleting it will also delete all of them.", selected.rulesCount)
+				}
+				confirmText = fmt.Sprintf("Are you sure you want to delete the '%s' chain?%s\n\n[Y]es / [N]o", selected.chainName, warning)
+			default:
+				return base
 			}
+
+			confirmBox := lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("196")).
+				Padding(1, 2).
+				Width(60).
+				Align(lipgloss.Center).
+				Render(confirmText)
+
+			overlay := lipgloss.Place(tm.width, tm.maxHeight,
+				lipgloss.Center, lipgloss.Center,
+				confirmBox,
+			)
+			return lipgloss.Place(tm.width, tm.maxHeight, lipgloss.Left, lipgloss.Top, base+"\n"+overlay)
 		}
 	}
 

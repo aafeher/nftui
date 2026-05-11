@@ -275,6 +275,23 @@ func RenameTable(table *nftables.Table, newName string) error {
 	return nil
 }
 
+// DeleteChain deletes the given chain (and all its rules). The chain must
+// reference its Table field; netlink uses both to identify the target.
+func DeleteChain(chain *nftables.Chain) error {
+	if chain == nil || chain.Table == nil {
+		return fmt.Errorf("DeleteChain: chain or its Table is nil")
+	}
+	conn, err := nftables.New()
+	if err != nil {
+		return fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	conn.DelChain(chain)
+	if err := conn.Flush(); err != nil {
+		return fmt.Errorf("failed to delete chain: %v", err)
+	}
+	return nil
+}
+
 // CreateChain creates a new chain in the given table. The spec must have its
 // Name set; for a base chain, Hooknum, Priority, Type and Policy should be
 // set as well; for a regular (non-base) chain all of those should be left

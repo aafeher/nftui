@@ -40,6 +40,10 @@ func CreateChain(_ *nftables.Table, _ *nftables.Chain) error {
 	return fmt.Errorf("nftables is only available on Linux.")
 }
 
+func DeleteChain(_ *nftables.Chain) error {
+	return fmt.Errorf("nftables is only available on Linux.")
+}
+
 func DeleteRule(_ *nftables.Rule) error {
 	return fmt.Errorf("nftables is only available on Linux.")
 }
