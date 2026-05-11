@@ -123,7 +123,9 @@ func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 			switch action.Type {
 			case nft.ActionTypeVerdict:
 				if action.Verdict != nil {
-					sb.WriteString(fmt.Sprintf("  verdict: %s\n", action.Verdict.Kind))
+					sb.WriteString("  verdict: ")
+					sb.WriteString(renderVerdict(*action.Verdict))
+					sb.WriteString("\n")
 				}
 			case nft.ActionTypeCounter:
 				if action.Counter != nil && action.Counter.Name != "" {
@@ -537,4 +539,29 @@ func (r ruleView) View() string {
 	)
 
 	return defaultStyle.Render(fullView)
+}
+
+// renderVerdict formats a VerdictAction for display in the rule view:
+//   - accept → green
+//   - drop / reject → red
+//   - return / jump / goto / continue → yellow
+//   - jump / goto include the target chain name (e.g. "jump my_chain")
+//   - anything else falls back to the kind string as-is
+func renderVerdict(v nft.VerdictAction) string {
+	kind := string(v.Kind)
+	switch v.Kind {
+	case nft.VerdictAccept:
+		return greenBoldStyle.Render(kind)
+	case nft.VerdictDrop, nft.VerdictReject:
+		return redBoldStyle.Render(kind)
+	case nft.VerdictReturn, nft.VerdictContinue:
+		return yellowBoldStyle.Render(kind)
+	case nft.VerdictJump, nft.VerdictGoto:
+		if v.Chain == "" {
+			return yellowBoldStyle.Render(kind)
+		}
+		return yellowBoldStyle.Render(kind) + " " + blueStyle.Render(v.Chain)
+	default:
+		return whiteStyle.Render(kind)
+	}
 }
