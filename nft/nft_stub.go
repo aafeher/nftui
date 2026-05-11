@@ -32,22 +32,26 @@ func DeleteTable(_ *nftables.Table) error {
 	return fmt.Errorf("nftables is only available on Linux.")
 }
 
+func UpdateChain(_ *nftables.Chain, _ *nftables.Chain) error {
+	return fmt.Errorf("nftables is only available on Linux.")
+}
+
 func DeleteRule(_ *nftables.Rule) error {
-	return fmt.Errorf("Az nftables csak Linux rendszeren érhető el.")
+	return fmt.Errorf("nftables is only available on Linux.")
 }
 
 func MoveRuleUp(_ []*nftables.Rule, _ int) error {
-	return fmt.Errorf("Az nftables csak Linux rendszeren érhető el.")
+	return fmt.Errorf("nftables is only available on Linux.")
 }
 
 func MoveRuleDown(_ []*nftables.Rule, _ int) error {
-	return fmt.Errorf("Az nftables csak Linux rendszeren érhető el.")
+	return fmt.Errorf("nftables is only available on Linux.")
 }
 
 func AddNewRuleToChain(_ *nftables.Table, _ *nftables.Chain) (*nftables.Rule, error) {
-	return nil, fmt.Errorf("Az nftables csak Linux rendszeren érhető el.")
+	return nil, fmt.Errorf("nftables is only available on Linux.")
 }
 
 func InsertNewRuleBefore(_ *nftables.Table, _ *nftables.Chain, _ []*nftables.Rule, _ int) (*nftables.Rule, error) {
-	return nil, fmt.Errorf("Az nftables csak Linux rendszeren érhető el.")
+	return nil, fmt.Errorf("nftables is only available on Linux.")
 }

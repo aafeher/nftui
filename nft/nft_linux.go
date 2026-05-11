@@ -275,6 +275,136 @@ func RenameTable(table *nftables.Table, newName string) error {
 	return nil
 }
 
+// UpdateChain updates an existing chain's mutable properties.
+//
+// The kernel's nft_chain_update path treats type, hook and priority as
+// immutable on an existing chain: passing a different value in
+// NFTA_CHAIN_HOOK (different hooknum or priority) or NFTA_CHAIN_TYPE makes
+// nf_tables_updchain return EOPNOTSUPP. The only attributes that can be
+// changed in-place are:
+//   - Policy: via NFTA_CHAIN_POLICY on a base chain.
+//   - Name: via `nft rename chain`, which submits NFT_MSG_NEWCHAIN keyed by
+//     NFTA_CHAIN_HANDLE.
+//
+// For type/hook/priority changes UpdateChain falls back to recreating the
+// chain atomically through `nft -f`: dump the chain via `nft list chain`,
+// rewrite its header line with the new attributes, and apply a script that
+// `delete chain`s the original and re-adds the modified one in the same
+// transaction. The rules inside the chain are preserved (but their handles
+// change, since they are re-added by the kernel).
+func UpdateChain(oldChain *nftables.Chain, newSpec *nftables.Chain) error {
+	if oldChain == nil || oldChain.Table == nil {
+		return fmt.Errorf("UpdateChain: oldChain or its Table is nil")
+	}
+	if newSpec == nil {
+		return fmt.Errorf("UpdateChain: newSpec is nil")
+	}
+
+	if oldChain.Name != newSpec.Name {
+		family := nftCLIFamily(oldChain.Table.Family)
+		cmd := exec.Command("nft", "rename", "chain", family,
+			oldChain.Table.Name, oldChain.Name, newSpec.Name)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("nft rename chain failed: %v\n%s", err, strings.TrimSpace(string(out)))
+		}
+	}
+
+	// Regular (non-base) chains have no further mutable properties.
+	if newSpec.Hooknum == nil || oldChain.Hooknum == nil {
+		return nil
+	}
+
+	typeChanged := newSpec.Type != oldChain.Type
+	hookChanged := *newSpec.Hooknum != *oldChain.Hooknum
+	priorityChanged := newSpec.Priority != nil && oldChain.Priority != nil &&
+		*newSpec.Priority != *oldChain.Priority
+	policyChanged := newSpec.Policy != nil &&
+		(oldChain.Policy == nil || *newSpec.Policy != *oldChain.Policy)
+
+	if typeChanged || hookChanged || priorityChanged {
+		return recreateBaseChain(oldChain, newSpec)
+	}
+
+	if !policyChanged {
+		return nil
+	}
+
+	// Send a minimal NFT_MSG_NEWCHAIN with NFTA_CHAIN_TABLE + NFTA_CHAIN_NAME
+	// + NFTA_CHAIN_POLICY only. AddChain omits NFTA_CHAIN_HOOK when Hooknum
+	// or Priority is nil, and NFTA_CHAIN_TYPE when Type is "", so the kernel
+	// sees the update as policy-only and accepts it.
+	conn, err := nftables.New()
+	if err != nil {
+		return fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	conn.AddChain(&nftables.Chain{
+		Name:   newSpec.Name,
+		Table:  oldChain.Table,
+		Policy: newSpec.Policy,
+	})
+	if err := conn.Flush(); err != nil {
+		return fmt.Errorf("failed to update chain: %v", err)
+	}
+	return nil
+}
+
+// recreateBaseChain deletes the chain and re-creates it with new type / hook
+// / priority / policy values, preserving all rules inside. The whole
+// operation is sent to nft as one script and is therefore atomic.
+//
+// The script uses explicit `delete chain`, `add chain` and `add rule`
+// statements rather than the `table { chain { ... } }` block syntax. nft's
+// client-side validator rejects the block form when the inner chain's
+// declaration differs from the existing chain in its cache, even though the
+// preceding `delete chain` removes it from the kernel — it would error out
+// with "Chain X already exists with different declaration". The explicit
+// form is evaluated in order against the script-internal state and works.
+//
+// At entry the chain has already been renamed (if needed), so we operate on
+// newSpec.Name throughout.
+func recreateBaseChain(oldChain, newSpec *nftables.Chain) error {
+	family := nftCLIFamily(oldChain.Table.Family)
+	tableName := oldChain.Table.Name
+	chainName := newSpec.Name
+
+	dump, err := exec.Command("nft", "list", "chain", family, tableName, chainName).Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return fmt.Errorf("nft list chain: %v: %s", err, exitErr.Stderr)
+		}
+		return fmt.Errorf("nft list chain: %v", err)
+	}
+
+	rules, err := extractChainRules(string(dump), chainName)
+	if err != nil {
+		return fmt.Errorf("extract chain rules: %v", err)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "delete chain %s %s %s\n", family, tableName, chainName)
+
+	fmt.Fprintf(&b, "add chain %s %s %s { type %s hook %s priority %d;",
+		family, tableName, chainName,
+		string(newSpec.Type),
+		ChainHookNumToString(*newSpec.Hooknum),
+		int32(*newSpec.Priority))
+	if newSpec.Policy != nil {
+		fmt.Fprintf(&b, " policy %s;", ChainPolicyToString(*newSpec.Policy))
+	}
+	b.WriteString(" }\n")
+
+	for _, rule := range rules {
+		fmt.Fprintf(&b, "add rule %s %s %s %s\n", family, tableName, chainName, rule)
+	}
+
+	cmd := exec.Command("nft", "-f", "-")
+	cmd.Stdin = strings.NewReader(b.String())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("nft chain recreation failed: %v\n%s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // DeleteRule removes the given rule from the kernel.
 func DeleteRule(rule *nftables.Rule) error {
 	conn, err := nftables.New()

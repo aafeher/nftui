@@ -174,6 +174,12 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return tableEditSelectedMsg{table: t}
 					}
 				}
+				if selected.chain != nil {
+					c := selected.chain
+					return tm, func() tea.Msg {
+						return chainEditSelectedMsg{chain: c}
+					}
+				}
 			}
 		case "f3":
 			items := tm.getFlattenedItems()
