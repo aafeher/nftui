@@ -139,7 +139,9 @@ func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 				}
 			case nft.ActionTypeLog:
 				if action.Log != nil {
-					sb.WriteString(fmt.Sprintf("  log: %+v\n", action.Log))
+					sb.WriteString("  ")
+					sb.WriteString(renderLog(*action.Log))
+					sb.WriteString("\n")
 				}
 			case nft.ActionTypeQueue:
 				if action.Queue != nil {
@@ -654,6 +656,47 @@ func rejectSuffix(kind string, code uint8, table map[uint8]string, defaultCode u
 		return ""
 	}
 	return " " + redStyle.Render("with "+kind+" "+lookupRejectCodeName(table, code))
+}
+
+// renderLog formats a LogAction for display in the rule view. Output mirrors
+// nft CLI list syntax:
+//
+//	log [prefix "..."] [group N] [snaplen N] [queue-threshold N] [level NAME]
+//
+// The "log" keyword is yellow bold (informational, non-terminal). Argument
+// keywords (prefix, level, group, snaplen, queue-threshold) are gray; values
+// (the quoted prefix string, level name, numeric parameters) are blue. The
+// default level (warn) is elided to match how nft renders it.
+func renderLog(a nft.LogAction) string {
+	parts := []string{yellowBoldStyle.Render("log")}
+
+	if a.Prefix != "" {
+		parts = append(parts,
+			grayStyle.Render("prefix")+" "+blueStyle.Render("\""+a.Prefix+"\""),
+		)
+	}
+	if a.Group != 0 {
+		parts = append(parts,
+			grayStyle.Render("group")+" "+blueStyle.Render(fmt.Sprintf("%d", a.Group)),
+		)
+	}
+	if a.Snaplen != 0 {
+		parts = append(parts,
+			grayStyle.Render("snaplen")+" "+blueStyle.Render(fmt.Sprintf("%d", a.Snaplen)),
+		)
+	}
+	if a.QThreshold != 0 {
+		parts = append(parts,
+			grayStyle.Render("queue-threshold")+" "+blueStyle.Render(fmt.Sprintf("%d", a.QThreshold)),
+		)
+	}
+	if a.Level != "" && a.Level != nft.LogLevelWarn {
+		parts = append(parts,
+			grayStyle.Render("level")+" "+blueStyle.Render(string(a.Level)),
+		)
+	}
+
+	return strings.Join(parts, " ")
 }
 
 func lookupRejectCodeName(table map[uint8]string, code uint8) string {
