@@ -126,6 +126,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewVerdictField(rd),
 				NewRejectField(rd, rule.Table.Family),
 				NewLogField(rd),
+				NewCounterField(rd),
 			},
 		},
 		{
@@ -365,11 +366,15 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	sb.WriteString(r.tabs[0].fields[4].View())
 	sb.WriteString("\n")
 
-	// Remaining actions (read-only — verdict, reject and log are handled by the editors above).
+	// Counter editor (full width — Packets + Bytes; typical use is reset to 0).
+	sb.WriteString(r.tabs[0].fields[5].View())
+	sb.WriteString("\n")
+
+	// Remaining actions (read-only — verdict, reject, log and counter are handled by the editors above).
 	hasRemaining := false
 	for _, action := range rd.Actions {
 		switch action.Type {
-		case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog:
+		case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog, nft.ActionTypeCounter:
 			continue
 		}
 		hasRemaining = true
@@ -380,14 +385,8 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 		sb.WriteString("\n")
 		for _, action := range rd.Actions {
 			switch action.Type {
-			case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog:
+			case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog, nft.ActionTypeCounter:
 				// editable — rendered above
-			case nft.ActionTypeCounter:
-				if action.Counter != nil && action.Counter.Name != "" {
-					sb.WriteString(fmt.Sprintf("  counter: %s\n", action.Counter.Name))
-				} else {
-					sb.WriteString("  counter\n")
-				}
 			case nft.ActionTypeNAT:
 				if action.NAT != nil {
 					sb.WriteString(fmt.Sprintf("  nat: %+v\n", action.NAT))
@@ -414,13 +413,6 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 				}
 			}
 		}
-	}
-
-	// Counter stats
-	if rd.Counter != nil {
-		sb.WriteString("\n")
-		sb.WriteString(grayBoldStyle.Render("Counter: "))
-		sb.WriteString(fmt.Sprintf("%d packets, %d bytes\n", rd.Counter.Packets, rd.Counter.Bytes))
 	}
 
 	return sb.String()
