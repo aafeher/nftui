@@ -147,7 +147,9 @@ func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 				}
 			case nft.ActionTypeReject:
 				if action.Reject != nil {
-					sb.WriteString(fmt.Sprintf("  reject: %+v\n", action.Reject))
+					sb.WriteString("  ")
+					sb.WriteString(renderReject(*action.Reject, r.rule.Table.Family))
+					sb.WriteString("\n")
 				}
 			case nft.ActionTypeSet:
 				if action.Set != nil {
@@ -564,4 +566,99 @@ func renderVerdict(v nft.VerdictAction) string {
 	default:
 		return whiteStyle.Render(kind)
 	}
+}
+
+// ICMP destination-unreachable codes that nft's CLI knows by name (RFC 792 / 1812 §5.2.7.1).
+var icmpRejectCodes = map[uint8]string{
+	0:  "net-unreachable",
+	1:  "host-unreachable",
+	2:  "prot-unreachable",
+	3:  "port-unreachable",
+	5:  "net-redirect",
+	9:  "net-prohibited",
+	10: "host-prohibited",
+	13: "admin-prohibited",
+}
+
+// ICMPv6 destination-unreachable codes (RFC 4443).
+var icmpv6RejectCodes = map[uint8]string{
+	0: "no-route",
+	1: "admin-prohibited",
+	3: "addr-unreachable",
+	4: "port-unreachable",
+	5: "policy-fail",
+	6: "reject-route",
+}
+
+// ICMPX codes: family-agnostic abstraction used by inet/bridge rules
+// (libnftnl NFT_REJECT_ICMPX_* mapping).
+var icmpxRejectCodes = map[uint8]string{
+	0: "no-route",
+	1: "port-unreachable",
+	2: "host-unreachable",
+	3: "admin-prohibited",
+}
+
+// Default ICMP destination-unreachable code for each reject family — matches
+// what `nft` elides in `list table` output (where a default-code reject is
+// rendered as just "reject" without "with <type> <name>").
+const (
+	icmpDefaultRejectCode   = uint8(3) // port-unreachable
+	icmpv6DefaultRejectCode = uint8(4) // port-unreachable
+	icmpxDefaultRejectCode  = uint8(1) // port-unreachable
+)
+
+// renderReject formats a RejectAction for display in the rule view.
+// Output mirrors nft CLI list syntax:
+//   - "reject with tcp reset"
+//   - "reject with icmp <code-name>" (omitted when code == default port-unreachable)
+//   - "reject with icmpv6 <code-name>"
+//   - "reject with icmpx <code-name>"
+//
+// The literal "reject" prefix is red bold; the type and code name are red.
+// For ICMP-unreachable rejects the family decides between icmp (ip), icmpv6
+// (ip6), and icmpx (inet/bridge — family-agnostic).
+func renderReject(a nft.RejectAction, fam nftables.TableFamily) string {
+	prefix := redBoldStyle.Render("reject")
+
+	switch a.Type {
+	case nft.RejectTypeTCPReset:
+		return prefix + " " + redStyle.Render("with tcp reset")
+
+	case nft.RejectTypeICMPX:
+		return prefix + rejectSuffix("icmpx", a.Code, icmpxRejectCodes, icmpxDefaultRejectCode)
+
+	case nft.RejectTypeICMPv6:
+		return prefix + rejectSuffix("icmpv6", a.Code, icmpv6RejectCodes, icmpv6DefaultRejectCode)
+
+	case nft.RejectTypeICMP:
+		// The parser collapses both ICMP and ICMPv6 into RejectTypeICMP because
+		// the wire format does not distinguish them. Decide based on table family.
+		switch fam {
+		case nftables.TableFamilyIPv6:
+			return prefix + rejectSuffix("icmpv6", a.Code, icmpv6RejectCodes, icmpv6DefaultRejectCode)
+		case nftables.TableFamilyINet, nftables.TableFamilyBridge:
+			return prefix + rejectSuffix("icmpx", a.Code, icmpxRejectCodes, icmpxDefaultRejectCode)
+		default:
+			return prefix + rejectSuffix("icmp", a.Code, icmpRejectCodes, icmpDefaultRejectCode)
+		}
+	}
+
+	return prefix
+}
+
+// rejectSuffix builds the " with <kind> <code-name>" tail, returning empty
+// when code matches the family's default (which nft list elides).
+func rejectSuffix(kind string, code uint8, table map[uint8]string, defaultCode uint8) string {
+	if code == defaultCode {
+		return ""
+	}
+	return " " + redStyle.Render("with "+kind+" "+lookupRejectCodeName(table, code))
+}
+
+func lookupRejectCodeName(table map[uint8]string, code uint8) string {
+	if name, ok := table[code]; ok {
+		return name
+	}
+	return fmt.Sprintf("%d", code)
 }
