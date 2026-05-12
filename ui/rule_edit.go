@@ -124,6 +124,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewPositionField(rd),
 				NewCommentField(rd),
 				NewVerdictField(rd),
+				NewRejectField(rd, rule.Table.Family),
 			},
 		},
 		{
@@ -355,10 +356,14 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	sb.WriteString(r.tabs[0].fields[2].View())
 	sb.WriteString("\n")
 
-	// Remaining actions (read-only — verdict is handled by the editor above).
+	// Reject editor (full width — switches type and optional ICMP code).
+	sb.WriteString(r.tabs[0].fields[3].View())
+	sb.WriteString("\n")
+
+	// Remaining actions (read-only — verdict and reject are handled by the editors above).
 	hasRemaining := false
 	for _, action := range rd.Actions {
-		if action.Type != nft.ActionTypeVerdict {
+		if action.Type != nft.ActionTypeVerdict && action.Type != nft.ActionTypeReject {
 			hasRemaining = true
 			break
 		}
@@ -368,7 +373,7 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 		sb.WriteString("\n")
 		for _, action := range rd.Actions {
 			switch action.Type {
-			case nft.ActionTypeVerdict:
+			case nft.ActionTypeVerdict, nft.ActionTypeReject:
 				// editable — rendered above
 			case nft.ActionTypeCounter:
 				if action.Counter != nil && action.Counter.Name != "" {
@@ -387,10 +392,6 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 			case nft.ActionTypeQueue:
 				if action.Queue != nil {
 					sb.WriteString(fmt.Sprintf("  queue: %+v\n", action.Queue))
-				}
-			case nft.ActionTypeReject:
-				if action.Reject != nil {
-					sb.WriteString(fmt.Sprintf("  reject: %+v\n", action.Reject))
 				}
 			case nft.ActionTypeSet:
 				if action.Set != nil {
