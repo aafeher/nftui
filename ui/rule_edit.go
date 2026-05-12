@@ -53,6 +53,7 @@ type ruleEdit struct {
 	height       int
 	keys         ruleEditKeyMap
 	help         help.Model
+	errStr       string // last save/validation error, cleared on the next Save attempt
 }
 
 // editTabTotalSlots returns the total number of focus slots in a tab.
@@ -122,6 +123,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 			fields: []FieldEditor{
 				NewPositionField(rd),
 				NewCommentField(rd),
+				NewVerdictField(rd),
 			},
 		},
 		{
@@ -236,15 +238,26 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 
 		// Save: applies all fields across all tabs
 		if key.Matches(msg, r.keys.Save) {
+			r.errStr = ""
+			// Pre-save validation — abort with a clear error before any field mutates the rule.
+			for _, tab := range r.tabs {
+				for _, f := range tab.fields {
+					if v, ok := f.(interface{ ValidateForSave() error }); ok {
+						if err := v.ValidateForSave(); err != nil {
+							r.errStr = err.Error()
+							return r, nil
+						}
+					}
+				}
+			}
 			for _, tab := range r.tabs {
 				for _, f := range tab.fields {
 					f.Save(r.rule)
 				}
 			}
 			saveCmd := func() tea.Msg {
-				err := nft.ApplyRuleChange(r.rule)
-				if err != nil {
-					return fmt.Errorf("save error: %w", err)
+				if err := nft.ApplyRuleChange(r.rule); err != nil {
+					return errMsg(fmt.Errorf("save error: %w", err))
 				}
 				return nil
 			}
@@ -338,17 +351,25 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	))
 	sb.WriteString("\n")
 
-	// Actions (read-only)
-	if len(rd.Actions) > 0 {
-		sb.WriteString("\n")
+	// Verdict editor (full width — switches kind and optional target chain).
+	sb.WriteString(r.tabs[0].fields[2].View())
+	sb.WriteString("\n")
+
+	// Remaining actions (read-only — verdict is handled by the editor above).
+	hasRemaining := false
+	for _, action := range rd.Actions {
+		if action.Type != nft.ActionTypeVerdict {
+			hasRemaining = true
+			break
+		}
+	}
+	if hasRemaining {
 		sb.WriteString(grayBoldStyle.Render("Actions:"))
 		sb.WriteString("\n")
 		for _, action := range rd.Actions {
 			switch action.Type {
 			case nft.ActionTypeVerdict:
-				if action.Verdict != nil {
-					sb.WriteString(fmt.Sprintf("  verdict: %s\n", action.Verdict.Kind))
-				}
+				// editable — rendered above
 			case nft.ActionTypeCounter:
 				if action.Counter != nil && action.Counter.Name != "" {
 					sb.WriteString(fmt.Sprintf("  counter: %s\n", action.Counter.Name))
@@ -559,6 +580,9 @@ func (r ruleEdit) View() string {
 		Render(content.String())
 
 	footer := r.help.View(r.keys)
+	if r.errStr != "" {
+		footer = redBoldStyle.Render("⚠ "+r.errStr) + "\n" + footer
+	}
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left,
 		header,

@@ -522,6 +522,9 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.loading = false
 		m.err = msg
+		if m.activeView == "ruleEdit" && m.ruleEdit != nil {
+			m.ruleEdit.errStr = msg.Error()
+		}
 		return m, nil
 	}
 
