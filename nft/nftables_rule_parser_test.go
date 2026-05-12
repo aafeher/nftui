@@ -194,7 +194,11 @@ func TestNftablesToRuleDefinition_Limit(t *testing.T) {
 
 func TestNftablesToRuleDefinition_Log(t *testing.T) {
 	rd, err := NftablesToRuleDefinition(makeRule(
-		&expr.Log{Level: 6, Data: []byte("DROP\x00")},
+		// Key tracks which NFTA_LOG_* attributes were present on the wire — without
+		// the LEVEL bit set, the parser correctly treats the field as unset and
+		// defaults to the kernel's syslog default (warn). Real wire-parsed logs
+		// from the kernel always have Key populated by Log.unmarshal.
+		&expr.Log{Level: 6, Data: []byte("DROP\x00"), Key: (1 << unix.NFTA_LOG_LEVEL) | (1 << unix.NFTA_LOG_PREFIX)},
 		&expr.Verdict{Kind: expr.VerdictDrop},
 	))
 	if err != nil {

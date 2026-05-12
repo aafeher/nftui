@@ -1035,17 +1035,29 @@ func verdictToAction(v *expr.Verdict) Action {
 }
 
 // logToAction converts a Log expression to an Action object with type ActionTypeLog and associated LogAction data.
+//
+// Level is only honoured when the kernel actually emitted NFTA_LOG_LEVEL (tracked
+// via the unmarshal-populated l.Key bitmask). Otherwise we report the syslog
+// default of "warn" — without this guard the zero value of expr.LogLevel
+// (== LogLevelEmerg) would be misreported on rules that never set a level,
+// and re-serialising them would emit a bogus LEVEL attribute that is invalid
+// in NFLOG mode and gets rejected with EINVAL by the kernel.
 func logToAction(l *expr.Log) Action {
 	prefix := string(l.Data)
 	if len(prefix) > 0 && prefix[len(prefix)-1] == 0 {
 		prefix = prefix[:len(prefix)-1]
 	}
 
+	level := LogLevelWarn
+	if l.Key&(1<<unix.NFTA_LOG_LEVEL) != 0 {
+		level = syslogLevelToLogLevel(l.Level)
+	}
+
 	return Action{
 		Type: ActionTypeLog,
 		Log: &LogAction{
 			Prefix:     prefix,
-			Level:      syslogLevelToLogLevel(l.Level),
+			Level:      level,
 			Group:      l.Group,
 			QThreshold: l.QThreshold,
 			Snaplen:    l.Snaplen,

@@ -125,6 +125,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewCommentField(rd),
 				NewVerdictField(rd),
 				NewRejectField(rd, rule.Table.Family),
+				NewLogField(rd),
 			},
 		},
 		{
@@ -360,20 +361,26 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	sb.WriteString(r.tabs[0].fields[3].View())
 	sb.WriteString("\n")
 
-	// Remaining actions (read-only — verdict and reject are handled by the editors above).
+	// Log editor (full width — prefix, level, NFLOG group/snaplen/queue-threshold).
+	sb.WriteString(r.tabs[0].fields[4].View())
+	sb.WriteString("\n")
+
+	// Remaining actions (read-only — verdict, reject and log are handled by the editors above).
 	hasRemaining := false
 	for _, action := range rd.Actions {
-		if action.Type != nft.ActionTypeVerdict && action.Type != nft.ActionTypeReject {
-			hasRemaining = true
-			break
+		switch action.Type {
+		case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog:
+			continue
 		}
+		hasRemaining = true
+		break
 	}
 	if hasRemaining {
 		sb.WriteString(grayBoldStyle.Render("Actions:"))
 		sb.WriteString("\n")
 		for _, action := range rd.Actions {
 			switch action.Type {
-			case nft.ActionTypeVerdict, nft.ActionTypeReject:
+			case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog:
 				// editable — rendered above
 			case nft.ActionTypeCounter:
 				if action.Counter != nil && action.Counter.Name != "" {
@@ -384,10 +391,6 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 			case nft.ActionTypeNAT:
 				if action.NAT != nil {
 					sb.WriteString(fmt.Sprintf("  nat: %+v\n", action.NAT))
-				}
-			case nft.ActionTypeLog:
-				if action.Log != nil {
-					sb.WriteString(fmt.Sprintf("  log: %+v\n", action.Log))
 				}
 			case nft.ActionTypeQueue:
 				if action.Queue != nil {
