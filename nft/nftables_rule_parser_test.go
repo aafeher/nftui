@@ -730,6 +730,7 @@ func TestNftablesToRuleDefinition_MetaL4Proto(t *testing.T) {
 }
 
 func TestNftablesToRuleDefinition_MetaIifname(t *testing.T) {
+	// Wire format A: IFNAMSIZ-padded (16 bytes), NUL-terminated.
 	ifname := make([]byte, 16)
 	copy(ifname, "eth0")
 	rd, err := NftablesToRuleDefinition(makeRule(
@@ -746,6 +747,81 @@ func TestNftablesToRuleDefinition_MetaIifname(t *testing.T) {
 	}
 	if c.Meta.Key != MetaKeyIIfName {
 		t.Errorf("Meta.Key = %q, want %q", c.Meta.Key, MetaKeyIIfName)
+	}
+	if c.Operation != CompareOpEq {
+		t.Errorf("Operation = %q, want %q", c.Operation, CompareOpEq)
+	}
+	if s, ok := c.Meta.Value.(string); !ok || s != "eth0" {
+		t.Errorf("Meta.Value = %v (%T), want string(%q)", c.Meta.Value, c.Meta.Value, "eth0")
+	}
+}
+
+func TestNftablesToRuleDefinition_MetaIifnameTight(t *testing.T) {
+	// Wire format B: tight NUL-terminated bytes (length = strlen + 1).
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_IIFNAME, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte("wlan0\x00")},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Meta.Key != MetaKeyIIfName {
+		t.Errorf("Meta.Key = %q, want %q", c.Meta.Key, MetaKeyIIfName)
+	}
+	if s, ok := c.Meta.Value.(string); !ok || s != "wlan0" {
+		t.Errorf("Meta.Value = %v (%T), want string(%q)", c.Meta.Value, c.Meta.Value, "wlan0")
+	}
+}
+
+func TestNftablesToRuleDefinition_MetaIifnameNeq(t *testing.T) {
+	// `meta iifname != "lo"` — operator survives through metaCompareToCondition.
+	ifname := make([]byte, 16)
+	copy(ifname, "lo")
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_IIFNAME, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: ifname},
+		&expr.Verdict{Kind: expr.VerdictDrop},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Meta.Key != MetaKeyIIfName {
+		t.Errorf("Meta.Key = %q, want %q", c.Meta.Key, MetaKeyIIfName)
+	}
+	if c.Operation != CompareOpNeq {
+		t.Errorf("Operation = %q, want %q", c.Operation, CompareOpNeq)
+	}
+	if s, ok := c.Meta.Value.(string); !ok || s != "lo" {
+		t.Errorf("Meta.Value = %v (%T), want string(%q)", c.Meta.Value, c.Meta.Value, "lo")
+	}
+}
+
+func TestNftablesToRuleDefinition_MetaOifname(t *testing.T) {
+	ifname := make([]byte, 16)
+	copy(ifname, "wg0")
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_OIFNAME, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: ifname},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Type != ConditionTypeMeta {
+		t.Errorf("type = %q, want %q", c.Type, ConditionTypeMeta)
+	}
+	if c.Meta.Key != MetaKeyOIfName {
+		t.Errorf("Meta.Key = %q, want %q", c.Meta.Key, MetaKeyOIfName)
+	}
+	if c.Operation != CompareOpEq {
+		t.Errorf("Operation = %q, want %q", c.Operation, CompareOpEq)
+	}
+	if s, ok := c.Meta.Value.(string); !ok || s != "wg0" {
+		t.Errorf("Meta.Value = %v (%T), want string(%q)", c.Meta.Value, c.Meta.Value, "wg0")
 	}
 }
 

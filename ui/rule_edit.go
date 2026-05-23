@@ -155,8 +155,10 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		{
 			name: "Network",
 			fields: []FieldEditor{
-				NewIPSaddrField(rd), // slots 0,1
-				NewIPDaddrField(rd), // slots 2,3
+				NewIPSaddrField(rd),     // slots 0,1
+				NewIPDaddrField(rd),     // slots 2,3
+				NewMetaIifnameField(rd), // slots 4,5
+				NewMetaOifnameField(rd), // slots 6,7
 			},
 		},
 		{
@@ -472,17 +474,25 @@ func (r ruleEdit) renderCTTab() string {
 
 // renderNetworkTab renders the Network tab content.
 func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
-	// tabs[2].fields: 0=IPSaddr, 1=IPDaddr
+	// tabs[2].fields: 0=IPSaddr, 1=IPDaddr, 2=MetaIifname, 3=MetaOifname
 	f := r.tabs[2].fields
 	var sb strings.Builder
 
 	sb.WriteString(f[0].View())
 	sb.WriteString(f[1].View())
+	sb.WriteString(f[2].View())
+	sb.WriteString(f[3].View())
 
-	// Read-only conditions (meta, set lookup, custom)
+	// Read-only conditions (meta — excluding the ones we render above —
+	// plus set lookup and custom).
 	hasMisc := false
 	for _, condition := range rd.Conditions {
 		if condition.Meta != nil && condition.Meta.Key != "" {
+			// Skip the meta keys we already render with dedicated editors.
+			if condition.Meta.Key == nft.MetaKeyIIfName ||
+				condition.Meta.Key == nft.MetaKeyOIfName {
+				continue
+			}
 			if !hasMisc {
 				sb.WriteString("\n")
 				sb.WriteString(grayBoldStyle.Render("Other conditions:"))

@@ -1329,6 +1329,15 @@ func decodeMetaValue(key expr.MetaKey, data []byte) interface{} {
 		}
 	}
 
+	// Interface name (IFNAMSIZ-padded NUL-terminated string)
+	// The kernel emits the register payload either padded to a 4-byte boundary
+	// (typically 16 bytes total) or trimmed to the actual name length + NUL.
+	// In both cases we want the readable name without trailing zeros.
+	if key == unix.NFT_META_IIFNAME || key == unix.NFT_META_OIFNAME ||
+		key == unix.NFT_META_BRI_IIFNAME || key == unix.NFT_META_BRI_OIFNAME {
+		return strings.TrimRight(string(data), "\x00")
+	}
+
 	// Egyszerűsített dekódolás
 	if len(data) == 4 {
 		return binary.BigEndian.Uint32(data)
