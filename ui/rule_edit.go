@@ -140,15 +140,16 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewCtDirectionField(rd),  // slot 11
 				NewCtStatusField(rd),     // slot 12
 				NewCtLabelsField(rd),     // slot 13
-				NewCtMarkField(rd),       // slots 14,15
-				NewCtSecMarkField(rd),    // slots 16,17
-				NewCtExpirationField(rd), // slot 18
-				NewCtHelperField(rd),     // slot 19
-				NewCtZoneField(rd),       // slots 20,21
-				NewCtBytesField(rd),      // slots 22,23,24
-				NewCtPktsField(rd),       // slots 25,26,27
-				NewCtAvgpktField(rd),     // slots 28,29,30
-				NewCtCountField(rd),      // slots 31,32
+				NewCtEventmaskField(rd),  // slot 14
+				NewCtMarkField(rd),       // slots 15,16
+				NewCtSecMarkField(rd),    // slots 17,18
+				NewCtExpirationField(rd), // slot 19
+				NewCtHelperField(rd),     // slot 20
+				NewCtZoneField(rd),       // slots 21,22
+				NewCtBytesField(rd),      // slots 23,24,25
+				NewCtPktsField(rd),       // slots 26,27,28
+				NewCtAvgpktField(rd),     // slots 29,30,31
+				NewCtCountField(rd),      // slots 32,33
 			},
 		},
 		{
@@ -423,9 +424,9 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 func (r ruleEdit) renderCTTab() string {
 	// tabs[1].fields indices (by array position, not slot number):
 	// 0=L3Proto, 1=Protocol, 2=ProtoSrc, 3=ProtoDst,
-	// 4=State, 5=Direction, 6=Status, 7=Labels,
-	// 8=Mark, 9=Secmark, 10=Expiration, 11=Helper,
-	// 12=Zone, 13=Bytes, 14=Pkts, 15=Avgpkt, 16=Count
+	// 4=State, 5=Direction, 6=Status, 7=Labels, 8=Eventmask,
+	// 9=Mark, 10=Secmark, 11=Expiration, 12=Helper,
+	// 13=Zone, 14=Bytes, 15=Pkts, 16=Avgpkt, 17=Count
 	f := r.tabs[1].fields
 	var sb strings.Builder
 
@@ -447,20 +448,23 @@ func (r ruleEdit) renderCTTab() string {
 	// Row 4b: Labels (full width — comma-separated bit indices)
 	sb.WriteString(f[7].View())
 
+	// Row 4c: Eventmask (full width — multiselect of 12 IPCT_* bits)
+	sb.WriteString(f[8].View())
+
 	// Row 5: Mark | Secmark | Expiration
-	sb.WriteString(r.row3(f[8].View(), f[9].View(), f[10].View()))
+	sb.WriteString(r.row3(f[9].View(), f[10].View(), f[11].View()))
 	sb.WriteString("\n")
 
 	// Row 6: Helper | Zone
-	sb.WriteString(r.row2(f[11].View(), f[12].View()))
+	sb.WriteString(r.row2(f[12].View(), f[13].View()))
 	sb.WriteString("\n")
 
 	// Row 7: Bytes | Pkts | Avgpkt
-	sb.WriteString(r.row3(f[13].View(), f[14].View(), f[15].View()))
+	sb.WriteString(r.row3(f[14].View(), f[15].View(), f[16].View()))
 	sb.WriteString("\n")
 
 	// Row 8: Count (over + value)
-	sb.WriteString(r.row2(f[16].View(), ""))
+	sb.WriteString(r.row2(f[17].View(), ""))
 	sb.WriteString("\n")
 
 	return sb.String()

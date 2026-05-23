@@ -195,6 +195,7 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 		nftexpr.CtKeyDirection,
 		nftexpr.CtKeyStatus,
 		nftexpr.CtKeyLabels,
+		nftexpr.CtKeyEventMask,
 		nftexpr.CtKeyMark,
 		nftexpr.CtKeySecMark,
 		nftexpr.CtKeyExpiration,
@@ -272,10 +273,22 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 					} else {
 						valStr = op + "{" + strings.Join(s, ", ") + "}"
 					}
+				case nftexpr.CtEvent:
+					valStr = op + string(v)
+				case []nftexpr.CtEvent:
+					var s []string
+					for _, ev := range v {
+						s = append(s, string(ev))
+					}
+					if len(s) == 1 {
+						valStr = op + s[0]
+					} else {
+						valStr = op + "{" + strings.Join(s, ", ") + "}"
+					}
 				case uint16:
 					valStr = fmt.Sprintf("%s%d", op, v)
 				case uint32:
-					if ctKey == nftexpr.CtKeyMark {
+					if ctKey == nftexpr.CtKeyMark || ctKey == nftexpr.CtKeySecMark {
 						valStr = fmt.Sprintf("%s0x%08x", op, v)
 					} else if ctKey == nftexpr.CtKeyExpiration {
 						valStr = op + nftexpr.FormatDuration(v)
