@@ -33,7 +33,7 @@ type Ct struct {
 	Pkts            uint64      `json:"packets,omitzero"`
 	Avgpkt          uint64      `json:"avgpkt,omitzero"`
 	Zone            uint16      `json:"zone,omitzero"`
-	Eventmask       uint32      `json:"eventmask,omitzero"`
+	Events          []CtEvent   `json:"events,omitzero"`
 }
 
 type CtRange struct {
@@ -124,6 +124,142 @@ const (
 	CtStatusOffload      CtStatus = "offload"
 	CtStatusHWOffload    CtStatus = "hw-offload"
 )
+
+// CtEvent is the connection tracking event-bit name; matches the kernel's
+// enum ip_conntrack_events (linux/netfilter/nf_conntrack_common.h, IPCT_*).
+type CtEvent string
+
+const (
+	CtEventBitNew       uint32 = 1 << 0  // IPCT_NEW
+	CtEventBitRelated   uint32 = 1 << 1  // IPCT_RELATED
+	CtEventBitDestroy   uint32 = 1 << 2  // IPCT_DESTROY
+	CtEventBitReply     uint32 = 1 << 3  // IPCT_REPLY
+	CtEventBitAssured   uint32 = 1 << 4  // IPCT_ASSURED
+	CtEventBitProtoinfo uint32 = 1 << 5  // IPCT_PROTOINFO
+	CtEventBitHelper    uint32 = 1 << 6  // IPCT_HELPER
+	CtEventBitMark      uint32 = 1 << 7  // IPCT_MARK
+	CtEventBitSeqAdj    uint32 = 1 << 8  // IPCT_SEQADJ (== IPCT_NATSEQADJ legacy alias)
+	CtEventBitSecMark   uint32 = 1 << 9  // IPCT_SECMARK
+	CtEventBitLabel     uint32 = 1 << 10 // IPCT_LABEL
+	CtEventBitSynProxy  uint32 = 1 << 11 // IPCT_SYNPROXY
+
+	CtEventNew       CtEvent = "new"
+	CtEventRelated   CtEvent = "related"
+	CtEventDestroy   CtEvent = "destroy"
+	CtEventReply     CtEvent = "reply"
+	CtEventAssured   CtEvent = "assured"
+	CtEventProtoinfo CtEvent = "protoinfo"
+	CtEventHelper    CtEvent = "helper"
+	CtEventMark      CtEvent = "mark"
+	CtEventSeqAdj    CtEvent = "seqadj"
+	CtEventSecMark   CtEvent = "secmark"
+	CtEventLabel     CtEvent = "label"
+	CtEventSynProxy  CtEvent = "synproxy"
+)
+
+// CtEventStrings lists the selectable event-bit names in the canonical IPCT_* order.
+var CtEventStrings = []string{
+	string(CtEventNew),
+	string(CtEventRelated),
+	string(CtEventDestroy),
+	string(CtEventReply),
+	string(CtEventAssured),
+	string(CtEventProtoinfo),
+	string(CtEventHelper),
+	string(CtEventMark),
+	string(CtEventSeqAdj),
+	string(CtEventSecMark),
+	string(CtEventLabel),
+	string(CtEventSynProxy),
+}
+
+// CtEventStringToEvent converts a string token to its CtEvent value.
+func CtEventStringToEvent(s string) CtEvent {
+	switch s {
+	case string(CtEventNew):
+		return CtEventNew
+	case string(CtEventRelated):
+		return CtEventRelated
+	case string(CtEventDestroy):
+		return CtEventDestroy
+	case string(CtEventReply):
+		return CtEventReply
+	case string(CtEventAssured):
+		return CtEventAssured
+	case string(CtEventProtoinfo):
+		return CtEventProtoinfo
+	case string(CtEventHelper):
+		return CtEventHelper
+	case string(CtEventMark):
+		return CtEventMark
+	case string(CtEventSeqAdj):
+		return CtEventSeqAdj
+	case string(CtEventSecMark):
+		return CtEventSecMark
+	case string(CtEventLabel):
+		return CtEventLabel
+	case string(CtEventSynProxy):
+		return CtEventSynProxy
+	}
+	return ""
+}
+
+// CtEventStringToEvents maps a slice of tokens to CtEvent values, dropping unknowns.
+func CtEventStringToEvents(ss []string) []CtEvent {
+	out := []CtEvent{}
+	for _, s := range ss {
+		ev := CtEventStringToEvent(s)
+		if ev != "" {
+			out = append(out, ev)
+		}
+	}
+	return out
+}
+
+// CtEventToEventStrings is the inverse of CtEventStringToEvents.
+func CtEventToEventStrings(events []CtEvent) []string {
+	out := []string{}
+	for _, ev := range events {
+		out = append(out, string(ev))
+	}
+	return out
+}
+
+// EncodeCtEvents OR-s the bits of the given events into a 4-byte LE bitmask.
+func EncodeCtEvents(events []CtEvent) []byte {
+	var mask uint32
+	for _, ev := range events {
+		switch ev {
+		case CtEventNew:
+			mask |= CtEventBitNew
+		case CtEventRelated:
+			mask |= CtEventBitRelated
+		case CtEventDestroy:
+			mask |= CtEventBitDestroy
+		case CtEventReply:
+			mask |= CtEventBitReply
+		case CtEventAssured:
+			mask |= CtEventBitAssured
+		case CtEventProtoinfo:
+			mask |= CtEventBitProtoinfo
+		case CtEventHelper:
+			mask |= CtEventBitHelper
+		case CtEventMark:
+			mask |= CtEventBitMark
+		case CtEventSeqAdj:
+			mask |= CtEventBitSeqAdj
+		case CtEventSecMark:
+			mask |= CtEventBitSecMark
+		case CtEventLabel:
+			mask |= CtEventBitLabel
+		case CtEventSynProxy:
+			mask |= CtEventBitSynProxy
+		}
+	}
+	buf := make([]byte, 4)
+	binary.LittleEndian.PutUint32(buf, mask)
+	return buf
+}
 
 // CtL3Proto represents the L3 (network layer) protocol family stored in a CT entry.
 type CtL3Proto string
@@ -627,6 +763,10 @@ func ExprCtToCt(ct *expr.Ct, exprs []expr.Any, pos int, sets []*nftables.Set) (C
 					ctObj.Status = append(ctObj.Status, d)
 				case []CtStatus:
 					ctObj.Status = append(ctObj.Status, d...)
+				case CtEvent:
+					ctObj.Events = append(ctObj.Events, d)
+				case []CtEvent:
+					ctObj.Events = append(ctObj.Events, d...)
 				}
 			}
 			skip = 2
@@ -820,8 +960,11 @@ func fillCtField(ct *Ct, key expr.CtKey, value interface{}) {
 			ct.Labels = append(ct.Labels, v)
 		}
 	case expr.CtKeyEVENTMASK:
-		if v, ok := value.(uint32); ok {
-			ct.Eventmask = v
+		switch v := value.(type) {
+		case CtEvent:
+			ct.Events = append(ct.Events, v)
+		case []CtEvent:
+			ct.Events = append(ct.Events, v...)
 		}
 	}
 }
@@ -863,6 +1006,51 @@ func DecodeCTValue(key expr.CtKey, data []byte) interface{} {
 			return CtDirectionOriginal
 		}
 		return CtDirectionReply
+	}
+
+	if key == expr.CtKeyEVENTMASK && len(data) >= 4 {
+		mask := binary.LittleEndian.Uint32(data[:4])
+		events := []CtEvent{}
+		if mask&CtEventBitNew != 0 {
+			events = append(events, CtEventNew)
+		}
+		if mask&CtEventBitRelated != 0 {
+			events = append(events, CtEventRelated)
+		}
+		if mask&CtEventBitDestroy != 0 {
+			events = append(events, CtEventDestroy)
+		}
+		if mask&CtEventBitReply != 0 {
+			events = append(events, CtEventReply)
+		}
+		if mask&CtEventBitAssured != 0 {
+			events = append(events, CtEventAssured)
+		}
+		if mask&CtEventBitProtoinfo != 0 {
+			events = append(events, CtEventProtoinfo)
+		}
+		if mask&CtEventBitHelper != 0 {
+			events = append(events, CtEventHelper)
+		}
+		if mask&CtEventBitMark != 0 {
+			events = append(events, CtEventMark)
+		}
+		if mask&CtEventBitSeqAdj != 0 {
+			events = append(events, CtEventSeqAdj)
+		}
+		if mask&CtEventBitSecMark != 0 {
+			events = append(events, CtEventSecMark)
+		}
+		if mask&CtEventBitLabel != 0 {
+			events = append(events, CtEventLabel)
+		}
+		if mask&CtEventBitSynProxy != 0 {
+			events = append(events, CtEventSynProxy)
+		}
+		if len(events) == 1 {
+			return events[0]
+		}
+		return events
 	}
 
 	if key == expr.CtKeySTATUS && len(data) >= 4 {
@@ -1117,6 +1305,52 @@ func formatCtValue(key expr.CtKey, data []byte) string {
 			return fmt.Sprintf("0x%08x", val)
 		}
 		return fmt.Sprintf("0x%x", data)
+	}
+	if key == expr.CtKeyEVENTMASK && len(data) == 4 {
+		mask := binary.LittleEndian.Uint32(data)
+		var events []string
+		if mask&CtEventBitNew != 0 {
+			events = append(events, string(CtEventNew))
+		}
+		if mask&CtEventBitRelated != 0 {
+			events = append(events, string(CtEventRelated))
+		}
+		if mask&CtEventBitDestroy != 0 {
+			events = append(events, string(CtEventDestroy))
+		}
+		if mask&CtEventBitReply != 0 {
+			events = append(events, string(CtEventReply))
+		}
+		if mask&CtEventBitAssured != 0 {
+			events = append(events, string(CtEventAssured))
+		}
+		if mask&CtEventBitProtoinfo != 0 {
+			events = append(events, string(CtEventProtoinfo))
+		}
+		if mask&CtEventBitHelper != 0 {
+			events = append(events, string(CtEventHelper))
+		}
+		if mask&CtEventBitMark != 0 {
+			events = append(events, string(CtEventMark))
+		}
+		if mask&CtEventBitSeqAdj != 0 {
+			events = append(events, string(CtEventSeqAdj))
+		}
+		if mask&CtEventBitSecMark != 0 {
+			events = append(events, string(CtEventSecMark))
+		}
+		if mask&CtEventBitLabel != 0 {
+			events = append(events, string(CtEventLabel))
+		}
+		if mask&CtEventBitSynProxy != 0 {
+			events = append(events, string(CtEventSynProxy))
+		}
+		if len(events) == 1 {
+			return events[0]
+		}
+		if len(events) > 1 {
+			return "{" + strings.Join(events, ", ") + "}"
+		}
 	}
 
 	if key == expr.CtKeyEXPIRATION && len(data) >= 4 {
