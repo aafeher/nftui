@@ -401,6 +401,126 @@ func TestNftablesToRuleDefinition_CTStatus(t *testing.T) {
 	}
 }
 
+func TestNftablesToRuleDefinition_CTEventmaskSingleBit(t *testing.T) {
+	// ct eventmask new — single IPCT_NEW bit.
+	// Pattern: Ct → Bitwise{mask=0x01, xor=0} → Cmp{Neq, data=zeros}
+	// (the kernel emits this for single-bit checks; ctCompareToCondition
+	// normalizes Neq+zeros → Eq using the mask as data.)
+	mask := []byte{0x01, 0x00, 0x00, 0x00} // CtEventBitNew (LE)
+	zeros := []byte{0x00, 0x00, 0x00, 0x00}
+
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: expr.CtKeyEVENTMASK, Register: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 4, Mask: mask, Xor: zeros},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: zeros},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.Type != ConditionTypeCT {
+		t.Errorf("type = %q, want %q", c.Type, ConditionTypeCT)
+	}
+	if c.CT.Key != nftexpr.CtKey("eventmask") {
+		t.Errorf("CT.Key = %q, want %q", c.CT.Key, "eventmask")
+	}
+	if c.CT.Value != nftexpr.CtEventNew {
+		t.Errorf("CT.Value = %v (%T), want CtEventNew", c.CT.Value, c.CT.Value)
+	}
+	if c.Operation != CompareOpEq {
+		t.Errorf("Operation = %q, want %q (Neq+zeros normalized)", c.Operation, CompareOpEq)
+	}
+}
+
+func TestNftablesToRuleDefinition_CTEventmaskMultiBit(t *testing.T) {
+	// ct eventmask {new, related, destroy} — three bits.
+	// Pattern: Ct → Bitwise{mask=0x07, xor=0} → Cmp{Eq, data=0x07}
+	mask := nftexpr.EncodeCtEvents([]nftexpr.CtEvent{
+		nftexpr.CtEventNew,
+		nftexpr.CtEventRelated,
+		nftexpr.CtEventDestroy,
+	})
+
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: expr.CtKeyEVENTMASK, Register: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 4, Mask: mask, Xor: []byte{0, 0, 0, 0}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: mask},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.Type != ConditionTypeCT {
+		t.Errorf("type = %q, want %q", c.Type, ConditionTypeCT)
+	}
+	if c.CT.Key != nftexpr.CtKey("eventmask") {
+		t.Errorf("CT.Key = %q, want %q", c.CT.Key, "eventmask")
+	}
+	events, ok := c.CT.Value.([]nftexpr.CtEvent)
+	if !ok {
+		t.Fatalf("CT.Value type = %T, want []nftexpr.CtEvent", c.CT.Value)
+	}
+	if len(events) != 3 {
+		t.Fatalf("got %d events, want 3 (%v)", len(events), events)
+	}
+	want := []nftexpr.CtEvent{nftexpr.CtEventNew, nftexpr.CtEventRelated, nftexpr.CtEventDestroy}
+	for i, ev := range want {
+		if events[i] != ev {
+			t.Errorf("events[%d] = %q, want %q", i, events[i], ev)
+		}
+	}
+}
+
+func TestNftablesToRuleDefinition_CTEventmaskAllBits(t *testing.T) {
+	// Decode-side smoke test: every IPCT_* bit decodes to the correct CtEvent
+	// in canonical order. We round-trip through EncodeCtEvents → DecodeCTValue
+	// path implicitly via the parser.
+	all := []nftexpr.CtEvent{
+		nftexpr.CtEventNew, nftexpr.CtEventRelated, nftexpr.CtEventDestroy,
+		nftexpr.CtEventReply, nftexpr.CtEventAssured, nftexpr.CtEventProtoinfo,
+		nftexpr.CtEventHelper, nftexpr.CtEventMark, nftexpr.CtEventSeqAdj,
+		nftexpr.CtEventSecMark, nftexpr.CtEventLabel, nftexpr.CtEventSynProxy,
+	}
+	mask := nftexpr.EncodeCtEvents(all)
+	// 12 bits set → 0x0FFF (LE).
+	if mask[0] != 0xff || mask[1] != 0x0f || mask[2] != 0x00 || mask[3] != 0x00 {
+		t.Fatalf("EncodeCtEvents(all) = %v, want [0xff 0x0f 0x00 0x00]", mask)
+	}
+
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: expr.CtKeyEVENTMASK, Register: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 4, Mask: mask, Xor: []byte{0, 0, 0, 0}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: mask},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	events, ok := rd.Conditions[0].CT.Value.([]nftexpr.CtEvent)
+	if !ok {
+		t.Fatalf("CT.Value type = %T, want []nftexpr.CtEvent", rd.Conditions[0].CT.Value)
+	}
+	if len(events) != 12 {
+		t.Fatalf("got %d events, want 12", len(events))
+	}
+	for i, ev := range all {
+		if events[i] != ev {
+			t.Errorf("events[%d] = %q, want %q", i, events[i], ev)
+		}
+	}
+}
+
 func TestNftablesToRuleDefinition_CTBytesOriginal(t *testing.T) {
 	rd, err := NftablesToRuleDefinition(makeRule(
 		&expr.Ct{Key: expr.CtKeyBYTES, Register: 1, Direction: 0, OptDirection: true},
