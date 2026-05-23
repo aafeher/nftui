@@ -251,6 +251,65 @@ func TestNftablesToRuleDefinition_CTMark(t *testing.T) {
 	}
 }
 
+func TestNftablesToRuleDefinition_CTSecmark(t *testing.T) {
+	// `ct secmark <val>` emits Ct{Key:SECMARK} + Cmp{Eq, LE-uint32(val)} — same
+	// shape as ct mark; the kernel stores secmark as a 32-bit conntrack metadata
+	// scalar.
+	secVal := uint32(0xdeadbeef)
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: expr.CtKeySECMARK, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: leUint32(secVal)},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.Type != ConditionTypeCT {
+		t.Errorf("type = %q, want %q", c.Type, ConditionTypeCT)
+	}
+	if c.CT.Key != nftexpr.CtKey("secmark") {
+		t.Errorf("CT.Key = %q, want %q", c.CT.Key, "secmark")
+	}
+	if c.Operation != CompareOpEq {
+		t.Errorf("Operation = %q, want %q", c.Operation, CompareOpEq)
+	}
+	if c.CT.Value != secVal {
+		t.Errorf("CT.Value = %v, want %d", c.CT.Value, secVal)
+	}
+}
+
+func TestNftablesToRuleDefinition_CTSecmarkNeq(t *testing.T) {
+	// `ct secmark != <val>` — make sure the Neq operator survives through
+	// ctCompareToCondition without being normalized (it's not the
+	// Bitwise+Neq+zeros bitmask pattern, so it must stay as Neq).
+	secVal := uint32(7)
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Ct{Key: expr.CtKeySECMARK, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: leUint32(secVal)},
+		&expr.Verdict{Kind: expr.VerdictDrop},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+	}
+	c := rd.Conditions[0]
+	if c.CT.Key != nftexpr.CtKey("secmark") {
+		t.Errorf("CT.Key = %q, want %q", c.CT.Key, "secmark")
+	}
+	if c.Operation != CompareOpNeq {
+		t.Errorf("Operation = %q, want %q", c.Operation, CompareOpNeq)
+	}
+	if c.CT.Value != secVal {
+		t.Errorf("CT.Value = %v, want %d", c.CT.Value, secVal)
+	}
+}
+
 func TestNftablesToRuleDefinition_CTState(t *testing.T) {
 	// CT STATE Pattern A: Ct → Bitwise{mask=X} → Cmp{Eq, data=X}  (e.g. ct state established)
 	stateMask := nftexpr.EncodeCtStates([]nftexpr.CtState{nftexpr.CtStateEstablished})

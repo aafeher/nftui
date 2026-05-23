@@ -16,6 +16,7 @@ type Ct struct {
 	Direction       CtDirection `json:"direction,omitzero"`
 	Status          []CtStatus  `json:"status,omitzero"`
 	Mark            uint32      `json:"mark,omitzero"`
+	SecMark         uint32      `json:"secmark,omitzero"`
 	Expiration      uint32      `json:"expiration,omitzero"`
 	ExpirationOp    string      `json:"expiration_op,omitzero"`
 	ExpirationRange *CtRange    `json:"expiration_range,omitzero"`
@@ -739,6 +740,10 @@ func fillCtField(ct *Ct, key expr.CtKey, value interface{}) {
 		if v, ok := value.(uint32); ok {
 			ct.Mark = v
 		}
+	case expr.CtKeySECMARK:
+		if v, ok := value.(uint32); ok {
+			ct.SecMark = v
+		}
 	case expr.CtKeyEXPIRATION:
 		if v, ok := value.(uint32); ok {
 			ct.Expiration = v
@@ -1105,7 +1110,7 @@ func formatCtValue(key expr.CtKey, data []byte) string {
 			return "{" + strings.Join(statuses, ", ") + "}"
 		}
 	}
-	if key == expr.CtKeyMARK {
+	if key == expr.CtKeyMARK || key == expr.CtKeySECMARK {
 		//fmt.Printf("535. mark data: %+v", data)
 		if len(data) == 4 {
 			val := binary.LittleEndian.Uint32(data)
