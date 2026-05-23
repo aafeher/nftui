@@ -426,52 +426,47 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		sb.WriteString(label + " " + grayStyle.Render("(empty)") + "\n")
 	}
 
-	// meta iifname / oifname — dedicated lines, always shown.
-	iifFound, oifFound := false, false
-	for _, condition := range rd.Conditions {
-		if condition.Meta == nil {
-			continue
-		}
-		switch condition.Meta.Key {
-		case nft.MetaKeyIIfName:
-			iifFound = true
+	// meta iifname / oifname / iif / oif — dedicated lines, always shown.
+	dedicatedLine := func(key nft.MetaKey, label string, quote bool) {
+		found := false
+		for _, condition := range rd.Conditions {
+			if condition.Meta == nil || condition.Meta.Key != key {
+				continue
+			}
+			found = true
 			op := string(condition.Operation)
 			if op == "==" {
 				op = ""
 			} else {
 				op += " "
 			}
-			label := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "Meta iifname:"))
-			sb.WriteString(label + " " + fmt.Sprintf("%s%q\n", op, fmt.Sprintf("%v", condition.Meta.Value)))
-		case nft.MetaKeyOIfName:
-			oifFound = true
-			op := string(condition.Operation)
-			if op == "==" {
-				op = ""
+			lp := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, label))
+			if quote {
+				sb.WriteString(lp + " " + fmt.Sprintf("%s%q\n", op, fmt.Sprintf("%v", condition.Meta.Value)))
 			} else {
-				op += " "
+				sb.WriteString(lp + " " + fmt.Sprintf("%s%v\n", op, condition.Meta.Value))
 			}
-			label := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "Meta oifname:"))
-			sb.WriteString(label + " " + fmt.Sprintf("%s%q\n", op, fmt.Sprintf("%v", condition.Meta.Value)))
+		}
+		if !found {
+			lp := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, label))
+			sb.WriteString(lp + " " + grayStyle.Render("(empty)") + "\n")
 		}
 	}
-	if !iifFound {
-		label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "Meta iifname:"))
-		sb.WriteString(label + " " + grayStyle.Render("(empty)") + "\n")
-	}
-	if !oifFound {
-		label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "Meta oifname:"))
-		sb.WriteString(label + " " + grayStyle.Render("(empty)") + "\n")
-	}
+	dedicatedLine(nft.MetaKeyIIfName, "Meta iifname:", true)
+	dedicatedLine(nft.MetaKeyOIfName, "Meta oifname:", true)
+	dedicatedLine(nft.MetaKeyIIf, "Meta iif:", false)
+	dedicatedLine(nft.MetaKeyOIf, "Meta oif:", false)
 
-	// Meta conditions (everything except iifname/oifname rendered above)
+	// Meta conditions (everything except the ones rendered above)
 	hasMeta := false
 	for _, condition := range rd.Conditions {
 		if condition.Meta == nil || condition.Meta.Key == "" {
 			continue
 		}
 		if condition.Meta.Key == nft.MetaKeyIIfName ||
-			condition.Meta.Key == nft.MetaKeyOIfName {
+			condition.Meta.Key == nft.MetaKeyOIfName ||
+			condition.Meta.Key == nft.MetaKeyIIf ||
+			condition.Meta.Key == nft.MetaKeyOIf {
 			continue
 		}
 		if !hasMeta {

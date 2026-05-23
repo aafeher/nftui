@@ -799,6 +799,205 @@ func TestNftablesToRuleDefinition_MetaIifnameNeq(t *testing.T) {
 	}
 }
 
+// metaIntCase exercises a Meta+Cmp smoke-test against decodeMetaValue's
+// BE convention. tWant is the type-asserted Value the parser should yield.
+type metaIntCase struct {
+	name  string
+	key   expr.MetaKey
+	mKey  MetaKey
+	data  []byte
+	tWant any
+}
+
+func runMetaIntCase(t *testing.T, c metaIntCase) {
+	t.Helper()
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: c.key, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("%s: unexpected error: %v", c.name, err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("%s: expected 1 condition, got %d", c.name, len(rd.Conditions))
+	}
+	cond := rd.Conditions[0]
+	if cond.Type != ConditionTypeMeta {
+		t.Errorf("%s: type = %q, want %q", c.name, cond.Type, ConditionTypeMeta)
+	}
+	if cond.Meta.Key != c.mKey {
+		t.Errorf("%s: Meta.Key = %q, want %q", c.name, cond.Meta.Key, c.mKey)
+	}
+	if cond.Meta.Value != c.tWant {
+		t.Errorf("%s: Meta.Value = %v (%T), want %v (%T)",
+			c.name, cond.Meta.Value, cond.Meta.Value, c.tWant, c.tWant)
+	}
+}
+
+func TestNftablesToRuleDefinition_MetaUintSmoke(t *testing.T) {
+	cases := []metaIntCase{
+		{"length", unix.NFT_META_LEN, MetaKeyLength, []byte{0x05, 0xdc}, uint16(1500)},
+		{"protocol", unix.NFT_META_PROTOCOL, MetaKeyProtocol, []byte{0x08, 0x00}, uint16(0x0800)},
+		{"nfproto v4", unix.NFT_META_NFPROTO, MetaKeyNfproto, []byte{0x02}, uint8(unix.NFPROTO_IPV4)},
+		{"nfproto v6", unix.NFT_META_NFPROTO, MetaKeyNfproto, []byte{0x0a}, uint8(unix.NFPROTO_IPV6)},
+		{"l4proto tcp", unix.NFT_META_L4PROTO, MetaKeyL4Proto, []byte{0x06}, uint8(unix.IPPROTO_TCP)},
+		{"pkttype host", unix.NFT_META_PKTTYPE, MetaKeyPktType, []byte{0x00}, uint8(unix.PACKET_HOST)},
+		{"pkttype broadcast", unix.NFT_META_PKTTYPE, MetaKeyPktType, []byte{0x01}, uint8(unix.PACKET_BROADCAST)},
+		{"mark", unix.NFT_META_MARK, MetaKeyMark, []byte{0x00, 0x00, 0x12, 0x34}, uint32(0x1234)},
+		{"priority", unix.NFT_META_PRIORITY, MetaKeyPriority, []byte{0x00, 0x01, 0x00, 0x01}, uint32(0x00010001)},
+		{"skuid", unix.NFT_META_SKUID, MetaKeySkuid, []byte{0x00, 0x00, 0x03, 0xe8}, uint32(1000)},
+		{"skgid", unix.NFT_META_SKGID, MetaKeySkgid, []byte{0x00, 0x00, 0x03, 0xe8}, uint32(1000)},
+		{"cgroup", unix.NFT_META_CGROUP, MetaKeyCGroup, []byte{0x00, 0x00, 0x00, 0x2a}, uint32(42)},
+		{"cpu", unix.NFT_META_CPU, MetaKeyCPU, []byte{0x00, 0x00, 0x00, 0x04}, uint32(4)},
+		{"iifgroup", unix.NFT_META_IIFGROUP, MetaKeyIIfGroup, []byte{0x00, 0x00, 0x00, 0x07}, uint32(7)},
+		{"oifgroup", unix.NFT_META_OIFGROUP, MetaKeyOIfGroup, []byte{0x00, 0x00, 0x00, 0x07}, uint32(7)},
+		{"rtclassid", unix.NFT_META_RTCLASSID, MetaKeyRtclassid, []byte{0x00, 0x00, 0x00, 0x10}, uint32(16)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) { runMetaIntCase(t, c) })
+	}
+}
+
+func TestNftablesToRuleDefinition_MetaIiftype(t *testing.T) {
+	// ARPHRD_ETHER = 1. Wire is 2-byte BE in this parser's convention.
+	data := []byte{0x00, 0x01}
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_IIFTYPE, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: data},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Meta.Key != MetaKeyIIfType {
+		t.Errorf("Meta.Key = %q, want %q", c.Meta.Key, MetaKeyIIfType)
+	}
+	if v, ok := c.Meta.Value.(uint16); !ok || v != unix.ARPHRD_ETHER {
+		t.Errorf("Meta.Value = %v (%T), want uint16(ARPHRD_ETHER=1)", c.Meta.Value, c.Meta.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_MetaOiftype(t *testing.T) {
+	// ARPHRD_LOOPBACK = 772 = 0x0304. BE 2-byte: [0x03, 0x04].
+	data := []byte{0x03, 0x04}
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_OIFTYPE, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: data},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Meta.Key != MetaKeyOIfType {
+		t.Errorf("Meta.Key = %q, want %q", c.Meta.Key, MetaKeyOIfType)
+	}
+	if v, ok := c.Meta.Value.(uint16); !ok || v != unix.ARPHRD_LOOPBACK {
+		t.Errorf("Meta.Value = %v (%T), want uint16(ARPHRD_LOOPBACK=772)", c.Meta.Value, c.Meta.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_MetaIifInvalidIndex(t *testing.T) {
+	// `meta iif <ifindex>` wire format: BE uint32. An ifindex that doesn't
+	// resolve on this host falls through to a uint32 Value.
+	invalidIdx := uint32(0xffffffff)
+	beData := make([]byte, 4)
+	binary.BigEndian.PutUint32(beData, invalidIdx)
+
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_IIF, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: beData},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Type != ConditionTypeMeta {
+		t.Errorf("type = %q, want %q", c.Type, ConditionTypeMeta)
+	}
+	if c.Meta.Key != MetaKeyIIf {
+		t.Errorf("Meta.Key = %q, want %q", c.Meta.Key, MetaKeyIIf)
+	}
+	if v, ok := c.Meta.Value.(uint32); !ok || v != invalidIdx {
+		t.Errorf("Meta.Value = %v (%T), want uint32(0x%x)", c.Meta.Value, c.Meta.Value, invalidIdx)
+	}
+}
+
+func TestNftablesToRuleDefinition_MetaIifResolvedLo(t *testing.T) {
+	// On hosts where "lo" exists (every Linux box should), the parser resolves
+	// the BE ifindex into a string name.
+	loIfc, err := net.InterfaceByName("lo")
+	if err != nil {
+		t.Skip("no lo interface — skipping resolve test")
+	}
+	beData := make([]byte, 4)
+	binary.BigEndian.PutUint32(beData, uint32(loIfc.Index))
+
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_IIF, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: beData},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Meta.Key != MetaKeyIIf {
+		t.Errorf("Meta.Key = %q, want %q", c.Meta.Key, MetaKeyIIf)
+	}
+	if s, ok := c.Meta.Value.(string); !ok || s != "lo" {
+		t.Errorf("Meta.Value = %v (%T), want string(%q)", c.Meta.Value, c.Meta.Value, "lo")
+	}
+}
+
+func TestNftablesToRuleDefinition_MetaOifInvalidIndex(t *testing.T) {
+	invalidIdx := uint32(0xffffffff)
+	beData := make([]byte, 4)
+	binary.BigEndian.PutUint32(beData, invalidIdx)
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_OIF, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: beData},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Meta.Key != MetaKeyOIf {
+		t.Errorf("Meta.Key = %q, want %q", c.Meta.Key, MetaKeyOIf)
+	}
+	if v, ok := c.Meta.Value.(uint32); !ok || v != invalidIdx {
+		t.Errorf("Meta.Value = %v (%T), want uint32(0x%x)", c.Meta.Value, c.Meta.Value, invalidIdx)
+	}
+}
+
+func TestNftablesToRuleDefinition_MetaOifResolvedLo(t *testing.T) {
+	loIfc, err := net.InterfaceByName("lo")
+	if err != nil {
+		t.Skip("no lo interface — skipping resolve test")
+	}
+	beData := make([]byte, 4)
+	binary.BigEndian.PutUint32(beData, uint32(loIfc.Index))
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_OIF, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: beData},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Meta.Key != MetaKeyOIf {
+		t.Errorf("Meta.Key = %q, want %q", c.Meta.Key, MetaKeyOIf)
+	}
+	if s, ok := c.Meta.Value.(string); !ok || s != "lo" {
+		t.Errorf("Meta.Value = %v (%T), want string(%q)", c.Meta.Value, c.Meta.Value, "lo")
+	}
+}
+
 func TestNftablesToRuleDefinition_MetaOifname(t *testing.T) {
 	ifname := make([]byte, 16)
 	copy(ifname, "wg0")

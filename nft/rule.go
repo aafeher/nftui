@@ -111,25 +111,29 @@ type MetaKey string
 // MetaKeyDay represents the day-associated metadata of the packet.
 // MetaKeyHour represents the hour-associated metadata of the packet.
 const (
-	MetaKeyIIf      MetaKey = "iif"
-	MetaKeyOIf      MetaKey = "oif"
-	MetaKeyIIfName  MetaKey = "iifname"
-	MetaKeyOIfName  MetaKey = "oifname"
-	MetaKeyIIfType  MetaKey = "iiftype"
-	MetaKeyOIfType  MetaKey = "oiftype"
-	MetaKeyProtocol MetaKey = "protocol" // protocol family
-	MetaKeyPriority MetaKey = "priority"
-	MetaKeyMark     MetaKey = "mark"
-	MetaKeyL4Proto  MetaKey = "l4proto" // L4 protokoll (tcp, udp, icmp)
-	MetaKeyLength   MetaKey = "length"  // csomag hossz
-	MetaKeyCGroup   MetaKey = "cgroup"
-	MetaKeyPktType  MetaKey = "pkttype" // unicast, broadcast, multicast
-	MetaKeyCPU      MetaKey = "cpu"
-	MetaKeyIIfGroup MetaKey = "iifgroup"
-	MetaKeyOIfGroup MetaKey = "oifgroup"
-	MetaKeyTime     MetaKey = "time"
-	MetaKeyDay      MetaKey = "day"
-	MetaKeyHour     MetaKey = "hour"
+	MetaKeyIIf       MetaKey = "iif"
+	MetaKeyOIf       MetaKey = "oif"
+	MetaKeyIIfName   MetaKey = "iifname"
+	MetaKeyOIfName   MetaKey = "oifname"
+	MetaKeyIIfType   MetaKey = "iiftype"
+	MetaKeyOIfType   MetaKey = "oiftype"
+	MetaKeyProtocol  MetaKey = "protocol" // protocol family
+	MetaKeyPriority  MetaKey = "priority"
+	MetaKeyMark      MetaKey = "mark"
+	MetaKeyL4Proto   MetaKey = "l4proto" // L4 protokoll (tcp, udp, icmp)
+	MetaKeyLength    MetaKey = "length"  // csomag hossz
+	MetaKeyCGroup    MetaKey = "cgroup"
+	MetaKeyPktType   MetaKey = "pkttype" // unicast, broadcast, multicast
+	MetaKeyCPU       MetaKey = "cpu"
+	MetaKeyIIfGroup  MetaKey = "iifgroup"
+	MetaKeyOIfGroup  MetaKey = "oifgroup"
+	MetaKeyTime      MetaKey = "time"
+	MetaKeyDay       MetaKey = "day"
+	MetaKeyHour      MetaKey = "hour"
+	MetaKeyNfproto   MetaKey = "nfproto"
+	MetaKeySkuid     MetaKey = "skuid"
+	MetaKeySkgid     MetaKey = "skgid"
+	MetaKeyRtclassid MetaKey = "rtclassid"
 )
 
 // PayloadCondition represents a filtering or matching criterion based on protocol, field, and value in payload data.
@@ -1382,12 +1386,38 @@ func metaKeyToString(key expr.MetaKey) string {
 		return "iifname"
 	case unix.NFT_META_OIFNAME:
 		return "oifname"
+	case unix.NFT_META_IIFTYPE:
+		return "iiftype"
+	case unix.NFT_META_OIFTYPE:
+		return "oiftype"
+	case unix.NFT_META_LEN:
+		return "length"
+	case unix.NFT_META_PROTOCOL:
+		return "protocol"
+	case unix.NFT_META_NFPROTO:
+		return "nfproto"
 	case unix.NFT_META_L4PROTO:
 		return "l4proto"
 	case unix.NFT_META_MARK:
 		return "mark"
-	case unix.NFT_META_PROTOCOL:
-		return "protocol"
+	case unix.NFT_META_PRIORITY:
+		return "priority"
+	case unix.NFT_META_SKUID:
+		return "skuid"
+	case unix.NFT_META_SKGID:
+		return "skgid"
+	case unix.NFT_META_CGROUP:
+		return "cgroup"
+	case unix.NFT_META_PKTTYPE:
+		return "pkttype"
+	case unix.NFT_META_CPU:
+		return "cpu"
+	case unix.NFT_META_IIFGROUP:
+		return "iifgroup"
+	case unix.NFT_META_OIFGROUP:
+		return "oifgroup"
+	case unix.NFT_META_RTCLASSID:
+		return "rtclassid"
 	default:
 		return fmt.Sprintf("meta_%d", key)
 	}

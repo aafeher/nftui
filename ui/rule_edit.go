@@ -159,6 +159,29 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewIPDaddrField(rd),     // slots 2,3
 				NewMetaIifnameField(rd), // slots 4,5
 				NewMetaOifnameField(rd), // slots 6,7
+				NewMetaIifField(rd),     // slots 8,9
+				NewMetaOifField(rd),     // slots 10,11
+			},
+		},
+		{
+			name: "Meta",
+			fields: []FieldEditor{
+				NewMetaIiftypeField(rd),   // 0: slots 0,1
+				NewMetaOiftypeField(rd),   // 1: slots 2,3
+				NewMetaNfprotoField(rd),   // 2: slots 4,5
+				NewMetaL4protoField(rd),   // 3: slots 6,7
+				NewMetaProtocolField(rd),  // 4: slots 8,9
+				NewMetaLengthField(rd),    // 5: slots 10,11
+				NewMetaMarkField(rd),      // 6: slots 12,13
+				NewMetaPriorityField(rd),  // 7: slots 14,15
+				NewMetaRtclassidField(rd), // 8: slots 16,17
+				NewMetaSkuidField(rd),     // 9: slots 18,19
+				NewMetaSkgidField(rd),     // 10: slots 20,21
+				NewMetaCgroupField(rd),    // 11: slots 22,23
+				NewMetaCpuField(rd),       // 12: slots 24,25
+				NewMetaIifgroupField(rd),  // 13: slots 26,27
+				NewMetaOifgroupField(rd),  // 14: slots 28,29
+				NewMetaPkttypeField(rd),   // 15: slots 30,31
 			},
 		},
 		{
@@ -474,7 +497,8 @@ func (r ruleEdit) renderCTTab() string {
 
 // renderNetworkTab renders the Network tab content.
 func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
-	// tabs[2].fields: 0=IPSaddr, 1=IPDaddr, 2=MetaIifname, 3=MetaOifname
+	// tabs[2].fields: 0=IPSaddr, 1=IPDaddr, 2=MetaIifname, 3=MetaOifname,
+	//                 4=MetaIif, 5=MetaOif
 	f := r.tabs[2].fields
 	var sb strings.Builder
 
@@ -482,15 +506,18 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 	sb.WriteString(f[1].View())
 	sb.WriteString(f[2].View())
 	sb.WriteString(f[3].View())
+	sb.WriteString(f[4].View())
+	sb.WriteString(f[5].View())
 
 	// Read-only conditions (meta — excluding the ones we render above —
 	// plus set lookup and custom).
 	hasMisc := false
 	for _, condition := range rd.Conditions {
 		if condition.Meta != nil && condition.Meta.Key != "" {
-			// Skip the meta keys we already render with dedicated editors.
-			if condition.Meta.Key == nft.MetaKeyIIfName ||
-				condition.Meta.Key == nft.MetaKeyOIfName {
+			// Skip the meta keys we already render with dedicated editors
+			// — either on this tab (iif/oif/iifname/oifname) or on the Meta
+			// tab (the other 16 keys).
+			if isMetaKeyHandledByEditor(condition.Meta.Key) {
 				continue
 			}
 			if !hasMisc {
@@ -531,10 +558,58 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 	return sb.String()
 }
 
+// renderMetaTab renders the Meta tab content (16 fields).
+func (r ruleEdit) renderMetaTab() string {
+	// tabs[3].fields: 0=Iiftype, 1=Oiftype, 2=Nfproto, 3=L4proto, 4=Protocol,
+	//   5=Length, 6=Mark, 7=Priority, 8=Rtclassid, 9=Skuid, 10=Skgid,
+	//   11=Cgroup, 12=Cpu, 13=Iifgroup, 14=Oifgroup, 15=Pkttype
+	f := r.tabs[3].fields
+	var sb strings.Builder
+
+	// Row 1: iiftype | oiftype | nfproto
+	sb.WriteString(r.row3(f[0].View(), f[1].View(), f[2].View()))
+	sb.WriteString("\n")
+	// Row 2: l4proto | protocol | length
+	sb.WriteString(r.row3(f[3].View(), f[4].View(), f[5].View()))
+	sb.WriteString("\n")
+	// Row 3: mark | priority | rtclassid
+	sb.WriteString(r.row3(f[6].View(), f[7].View(), f[8].View()))
+	sb.WriteString("\n")
+	// Row 4: skuid | skgid | cgroup
+	sb.WriteString(r.row3(f[9].View(), f[10].View(), f[11].View()))
+	sb.WriteString("\n")
+	// Row 5: cpu | iifgroup | oifgroup
+	sb.WriteString(r.row3(f[12].View(), f[13].View(), f[14].View()))
+	sb.WriteString("\n")
+	// Row 6: pkttype (full row)
+	sb.WriteString(r.row2(f[15].View(), ""))
+	sb.WriteString("\n")
+
+	return sb.String()
+}
+
+// isMetaKeyHandledByEditor reports whether a Meta condition key is already
+// surfaced through a dedicated field editor (Network or Meta tab). Used to
+// suppress duplicate rendering in the "Other conditions" generic dump.
+func isMetaKeyHandledByEditor(k nft.MetaKey) bool {
+	switch k {
+	case nft.MetaKeyIIfName, nft.MetaKeyOIfName, nft.MetaKeyIIf, nft.MetaKeyOIf,
+		nft.MetaKeyIIfType, nft.MetaKeyOIfType,
+		nft.MetaKeyNfproto, nft.MetaKeyL4Proto, nft.MetaKeyProtocol, nft.MetaKeyLength,
+		nft.MetaKeyMark, nft.MetaKeyPriority, nft.MetaKeyRtclassid,
+		nft.MetaKeySkuid, nft.MetaKeySkgid,
+		nft.MetaKeyCGroup, nft.MetaKeyCPU,
+		nft.MetaKeyIIfGroup, nft.MetaKeyOIfGroup,
+		nft.MetaKeyPktType:
+		return true
+	}
+	return false
+}
+
 // renderLimitTab renders the Limit tab content.
 func (r ruleEdit) renderLimitTab() string {
-	// tabs[3].fields: 0=Over, 1=Rate, 2=Unit, 3=Burst, 4=Type
-	f := r.tabs[3].fields
+	// tabs[4].fields: 0=Over, 1=Rate, 2=Unit, 3=Burst, 4=Type
+	f := r.tabs[4].fields
 	var sb strings.Builder
 
 	// Row 1: Over | Rate | Unit
@@ -581,6 +656,8 @@ func (r ruleEdit) View() string {
 	case 2:
 		content.WriteString(r.renderNetworkTab(ruleDefinition))
 	case 3:
+		content.WriteString(r.renderMetaTab())
+	case 4:
 		content.WriteString(r.renderLimitTab())
 	}
 
