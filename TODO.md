@@ -28,6 +28,8 @@
 
 - [x] `counter`: Packet and byte counters
 - [x] `comment`: Human-readable rule description stored in UserData
+- [x] `position`: Rule position (editor + insertion at end / before selected)
+- [x] `handle`: Kernel-assigned handle ID (display-only)
 
 ### Matches
 
@@ -61,7 +63,7 @@
 - [x] `ackseq`: Acknowledgement number
 - [x] `flags`: TCP flags
 - [x] `window`: Window
-- [x] `checksum`: IP header checksum
+- [x] `checksum`: TCP checksum
 - [x] `urgptr`: Urgent pointer
 - [x] `doff`: Data offset
 
@@ -248,3 +250,6 @@
 
 #### Queue
 - [ ] `num`: Queue number or range to send packets to userspace
+
+#### Quota
+- [ ] `[over] <n> [bytes|kbytes|mbytes]`: Quota-based rate limiting
