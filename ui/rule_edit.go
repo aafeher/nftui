@@ -172,6 +172,12 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewVlanIdField(rd),      // slot 18
 				NewVlanCfiField(rd),     // slot 19
 				NewVlanPcpField(rd),     // slot 20
+				// ARP — needs `ether type 0x0806` prefix (auto-injected by Save)
+				NewArpHtypeField(rd),     // slot 21
+				NewArpPtypeField(rd),     // slot 22
+				NewArpHlenField(rd),      // slot 23
+				NewArpPlenField(rd),      // slot 24
+				NewArpOperationField(rd), // slots 25,26
 			},
 		},
 		{
@@ -633,6 +639,14 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 	sb.WriteString("\n")
 	sb.WriteString(r.row3(f[9].View(), f[10].View(), f[11].View()))
 	sb.WriteString("\n")
+
+	sb.WriteString(grayBoldStyle.Render("ARP"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[12].View(), f[13].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[14].View(), f[15].View()))
+	sb.WriteString("\n")
+	sb.WriteString(f[16].View())
 
 	// Read-only conditions (meta — excluding the ones we render above —
 	// plus set lookup and custom).

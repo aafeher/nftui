@@ -161,11 +161,11 @@
 - [x] `pcp`: Priority Code Point (0–7)
 
 #### Arp
-- [ ] `ptype`: Payload (protocol) type
-- [ ] `htype`: Hardware type
-- [ ] `hlen`: Hardware address length
-- [ ] `plen`: Protocol address length
-- [ ] `operation`: ARP operation (request/reply)
+- [x] `ptype`: Payload (protocol) type
+- [x] `htype`: Hardware type
+- [x] `hlen`: Hardware address length
+- [x] `plen`: Protocol address length
+- [x] `operation`: ARP operation (request/reply)
 
 #### Ct
 - [x] `state`: State of the connection

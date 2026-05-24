@@ -1123,6 +1123,56 @@ func TestNftablesToRuleDefinition_IcmpChecksumIdSequence(t *testing.T) {
 	}
 }
 
+// --- ARP smoke tests ---
+
+func TestNftablesToRuleDefinition_ArpHeader(t *testing.T) {
+	cases := []struct {
+		name   string
+		offset uint32
+		length uint32
+		data   []byte
+		field  string
+		want   any
+	}{
+		{"htype", 0, 2, []byte{0x00, 0x01}, "htype", uint16(1)},
+		{"ptype", 2, 2, []byte{0x08, 0x00}, "ptype", uint16(0x0800)},
+		{"hlen", 4, 1, []byte{6}, "hlen", uint8(6)},
+		{"plen", 5, 1, []byte{4}, "plen", uint8(4)},
+		{"operation request", 6, 2, []byte{0x00, 0x01}, "operation", uint16(1)},
+		{"operation reply", 6, 2, []byte{0x00, 0x02}, "operation", uint16(2)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				// ether type 0x0806 (ARP) prefix
+				&expr.Payload{Base: expr.PayloadBaseLLHeader, Offset: 12, Len: 2, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x08, 0x06}},
+				// ARP field
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: c.offset, Len: c.length, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(rd.Conditions) != 2 {
+				t.Fatalf("expected 2 conditions (ether type + arp), got %d", len(rd.Conditions))
+			}
+			cond := rd.Conditions[1]
+			if cond.Payload.Protocol != PayloadProtoARP {
+				t.Errorf("protocol = %q, want arp", cond.Payload.Protocol)
+			}
+			if cond.Payload.Field != c.field {
+				t.Errorf("field = %q, want %q", cond.Payload.Field, c.field)
+			}
+			if cond.Payload.Value != c.want {
+				t.Errorf("value = %v (%T), want %v (%T)",
+					cond.Payload.Value, cond.Payload.Value, c.want, c.want)
+			}
+		})
+	}
+}
+
 // --- VLAN smoke tests ---
 
 func TestNftablesToRuleDefinition_VlanId(t *testing.T) {

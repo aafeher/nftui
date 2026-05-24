@@ -623,6 +623,10 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 	// Subsequent Payload+Transport-Header expressions inherit this so the
 	// parser can name ICMP / SCTP / DCCP / etc. fields correctly.
 	var currentL4Proto uint8
+	// Current EtherType context (latched from `ether type X` matches).
+	// Subsequent Payload+Network-Header expressions inherit this so the
+	// parser can name ARP fields correctly.
+	var currentEtherType uint16
 
 	i := 0
 	for i < len(rule.Exprs) {
@@ -667,6 +671,15 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 				v.Op == expr.CmpOpEq && len(v.Data) >= 1 {
 				currentL4Proto = v.Data[0]
 			}
+			// Latch the EtherType context from `ether type <X>` matches
+			// (Payload LL/12/2 + Cmp) so later NETWORK_HEADER Payload
+			// expressions can disambiguate ARP (0x0806) from IPv4/IPv6.
+			if regVal.valueType == regTypePayload &&
+				regVal.payloadBase == unix.NFT_PAYLOAD_LL_HEADER &&
+				regVal.payloadOff == 12 && regVal.payloadLen == 2 &&
+				v.Op == expr.CmpOpEq && len(v.Data) == 2 {
+				currentEtherType = (uint16(v.Data[0]) << 8) | uint16(v.Data[1])
+			}
 
 			pendingCompares = append(pendingCompares, &compareContext{
 				op:       v.Op,
@@ -696,6 +709,7 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 				payloadLen:    v.Len,
 				payloadFamily: tableFamilyHint(rule),
 				l4Proto:       currentL4Proto,
+				etherType:     currentEtherType,
 			}
 			i++
 		case *expr.Lookup:
@@ -714,8 +728,8 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			i++
 		case *expr.Bitwise:
 			// Bitwise operation - modifies register value. Propagates the
-			// upstream payload/meta context (family + l4Proto) so later
-			// Cmp dispatching can still use them.
+			// upstream payload/meta context (family + l4Proto + etherType)
+			// so later Cmp dispatching can still use them.
 			if srcVal, ok := regMap[v.SourceRegister]; ok {
 				regMap[v.DestRegister] = &registerValue{
 					valueType:     srcVal.valueType,
@@ -725,6 +739,7 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 					payloadLen:    srcVal.payloadLen,
 					payloadFamily: srcVal.payloadFamily,
 					l4Proto:       srcVal.l4Proto,
+					etherType:     srcVal.etherType,
 					ctKey:         srcVal.ctKey,
 					bitwiseMask:   v.Mask,
 					bitwiseXor:    v.Xor,
@@ -846,6 +861,12 @@ type registerValue struct {
 	// but expose different fields. 0 = unknown (parser falls back to TCP).
 	l4Proto uint8
 
+	// EtherType context — populated from the most recent
+	// `ether type X` match (Payload LL/12/2 + Cmp). Lets the NETWORK_HEADER
+	// layout switch between IPv4 / IPv6 / ARP, which share offset cells but
+	// expose different fields. 0 = unknown.
+	etherType uint16
+
 	// Immediate
 	immediateData []byte
 
@@ -900,7 +921,7 @@ func metaCompareToCondition(regVal *registerValue, cmp *compareContext) (Conditi
 
 // payloadCompareToCondition converts a payload comparison context into a Condition by interpreting protocol and field info.
 func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition, error) {
-	protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto)
+	protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto, regVal.etherType)
 
 	// Refine bit-packed IPv4 header fields based on the Bitwise mask:
 	//   offset 0 len 1, mask 0xf0 → version (high nibble; raw value = data>>4)
@@ -1112,7 +1133,7 @@ func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition
 func rangeToCondition(regVal *registerValue, rng *expr.Range) (Condition, error) {
 	switch regVal.valueType {
 	case regTypePayload:
-		protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto)
+		protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto, regVal.etherType)
 		fromVal := decodePayloadValue(protocol, field, rng.FromData)
 		toVal := decodePayloadValue(protocol, field, rng.ToData)
 
@@ -1156,7 +1177,7 @@ func lookupToCondition(regVal *registerValue, lookup *expr.Lookup) Condition {
 	case regTypeMeta:
 		field = metaKeyToString(regVal.metaKey)
 	case regTypePayload:
-		_, field = identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto)
+		_, field = identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto, regVal.etherType)
 	case regTypeCT:
 		field = nftexpr.CtKeyToString(regVal.ctKey)
 	}
@@ -1504,9 +1525,26 @@ const (
 // the protocol family is determined by the chain/table family, not by the
 // raw expression. Here we disambiguate on offset+length boundaries that are
 // unambiguous between the two layouts.
-func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family payloadFamilyHint, l4Proto uint8) (PayloadProtocol, string) {
+func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family payloadFamilyHint, l4Proto uint8, etherType uint16) (PayloadProtocol, string) {
 	switch base {
 	case unix.NFT_PAYLOAD_NETWORK_HEADER:
+		// ARP — NETWORK_HEADER reading layered under `ether type 0x0806`.
+		// RFC 826: htype 0..2, ptype 2..4, hlen 4..5, plen 5..6,
+		// operation 6..8.
+		if etherType == 0x0806 {
+			switch {
+			case offset == 0 && length == 2:
+				return PayloadProtoARP, "htype"
+			case offset == 2 && length == 2:
+				return PayloadProtoARP, "ptype"
+			case offset == 4 && length == 1:
+				return PayloadProtoARP, "hlen"
+			case offset == 5 && length == 1:
+				return PayloadProtoARP, "plen"
+			case offset == 6 && length == 2:
+				return PayloadProtoARP, "operation"
+			}
+		}
 		// Unmistakably-IPv6 offsets (len 16 saddr/daddr, ip6 nexthdr/hoplimit).
 		switch {
 		case offset == 8 && length == 16:
@@ -1732,11 +1770,12 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 			return &PortSpec{Port: binary.BigEndian.Uint16(data)}
 		}
 	case "protocol", "type", "code", "ttl", "nexthdr", "hoplimit", "version_ihl", "dscp_ecn",
-		"flags", "doff", "hdrlength":
+		"flags", "doff", "hdrlength", "hlen", "plen":
 		if len(data) >= 1 {
 			return data[0]
 		}
-	case "length", "id", "frag-off", "checksum", "window", "urgptr", "cpi":
+	case "length", "id", "frag-off", "checksum", "window", "urgptr", "cpi",
+		"htype", "ptype", "operation":
 		// `checksum` is uint16 for TCP/UDP/ICMP/ICMPv6 but uint32 for SCTP —
 		// pick by length.
 		if len(data) == 2 {

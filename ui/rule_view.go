@@ -449,6 +449,37 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		}
 	}
 
+	// ARP fields (htype / ptype / hlen / plen / operation) — dedicated lines.
+	arpFound := map[string]bool{}
+	for _, condition := range rd.Conditions {
+		if condition.Payload == nil || condition.Payload.Protocol != nft.PayloadProtoARP {
+			continue
+		}
+		arpFound[condition.Payload.Field] = true
+		op := string(condition.Operation)
+		if op == "==" {
+			op = ""
+		} else {
+			op += " "
+		}
+		valStr := fmt.Sprintf("%v", condition.Payload.Value)
+		if condition.Payload.Field == "operation" {
+			if v, ok := condition.Payload.Value.(uint16); ok {
+				if name := arpOperationCodeToName(v); name != "" {
+					valStr = fmt.Sprintf("%s (%d)", name, v)
+				}
+			}
+		}
+		label := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "ARP "+condition.Payload.Field+":"))
+		sb.WriteString(label + " " + op + valStr + "\n")
+	}
+	for _, name := range []string{"htype", "ptype", "hlen", "plen", "operation"} {
+		if !arpFound[name] {
+			lp := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "ARP "+name+":"))
+			sb.WriteString(lp + " " + grayStyle.Render("(empty)") + "\n")
+		}
+	}
+
 	// VLAN tag fields (id / cfi / pcp) — dedicated lines.
 	vlanFound := map[string]bool{}
 	for _, condition := range rd.Conditions {
