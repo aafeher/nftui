@@ -426,7 +426,7 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		case nft.PayloadProtoIP, nft.PayloadProtoIP6:
 			ipExtras = append(ipExtras, condition)
 		case nft.PayloadProtoTCP, nft.PayloadProtoUDP, nft.PayloadProtoICMP, nft.PayloadProtoICMPv6,
-			nft.PayloadProtoSCTP:
+			nft.PayloadProtoSCTP, nft.PayloadProtoDCCP:
 			transportExtras = append(transportExtras, condition)
 		}
 	}
@@ -475,7 +475,7 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		}
 	}
 	renderPayloadBlock("IP / IP6 header:", ipExtras)
-	renderPayloadBlock("Transport (TCP/UDP/ICMP/ICMPv6/SCTP):", transportExtras)
+	renderPayloadBlock("Transport (TCP/UDP/ICMP/ICMPv6/SCTP/DCCP):", transportExtras)
 
 	// meta iifname / oifname / iif / oif — dedicated lines, always shown.
 	dedicatedLine := func(key nft.MetaKey, label string, quote bool) {

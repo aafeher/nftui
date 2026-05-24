@@ -1123,6 +1123,65 @@ func TestNftablesToRuleDefinition_IcmpChecksumIdSequence(t *testing.T) {
 	}
 }
 
+// --- DCCP smoke tests ---
+
+func TestNftablesToRuleDefinition_DccpPorts(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		offset uint32
+		port   uint16
+		field  string
+	}{
+		{"sport", 0, 200, "sport"},
+		{"dport", 2, 100, "dport"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Meta{Key: unix.NFT_META_L4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_DCCP}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: c.offset, Len: 2, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: beUint16(c.port)},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			cond := rd.Conditions[1]
+			if cond.Payload.Protocol != PayloadProtoDCCP {
+				t.Errorf("protocol = %q, want dccp", cond.Payload.Protocol)
+			}
+			if cond.Payload.Field != c.field {
+				t.Errorf("field = %q, want %q", cond.Payload.Field, c.field)
+			}
+			if ps, ok := cond.Payload.Value.(*PortSpec); !ok || ps.Port != c.port {
+				t.Errorf("value = %v (%T), want *PortSpec{Port:%d}", cond.Payload.Value, cond.Payload.Value, c.port)
+			}
+		})
+	}
+}
+
+func TestNftablesToRuleDefinition_DccpType(t *testing.T) {
+	// `dccp type response` → Bitwise{mask=0x1e} + Cmp{Eq, [0x02]} (response = 1, encoded = 1<<1).
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_L4PROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_DCCP}},
+		&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 8, Len: 1, DestRegister: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 1, Mask: []byte{0x1e}, Xor: []byte{0}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x02}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cond := rd.Conditions[1]
+	if cond.Payload.Protocol != PayloadProtoDCCP || cond.Payload.Field != "type" {
+		t.Errorf("got %q/%q, want dccp/type", cond.Payload.Protocol, cond.Payload.Field)
+	}
+	if v, ok := cond.Payload.Value.(uint8); !ok || v != 1 {
+		t.Errorf("value = %v (%T), want uint8(1) [response]", cond.Payload.Value, cond.Payload.Value)
+	}
+}
+
 // --- SCTP smoke tests ---
 
 func TestNftablesToRuleDefinition_SctpHeader(t *testing.T) {

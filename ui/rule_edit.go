@@ -231,6 +231,10 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewSctpDportField(rd),    // 26
 				NewSctpVtagField(rd),     // 27
 				NewSctpChecksumField(rd), // 28
+				// DCCP
+				NewDccpSportField(rd), // 29
+				NewDccpDportField(rd), // 30
+				NewDccpTypeField(rd),  // 31
 			},
 		},
 		{
@@ -736,6 +740,12 @@ func (r ruleEdit) renderTransportTab() string {
 	sb.WriteString("\n")
 	sb.WriteString(r.row2(f[27].View(), f[28].View()))
 	sb.WriteString("\n")
+
+	sb.WriteString(grayBoldStyle.Render("DCCP"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[29].View(), f[30].View()))
+	sb.WriteString("\n")
+	sb.WriteString(f[31].View())
 
 	return sb.String()
 }

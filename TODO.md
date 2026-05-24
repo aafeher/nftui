@@ -86,9 +86,9 @@
 - [ ] `chunk`: SCTP chunk (deferred — chunk-type-scoped UX)
 
 #### Dccp
-- [ ] `dport`: Destination port
-- [ ] `sport`: Source port
-- [ ] `type`: Type of packet
+- [x] `dport`: Destination port
+- [x] `sport`: Source port
+- [x] `type`: Type of packet
 
 #### Ah
 - [ ] `hdrlength`: AH header length

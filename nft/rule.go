@@ -163,6 +163,7 @@ const (
 	PayloadProtoICMP   PayloadProtocol = "icmp"
 	PayloadProtoICMPv6 PayloadProtocol = "icmpv6"
 	PayloadProtoSCTP   PayloadProtocol = "sctp"
+	PayloadProtoDCCP   PayloadProtocol = "dccp"
 	PayloadProtoARP    PayloadProtocol = "arp"
 )
 
@@ -708,18 +709,22 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			}
 			i++
 		case *expr.Bitwise:
-			// Bitwise operation - modifies register value
+			// Bitwise operation - modifies register value. Propagates the
+			// upstream payload/meta context (family + l4Proto) so later
+			// Cmp dispatching can still use them.
 			if srcVal, ok := regMap[v.SourceRegister]; ok {
 				regMap[v.DestRegister] = &registerValue{
-					valueType:   srcVal.valueType,
-					metaKey:     srcVal.metaKey,
-					payloadBase: srcVal.payloadBase,
-					payloadOff:  srcVal.payloadOff,
-					payloadLen:  srcVal.payloadLen,
-					ctKey:       srcVal.ctKey,
-					bitwiseMask: v.Mask,
-					bitwiseXor:  v.Xor,
-					hasBitwise:  true,
+					valueType:     srcVal.valueType,
+					metaKey:       srcVal.metaKey,
+					payloadBase:   srcVal.payloadBase,
+					payloadOff:    srcVal.payloadOff,
+					payloadLen:    srcVal.payloadLen,
+					payloadFamily: srcVal.payloadFamily,
+					l4Proto:       srcVal.l4Proto,
+					ctKey:         srcVal.ctKey,
+					bitwiseMask:   v.Mask,
+					bitwiseXor:    v.Xor,
+					hasBitwise:    true,
 				}
 			}
 			i++
@@ -969,6 +974,18 @@ func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Cond
 		return Condition{
 			Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
 			Payload: &PayloadCondition{Protocol: PayloadProtoTCP, Field: "doff", Value: uint8(cmp.data[0] >> 4)},
+		}, nil
+	}
+	// DCCP type (transport, offset 8 len 1, mask 0x1e; raw value = data>>1).
+	// l4proto context lets us disambiguate from any future bit-1..4
+	// matches in other transports.
+	if regVal.hasBitwise && regVal.l4Proto == unix.IPPROTO_DCCP &&
+		regVal.payloadBase == unix.NFT_PAYLOAD_TRANSPORT_HEADER &&
+		regVal.payloadOff == 8 && regVal.payloadLen == 1 &&
+		len(cmp.data) == 1 && len(regVal.bitwiseMask) == 1 && regVal.bitwiseMask[0] == 0x1e {
+		return Condition{
+			Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
+			Payload: &PayloadCondition{Protocol: PayloadProtoDCCP, Field: "type", Value: uint8((cmp.data[0] & 0x1e) >> 1)},
 		}, nil
 	}
 
@@ -1546,6 +1563,17 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family p
 				return PayloadProtoSCTP, "vtag"
 			case offset == 8 && length == 4:
 				return PayloadProtoSCTP, "checksum"
+			}
+		case unix.IPPROTO_DCCP:
+			// DCCP fixed header (RFC 4340): sport 0..2, dport 2..4,
+			// type is 4 bits at byte 8 (bits 1..4 → mask 0x1e, shift 1);
+			// the type recognizer lives in payloadCompareToCondition's
+			// Bitwise dispatch since it needs the mask byte to confirm.
+			switch {
+			case offset == 0 && length == 2:
+				return PayloadProtoDCCP, "sport"
+			case offset == 2 && length == 2:
+				return PayloadProtoDCCP, "dport"
 			}
 		}
 
