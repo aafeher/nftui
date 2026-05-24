@@ -449,6 +449,39 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		}
 	}
 
+	// Ether type — dedicated line, always shown.
+	etherTypeFound := false
+	for _, condition := range rd.Conditions {
+		if condition.Payload == nil ||
+			condition.Payload.Protocol != nft.PayloadProtoEther ||
+			condition.Payload.Field != "type" {
+			continue
+		}
+		etherTypeFound = true
+		op := string(condition.Operation)
+		if op == "==" {
+			op = ""
+		} else {
+			op += " "
+		}
+		var valStr string
+		if v, ok := condition.Payload.Value.(uint16); ok {
+			if name := etherTypeCodeToName(v); name != "" {
+				valStr = fmt.Sprintf("%s (0x%04x)", name, v)
+			} else {
+				valStr = fmt.Sprintf("0x%04x", v)
+			}
+		} else {
+			valStr = fmt.Sprintf("%v", condition.Payload.Value)
+		}
+		lp := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "Ether type:"))
+		sb.WriteString(lp + " " + op + valStr + "\n")
+	}
+	if !etherTypeFound {
+		lp := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "Ether type:"))
+		sb.WriteString(lp + " " + grayStyle.Render("(empty)") + "\n")
+	}
+
 	renderPayloadBlock := func(title string, conds []nft.Condition) {
 		if len(conds) == 0 {
 			return

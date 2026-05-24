@@ -1123,6 +1123,42 @@ func TestNftablesToRuleDefinition_IcmpChecksumIdSequence(t *testing.T) {
 	}
 }
 
+// --- Ether type smoke tests ---
+
+func TestNftablesToRuleDefinition_EtherType(t *testing.T) {
+	// ether type ip → EtherType 0x0800; wire data is BE.
+	cases := []struct {
+		name      string
+		data      []byte
+		etherType uint16
+	}{
+		{"ip", []byte{0x08, 0x00}, 0x0800},
+		{"ip6", []byte{0x86, 0xdd}, 0x86dd},
+		{"arp", []byte{0x08, 0x06}, 0x0806},
+		{"vlan", []byte{0x81, 0x00}, 0x8100},
+		{"lldp", []byte{0x88, 0xcc}, 0x88cc},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Payload{Base: expr.PayloadBaseLLHeader, Offset: 12, Len: 2, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			cond := rd.Conditions[0]
+			if cond.Payload.Protocol != PayloadProtoEther || cond.Payload.Field != "type" {
+				t.Errorf("got %q/%q, want ether/type", cond.Payload.Protocol, cond.Payload.Field)
+			}
+			if v, ok := cond.Payload.Value.(uint16); !ok || v != c.etherType {
+				t.Errorf("value = %v (%T), want uint16(0x%04x)", cond.Payload.Value, cond.Payload.Value, c.etherType)
+			}
+		})
+	}
+}
+
 // --- Ethernet (L2) smoke tests ---
 
 func TestNftablesToRuleDefinition_EtherSaddrDaddr(t *testing.T) {

@@ -168,6 +168,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewMetaOifField(rd),     // slots 10,11
 				NewEtherSaddrField(rd),  // slots 12,13
 				NewEtherDaddrField(rd),  // slots 14,15
+				NewEtherTypeField(rd),   // slots 16,17
 			},
 		},
 		{
@@ -611,7 +612,8 @@ func (r ruleEdit) renderCTTab() string {
 // renderNetworkTab renders the Network tab content.
 func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 	// tabs[2].fields: 0=IPSaddr, 1=IPDaddr, 2=MetaIifname, 3=MetaOifname,
-	//                 4=MetaIif, 5=MetaOif, 6=EtherSaddr, 7=EtherDaddr
+	//                 4=MetaIif, 5=MetaOif, 6=EtherSaddr, 7=EtherDaddr,
+	//                 8=EtherType
 	f := r.tabs[2].fields
 	var sb strings.Builder
 
@@ -623,6 +625,7 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 	sb.WriteString(f[5].View())
 	sb.WriteString(f[6].View())
 	sb.WriteString(f[7].View())
+	sb.WriteString(f[8].View())
 
 	// Read-only conditions (meta — excluding the ones we render above —
 	// plus set lookup and custom).

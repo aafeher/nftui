@@ -1681,6 +1681,11 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 	if protocol == PayloadProtoEther && (field == "saddr" || field == "daddr") && len(data) == 6 {
 		return formatMACBytes(data)
 	}
+	// Ether `type` is uint16 BE — distinct from ICMP/ICMPv6 `type` which is
+	// uint8. Dispatch on protocol before the generic uint8 fallback below.
+	if protocol == PayloadProtoEther && field == "type" && len(data) == 2 {
+		return binary.BigEndian.Uint16(data)
+	}
 	switch field {
 	case "saddr", "daddr":
 		if len(data) == 4 {

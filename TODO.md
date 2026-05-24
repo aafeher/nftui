@@ -125,7 +125,7 @@
 
 #### Ethernet (Ether)
 - [x] `saddr`: Source MAC address
-- [ ] `type`: EtherType
+- [x] `type`: EtherType
 
 #### Dst
 - [ ] `nexthdr`: Next protocol header
