@@ -537,34 +537,7 @@ func AddSetElement(set *nftables.Set, key, keyEnd, val []byte, verdict *expr.Ver
 	if err != nil {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
 	}
-	var elements []nftables.SetElement
-	switch {
-	case keyEnd != nil:
-		// Explicit range: start + exclusive end.
-		end := incrementBytes(keyEnd) // exclusive end = inclusive end + 1
-		elements = []nftables.SetElement{
-			{Key: key},
-			{Key: end, IntervalEnd: true},
-		}
-	case set.Interval:
-		// Single host on an interval set: still needs a closing marker
-		// at start+1, otherwise the kernel leaves the range open and
-		// auto-merges into the next neighbouring entry.
-		end := incrementBytes(key)
-		elements = []nftables.SetElement{
-			{Key: key},
-			{Key: end, IntervalEnd: true},
-		}
-	default:
-		el := nftables.SetElement{Key: key}
-		switch {
-		case verdict != nil:
-			el.VerdictData = verdict
-		case val != nil:
-			el.Val = val
-		}
-		elements = []nftables.SetElement{el}
-	}
+	elements := buildSetElements(set, key, keyEnd, val, verdict)
 	if err := conn.SetAddElements(set, elements); err != nil {
 		return fmt.Errorf("failed to stage element: %v", err)
 	}
@@ -572,6 +545,43 @@ func AddSetElement(set *nftables.Set, key, keyEnd, val []byte, verdict *expr.Ver
 		return fmt.Errorf("failed to add set element: %v", err)
 	}
 	return nil
+}
+
+// buildSetElements assembles the SetElement slice an AddSetElement call
+// should push to the kernel. Pure data shaping, no netlink — unit tests
+// rely on this to cover the interval / map / verdict branches without
+// needing CAP_NET_ADMIN.
+//
+// Cases:
+//
+//	range            (keyEnd != nil)   → 2 elements: {Key} + {Key=end+1, IntervalEnd}
+//	single, interval (set.Interval)    → 2 elements: {Key} + {Key=key+1, IntervalEnd}
+//	verdict map      (verdict != nil)  → 1 element : {Key, VerdictData}
+//	plain map        (val     != nil)  → 1 element : {Key, Val}
+//	plain set        (otherwise)       → 1 element : {Key}
+func buildSetElements(set *nftables.Set, key, keyEnd, val []byte, verdict *expr.Verdict) []nftables.SetElement {
+	switch {
+	case keyEnd != nil:
+		end := incrementBytes(keyEnd) // exclusive end = inclusive end + 1
+		return []nftables.SetElement{
+			{Key: key},
+			{Key: end, IntervalEnd: true},
+		}
+	case set.Interval:
+		end := incrementBytes(key)
+		return []nftables.SetElement{
+			{Key: key},
+			{Key: end, IntervalEnd: true},
+		}
+	}
+	el := nftables.SetElement{Key: key}
+	switch {
+	case verdict != nil:
+		el.VerdictData = verdict
+	case val != nil:
+		el.Val = val
+	}
+	return []nftables.SetElement{el}
 }
 
 // incrementBytes returns a copy of b incremented by one as a BigEndian
