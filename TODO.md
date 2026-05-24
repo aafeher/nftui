@@ -128,32 +128,32 @@
 - [x] `type`: EtherType
 
 #### Dst
-- [ ] `nexthdr`: Next protocol header
-- [ ] `hdrlength`: Header length
+- [x] `nexthdr`: Next protocol header
+- [x] `hdrlength`: Header length
 
 #### Frag
-- [ ] `nexthdr`: Next protocol header
-- [ ] `reserved`: Reserved field
-- [ ] `frag-off`: Fragment offset
-- [ ] `more-fragments`: More fragments flag
-- [ ] `id`: Fragment identification number
+- [x] `nexthdr`: Next protocol header
+- [x] `reserved`: Reserved field
+- [x] `frag-off`: Fragment offset
+- [x] `more-fragments`: More fragments flag
+- [x] `id`: Fragment identification number
 
 #### Hbh
-- [ ] `nexthdr`: Next protocol header
-- [ ] `hdrlength`: Header length
+- [x] `nexthdr`: Next protocol header
+- [x] `hdrlength`: Header length
 
 #### Mh
-- [ ] `nexthdr`: Next protocol header
-- [ ] `hdrlength`: Header length
-- [ ] `type`: Mobility header type
-- [ ] `reserved`: Reserved field
-- [ ] `checksum`: Mobility header checksum
+- [x] `nexthdr`: Next protocol header
+- [x] `hdrlength`: Header length
+- [x] `type`: Mobility header type
+- [x] `reserved`: Reserved field
+- [x] `checksum`: Mobility header checksum
 
 #### Rt
-- [ ] `nexthdr`: Next protocol header
-- [ ] `hdrlength`: Header length
-- [ ] `type`: Routing header type
-- [ ] `seg-left`: Number of route segments remaining
+- [x] `nexthdr`: Next protocol header
+- [x] `hdrlength`: Header length
+- [x] `type`: Routing header type
+- [x] `seg-left`: Number of route segments remaining
 
 #### Vlan
 - [x] `id`: VLAN tag ID (0–4095)

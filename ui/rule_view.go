@@ -570,6 +570,29 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 	renderPayloadBlock("IP / IP6 header:", ipExtras)
 	renderPayloadBlock("Transport (TCP/UDP/ICMP/ICMPv6/SCTP/DCCP/AH/ESP/COMP):", transportExtras)
 
+	// IPv6 extension headers — grouped read-only block.
+	var exthdrConds []nft.Condition
+	for _, condition := range rd.Conditions {
+		if condition.Exthdr != nil {
+			exthdrConds = append(exthdrConds, condition)
+		}
+	}
+	if len(exthdrConds) > 0 {
+		sb.WriteString("\n")
+		sb.WriteString(grayBoldStyle.Render("IPv6 extension headers:"))
+		sb.WriteString("\n")
+		for _, condition := range exthdrConds {
+			e := condition.Exthdr
+			op := string(condition.Operation)
+			if op == "==" {
+				op = ""
+			} else {
+				op += " "
+			}
+			sb.WriteString(fmt.Sprintf("  %s %s %s%v\n", e.Proto, e.Field, op, e.Value))
+		}
+	}
+
 	// meta iifname / oifname / iif / oif — dedicated lines, always shown.
 	dedicatedLine := func(key nft.MetaKey, label string, quote bool) {
 		found := false

@@ -1123,6 +1123,61 @@ func TestNftablesToRuleDefinition_IcmpChecksumIdSequence(t *testing.T) {
 	}
 }
 
+// --- IPv6 extension header smoke tests ---
+
+func TestNftablesToRuleDefinition_Exthdr(t *testing.T) {
+	cases := []struct {
+		name       string
+		exthdrType uint8
+		offset     uint32
+		length     uint32
+		data       []byte
+		proto      ExthdrProto
+		field      string
+		want       any
+	}{
+		{"frag nexthdr", 44, 0, 1, []byte{6}, ExthdrProtoFrag, "nexthdr", uint8(6)},
+		{"frag id", 44, 4, 4, []byte{0x12, 0x34, 0x56, 0x78}, ExthdrProtoFrag, "id", uint32(0x12345678)},
+		{"hbh hdrlength", 0, 1, 1, []byte{0}, ExthdrProtoHBH, "hdrlength", uint8(0)},
+		{"dst nexthdr", 60, 0, 1, []byte{6}, ExthdrProtoDst, "nexthdr", uint8(6)},
+		{"mh type", 135, 2, 1, []byte{0}, ExthdrProtoMh, "type", uint8(0)},
+		{"rt type", 43, 2, 1, []byte{0}, ExthdrProtoRt, "type", uint8(0)},
+		{"rt seg-left", 43, 3, 1, []byte{1}, ExthdrProtoRt, "seg-left", uint8(1)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Exthdr{DestRegister: 1, Type: c.exthdrType, Offset: c.offset, Len: c.length, Op: expr.ExthdrOpIpv6},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(rd.Conditions) != 1 {
+				t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+			}
+			cond := rd.Conditions[0]
+			if cond.Type != ConditionTypeExthdr {
+				t.Errorf("type = %q, want exthdr", cond.Type)
+			}
+			if cond.Exthdr == nil {
+				t.Fatalf("Exthdr payload is nil")
+			}
+			if cond.Exthdr.Proto != c.proto {
+				t.Errorf("proto = %q, want %q", cond.Exthdr.Proto, c.proto)
+			}
+			if cond.Exthdr.Field != c.field {
+				t.Errorf("field = %q, want %q", cond.Exthdr.Field, c.field)
+			}
+			if cond.Exthdr.Value != c.want {
+				t.Errorf("value = %v (%T), want %v (%T)",
+					cond.Exthdr.Value, cond.Exthdr.Value, c.want, c.want)
+			}
+		})
+	}
+}
+
 // --- ARP smoke tests ---
 
 func TestNftablesToRuleDefinition_ArpHeader(t *testing.T) {

@@ -35,10 +35,66 @@ type Condition struct {
 	Meta      *MetaCondition
 	Payload   *PayloadCondition
 	CT        *CTCondition
+	Exthdr    *ExthdrCondition
 	SetLookup *SetLookupCondition
 	Limit     *expr.Limit
 	Connlimit *expr.Connlimit
 	Custom    *CustomCondition
+}
+
+// ExthdrCondition represents an IPv6 extension-header match. Proto names
+// the extension header (frag / hbh / dst / mh / rt); Field names the
+// sub-field; Value is the decoded payload (uint8 / uint16 / uint32).
+type ExthdrCondition struct {
+	Proto ExthdrProto
+	Field string
+	Value any
+}
+
+// ExthdrProto identifies an IPv6 extension header by its `nft` name.
+type ExthdrProto string
+
+const (
+	ExthdrProtoHBH  ExthdrProto = "hbh"  // Hop-by-Hop Options (nexthdr=0)
+	ExthdrProtoDst  ExthdrProto = "dst"  // Destination Options (nexthdr=60)
+	ExthdrProtoFrag ExthdrProto = "frag" // Fragment header (nexthdr=44)
+	ExthdrProtoRt   ExthdrProto = "rt"   // Routing header (nexthdr=43)
+	ExthdrProtoMh   ExthdrProto = "mh"   // Mobility header (nexthdr=135)
+)
+
+// exthdrTypeToProto maps the kernel extension-header protocol number to
+// the `nft` short name. Returns "" for unknown types.
+func exthdrTypeToProto(t uint8) ExthdrProto {
+	switch t {
+	case 0:
+		return ExthdrProtoHBH
+	case 60:
+		return ExthdrProtoDst
+	case 44:
+		return ExthdrProtoFrag
+	case 43:
+		return ExthdrProtoRt
+	case 135:
+		return ExthdrProtoMh
+	}
+	return ""
+}
+
+// exthdrProtoToType is the inverse of exthdrTypeToProto.
+func exthdrProtoToType(p ExthdrProto) uint8 {
+	switch p {
+	case ExthdrProtoHBH:
+		return 0
+	case ExthdrProtoDst:
+		return 60
+	case ExthdrProtoFrag:
+		return 44
+	case ExthdrProtoRt:
+		return 43
+	case ExthdrProtoMh:
+		return 135
+	}
+	return 0
 }
 
 // ConditionType represents the type of a condition used to define specific filtering or matching criteria.
@@ -54,6 +110,7 @@ const (
 	ConditionTypeMeta      ConditionType = "meta"
 	ConditionTypePayload   ConditionType = "payload"
 	ConditionTypeCT        ConditionType = "ct"
+	ConditionTypeExthdr    ConditionType = "exthdr"
 	ConditionTypeSetLookup ConditionType = "set_lookup"
 	ConditionTypeLimit     ConditionType = "limit"
 	ConditionTypeConnlimit ConditionType = "connlimit"
@@ -712,6 +769,14 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 				etherType:     currentEtherType,
 			}
 			i++
+		case *expr.Exthdr:
+			regMap[v.DestRegister] = &registerValue{
+				valueType:  regTypeExthdr,
+				exthdrType: v.Type,
+				exthdrOff:  v.Offset,
+				exthdrLen:  v.Len,
+			}
+			i++
 		case *expr.Lookup:
 			// Set lookup
 			regVal := regMap[v.SourceRegister]
@@ -834,6 +899,7 @@ const (
 	regTypePayload
 	regTypeCT
 	regTypeImmediate
+	regTypeExthdr
 )
 
 // registerValue represents a container holding metadata and context for register-based expressions in rule processing.
@@ -870,6 +936,13 @@ type registerValue struct {
 	// Immediate
 	immediateData []byte
 
+	// Exthdr (IPv6 extension header) — populated when an *expr.Exthdr is
+	// loaded into the register. Type names the extension header protocol
+	// (frag=44, hbh=0, dst=60, rt=43, mh=135); off+len pin the field within.
+	exthdrType uint8
+	exthdrOff  uint32
+	exthdrLen  uint32
+
 	// Bitwise
 	hasBitwise  bool
 	bitwiseMask []byte
@@ -894,6 +967,8 @@ func compareToCondition(cmp *compareContext) (Condition, error) {
 		return payloadCompareToCondition(regVal, cmp)
 	case regTypeCT:
 		return ctCompareToCondition(regVal, cmp)
+	case regTypeExthdr:
+		return exthdrCompareToCondition(regVal, cmp)
 	default:
 		return Condition{
 			Type: ConditionTypeCustom,
@@ -902,6 +977,95 @@ func compareToCondition(cmp *compareContext) (Condition, error) {
 			},
 		}, nil
 	}
+}
+
+// exthdrCompareToCondition converts an IPv6 extension-header comparison
+// context into an ExthdrCondition. Decodes the value based on field
+// length (1 byte → uint8, 2 → uint16, 4 → uint32).
+func exthdrCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition, error) {
+	proto := exthdrTypeToProto(regVal.exthdrType)
+	field := exthdrFieldName(regVal.exthdrType, regVal.exthdrOff, regVal.exthdrLen)
+	value := decodeExthdrValue(regVal.exthdrLen, cmp.data)
+	return Condition{
+		Type:      ConditionTypeExthdr,
+		Operation: cmpOpToCompareOp(cmp.op),
+		Exthdr: &ExthdrCondition{
+			Proto: proto,
+			Field: field,
+			Value: value,
+		},
+	}, nil
+}
+
+// exthdrFieldName resolves (type, offset, length) → field name. The list
+// covers everything `nft` itself emits in `nft list`.
+func exthdrFieldName(exthdrType uint8, offset, length uint32) string {
+	switch exthdrType {
+	case 0, 60: // hbh, dst — identical layout
+		switch {
+		case offset == 0 && length == 1:
+			return "nexthdr"
+		case offset == 1 && length == 1:
+			return "hdrlength"
+		}
+	case 44: // frag
+		switch {
+		case offset == 0 && length == 1:
+			return "nexthdr"
+		case offset == 1 && length == 1:
+			return "reserved"
+		case offset == 2 && length == 2:
+			return "frag-off"
+		case offset == 3 && length == 1:
+			return "more-fragments"
+		case offset == 4 && length == 4:
+			return "id"
+		}
+	case 43: // rt
+		switch {
+		case offset == 0 && length == 1:
+			return "nexthdr"
+		case offset == 1 && length == 1:
+			return "hdrlength"
+		case offset == 2 && length == 1:
+			return "type"
+		case offset == 3 && length == 1:
+			return "seg-left"
+		}
+	case 135: // mh
+		switch {
+		case offset == 0 && length == 1:
+			return "nexthdr"
+		case offset == 1 && length == 1:
+			return "hdrlength"
+		case offset == 2 && length == 1:
+			return "type"
+		case offset == 3 && length == 1:
+			return "reserved"
+		case offset == 4 && length == 2:
+			return "checksum"
+		}
+	}
+	return fmt.Sprintf("offset_%d_len_%d", offset, length)
+}
+
+// decodeExthdrValue picks uint8 / uint16 / uint32 by data length.
+func decodeExthdrValue(length uint32, data []byte) interface{} {
+	switch length {
+	case 1:
+		if len(data) >= 1 {
+			return data[0]
+		}
+	case 2:
+		if len(data) >= 2 {
+			return binary.BigEndian.Uint16(data)
+		}
+	case 4:
+		if len(data) >= 4 {
+			return binary.BigEndian.Uint32(data)
+		}
+	}
+	return data
 }
 
 // metaCompareToCondition converts a register value and comparison context into a metadata-based Condition.

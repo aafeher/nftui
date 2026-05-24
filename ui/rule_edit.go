@@ -202,6 +202,25 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewIP6VersionField(rd),   // 14
 				NewIP6DscpField(rd),      // 15
 				NewIP6FlowlabelField(rd), // 16
+				// IPv6 extension headers — 18 fields across 5 protocols
+				NewFragNexthdrField(rd),       // 17
+				NewFragReservedField(rd),      // 18
+				NewFragFragOffField(rd),       // 19
+				NewFragMoreFragmentsField(rd), // 20
+				NewFragIdField(rd),            // 21
+				NewHbhNexthdrField(rd),        // 22
+				NewHbhHdrlengthField(rd),      // 23
+				NewDstNexthdrField(rd),        // 24
+				NewDstHdrlengthField(rd),      // 25
+				NewMhNexthdrField(rd),         // 26
+				NewMhHdrlengthField(rd),       // 27
+				NewMhTypeField(rd),            // 28
+				NewMhReservedField(rd),        // 29
+				NewMhChecksumField(rd),        // 30
+				NewRtNexthdrField(rd),         // 31
+				NewRtHdrlengthField(rd),       // 32
+				NewRtTypeField(rd),            // 33
+				NewRtSegLeftField(rd),         // 34
 			},
 		},
 		{
@@ -723,6 +742,34 @@ func (r ruleEdit) renderIPTab() string {
 	sb.WriteString(r.row3(f[11].View(), f[12].View(), f[13].View()))
 	sb.WriteString("\n")
 	sb.WriteString(r.row3(f[14].View(), f[15].View(), f[16].View()))
+	sb.WriteString("\n")
+
+	sb.WriteString(grayBoldStyle.Render("IPv6 ext: Frag"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row3(f[17].View(), f[18].View(), f[19].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[20].View(), f[21].View()))
+	sb.WriteString("\n")
+
+	sb.WriteString(grayBoldStyle.Render("IPv6 ext: HBH / Dst"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[22].View(), f[23].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[24].View(), f[25].View()))
+	sb.WriteString("\n")
+
+	sb.WriteString(grayBoldStyle.Render("IPv6 ext: MH"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row3(f[26].View(), f[27].View(), f[28].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[29].View(), f[30].View()))
+	sb.WriteString("\n")
+
+	sb.WriteString(grayBoldStyle.Render("IPv6 ext: Rt"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[31].View(), f[32].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[33].View(), f[34].View()))
 	sb.WriteString("\n")
 
 	return sb.String()
