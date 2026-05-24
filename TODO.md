@@ -106,8 +106,8 @@
 - [ ] `cpi`: Compression Parameter Index
 
 #### ICMP
-- [ ] `type`: ICMP packet type
-- [ ] `code`: ICMP packet code
+- [x] `type`: ICMP packet type
+- [x] `code`: ICMP packet code
 - [ ] `checksum`: ICMP packet checksum
 - [ ] `id`: ICMP packet ID
 - [ ] `sequence`: ICMP packet sequence

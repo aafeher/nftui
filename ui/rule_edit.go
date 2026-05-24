@@ -198,17 +198,21 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				// TCP / UDP / UDPLITE share sport+dport on the wire — TCP
 				// labels are used as the canonical name. The user's
 				// `meta l4proto` match tells which transport this rule sits in.
-				NewTcpSportField(rd),    // 0: slots 0,1
-				NewTcpDportField(rd),    // 1: slots 2,3
-				NewTcpFlagsField(rd),    // 2: slot 4 (MultiSelect)
-				NewTcpSequenceField(rd), // 3: slots 5,6
-				NewTcpAckseqField(rd),   // 4: slots 7,8
-				NewTcpWindowField(rd),   // 5: slots 9,10
-				NewTcpChecksumField(rd), // 6: slots 11,12
-				NewTcpUrgptrField(rd),   // 7: slots 13,14
-				NewTcpDoffField(rd),     // 8: slots 15,16
-				NewUdpLengthField(rd),   // 9: slots 17,18
-				NewUdpChecksumField(rd), // 10: slots 19,20
+				NewTcpSportField(rd),    // 0
+				NewTcpDportField(rd),    // 1
+				NewTcpFlagsField(rd),    // 2
+				NewTcpSequenceField(rd), // 3
+				NewTcpAckseqField(rd),   // 4
+				NewTcpWindowField(rd),   // 5
+				NewTcpChecksumField(rd), // 6
+				NewTcpUrgptrField(rd),   // 7
+				NewTcpDoffField(rd),     // 8
+				NewUdpLengthField(rd),   // 9
+				NewUdpChecksumField(rd), // 10
+				// ICMP fields — these inject the `meta l4proto icmp`
+				// prefix automatically on Save.
+				NewIcmpTypeField(rd), // 11
+				NewIcmpCodeField(rd), // 12
 			},
 		},
 		{
@@ -662,36 +666,36 @@ func (r ruleEdit) renderIPTab() string {
 	return sb.String()
 }
 
-// renderTransportTab renders the Transport (TCP/UDP/UDPLITE header) tab.
+// renderTransportTab renders the Transport (TCP/UDP/UDPLITE/ICMP header) tab.
 func (r ruleEdit) renderTransportTab() string {
 	// tabs[4].fields:
 	//   0=TcpSport, 1=TcpDport, 2=TcpFlags, 3=TcpSequence, 4=TcpAckseq,
 	//   5=TcpWindow, 6=TcpChecksum, 7=TcpUrgptr, 8=TcpDoff,
-	//   9=UdpLength, 10=UdpChecksum
+	//   9=UdpLength, 10=UdpChecksum,
+	//   11=IcmpType, 12=IcmpCode
 	f := r.tabs[4].fields
 	var sb strings.Builder
 
 	sb.WriteString(grayBoldStyle.Render("TCP"))
 	sb.WriteString("\n")
-	// Row: sport | dport
 	sb.WriteString(r.row2(f[0].View(), f[1].View()))
 	sb.WriteString("\n")
-	// Row: flags (full width — MultiSelect of 8 bits)
 	sb.WriteString(f[2].View())
-	// Row: sequence | ackseq
 	sb.WriteString(r.row2(f[3].View(), f[4].View()))
 	sb.WriteString("\n")
-	// Row: window | checksum | urgptr
 	sb.WriteString(r.row3(f[5].View(), f[6].View(), f[7].View()))
 	sb.WriteString("\n")
-	// Row: doff
 	sb.WriteString(r.row2(f[8].View(), ""))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("UDP / UDPLITE"))
 	sb.WriteString("\n")
-	// Row: length | checksum
 	sb.WriteString(r.row2(f[9].View(), f[10].View()))
+	sb.WriteString("\n")
+
+	sb.WriteString(grayBoldStyle.Render("ICMP"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[11].View(), f[12].View()))
 	sb.WriteString("\n")
 
 	return sb.String()

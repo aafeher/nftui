@@ -1042,6 +1042,87 @@ func TestNftablesToRuleDefinition_MetaMark(t *testing.T) {
 	}
 }
 
+// --- ICMP smoke tests ---
+
+func TestNftablesToRuleDefinition_IcmpType(t *testing.T) {
+	// Wire: meta l4proto icmp + Payload{offset=0, len=1} + Cmp{Eq, [type]}
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_L4PROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_ICMP}},
+		&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 0, Len: 1, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{8}}, // echo-request
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Conditions) != 2 {
+		t.Fatalf("expected 2 conditions (meta + payload), got %d", len(rd.Conditions))
+	}
+	icmp := rd.Conditions[1]
+	if icmp.Payload == nil || icmp.Payload.Protocol != PayloadProtoICMP || icmp.Payload.Field != "type" {
+		t.Errorf("got %q/%q, want icmp/type", icmp.Payload.Protocol, icmp.Payload.Field)
+	}
+	if v, ok := icmp.Payload.Value.(uint8); !ok || v != 8 {
+		t.Errorf("Value = %v (%T), want uint8(8)", icmp.Payload.Value, icmp.Payload.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_IcmpCode(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_L4PROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_ICMP}},
+		&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 1, Len: 1, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{3}}, // host-unreachable
+		&expr.Verdict{Kind: expr.VerdictDrop},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	icmp := rd.Conditions[1]
+	if icmp.Payload == nil || icmp.Payload.Protocol != PayloadProtoICMP || icmp.Payload.Field != "code" {
+		t.Errorf("got %q/%q, want icmp/code", icmp.Payload.Protocol, icmp.Payload.Field)
+	}
+	if v, ok := icmp.Payload.Value.(uint8); !ok || v != 3 {
+		t.Errorf("Value = %v (%T), want uint8(3)", icmp.Payload.Value, icmp.Payload.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_IcmpChecksumIdSequence(t *testing.T) {
+	cases := []struct {
+		field  string
+		offset uint32
+		length uint32
+		data   []byte
+		want   any
+	}{
+		{"checksum", 2, 2, []byte{0xab, 0xcd}, uint16(0xabcd)},
+		{"id", 4, 2, []byte{0x00, 0x64}, uint16(100)},
+		{"sequence", 6, 2, []byte{0x00, 0x05}, uint16(5)},
+	}
+	for _, c := range cases {
+		t.Run(c.field, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Meta{Key: unix.NFT_META_L4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_ICMP}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: c.offset, Len: c.length, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			cond := rd.Conditions[1]
+			if cond.Payload.Field != c.field {
+				t.Errorf("field = %q, want %q", cond.Payload.Field, c.field)
+			}
+			if cond.Payload.Value != c.want {
+				t.Errorf("value = %v (%T), want %v", cond.Payload.Value, cond.Payload.Value, c.want)
+			}
+		})
+	}
+}
+
 // --- IP / IP6 payload smoke tests ---
 
 type payloadIntCase struct {

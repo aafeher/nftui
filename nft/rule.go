@@ -613,6 +613,11 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 	// Collecting comparisons (AND relation)
 	var pendingCompares []*compareContext
 
+	// Current L4 protocol context (latched from `meta l4proto X` matches).
+	// Subsequent Payload+Transport-Header expressions inherit this so the
+	// parser can name ICMP / SCTP / DCCP / etc. fields correctly.
+	var currentL4Proto uint8
+
 	i := 0
 	for i < len(rule.Exprs) {
 		e := rule.Exprs[i]
@@ -649,6 +654,14 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 				regVal = &registerValue{valueType: regTypeUnknown}
 			}
 
+			// Latch the l4proto context from `meta l4proto <X>` matches so
+			// later Payload expressions can be disambiguated.
+			if regVal.valueType == regTypeMeta &&
+				regVal.metaKey == unix.NFT_META_L4PROTO &&
+				v.Op == expr.CmpOpEq && len(v.Data) >= 1 {
+				currentL4Proto = v.Data[0]
+			}
+
 			pendingCompares = append(pendingCompares, &compareContext{
 				op:       v.Op,
 				data:     v.Data,
@@ -676,6 +689,7 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 				payloadOff:    v.Offset,
 				payloadLen:    v.Len,
 				payloadFamily: tableFamilyHint(rule),
+				l4Proto:       currentL4Proto,
 			}
 			i++
 		case *expr.Lookup:
@@ -815,6 +829,12 @@ type registerValue struct {
 	payloadOff    uint32
 	payloadLen    uint32
 	payloadFamily payloadFamilyHint
+	// L4 protocol context — populated from the most recent
+	// `meta l4proto X` match seen during parsing. Lets identifyPayloadField
+	// disambiguate the transport-header layout: ICMP / ICMPv6 / SCTP / DCCP
+	// / AH / ESP / COMP / TCP / UDP all share the same Base + Offset cells
+	// but expose different fields. 0 = unknown (parser falls back to TCP).
+	l4Proto uint8
 
 	// Immediate
 	immediateData []byte
@@ -870,7 +890,7 @@ func metaCompareToCondition(regVal *registerValue, cmp *compareContext) (Conditi
 
 // payloadCompareToCondition converts a payload comparison context into a Condition by interpreting protocol and field info.
 func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition, error) {
-	protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily)
+	protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto)
 
 	// Refine bit-packed IPv4 header fields based on the Bitwise mask:
 	//   offset 0 len 1, mask 0xf0 → version (high nibble; raw value = data>>4)
@@ -1038,7 +1058,7 @@ func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition
 func rangeToCondition(regVal *registerValue, rng *expr.Range) (Condition, error) {
 	switch regVal.valueType {
 	case regTypePayload:
-		protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily)
+		protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto)
 		fromVal := decodePayloadValue(protocol, field, rng.FromData)
 		toVal := decodePayloadValue(protocol, field, rng.ToData)
 
@@ -1082,7 +1102,7 @@ func lookupToCondition(regVal *registerValue, lookup *expr.Lookup) Condition {
 	case regTypeMeta:
 		field = metaKeyToString(regVal.metaKey)
 	case regTypePayload:
-		_, field = identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily)
+		_, field = identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto)
 	case regTypeCT:
 		field = nftexpr.CtKeyToString(regVal.ctKey)
 	}
@@ -1430,7 +1450,7 @@ const (
 // the protocol family is determined by the chain/table family, not by the
 // raw expression. Here we disambiguate on offset+length boundaries that are
 // unambiguous between the two layouts.
-func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family payloadFamilyHint) (PayloadProtocol, string) {
+func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family payloadFamilyHint, l4Proto uint8) (PayloadProtocol, string) {
 	switch base {
 	case unix.NFT_PAYLOAD_NETWORK_HEADER:
 		// Unmistakably-IPv6 offsets (len 16 saddr/daddr, ip6 nexthdr/hoplimit).
@@ -1478,6 +1498,27 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family p
 		return PayloadProtoIP, fmt.Sprintf("offset_%d_len_%d", offset, length)
 
 	case unix.NFT_PAYLOAD_TRANSPORT_HEADER:
+		// Protocol-specific layouts first. We dispatch on the l4Proto hint
+		// (populated from the most recent `meta l4proto X` match) so the
+		// same offset cells can mean different things across protocols.
+		switch l4Proto {
+		case unix.IPPROTO_ICMP:
+			switch {
+			case offset == 0 && length == 1:
+				return PayloadProtoICMP, "type"
+			case offset == 1 && length == 1:
+				return PayloadProtoICMP, "code"
+			case offset == 2 && length == 2:
+				return PayloadProtoICMP, "checksum"
+			case offset == 4 && length == 2:
+				return PayloadProtoICMP, "id"
+			case offset == 6 && length == 2:
+				return PayloadProtoICMP, "sequence"
+			case offset == 4 && length == 4:
+				return PayloadProtoICMP, "gateway" // dest-unreach uses bytes 4..7 as gateway / mtu
+			}
+		}
+
 		// TCP, UDP and UDPLITE share the first 4 bytes (sport, dport).
 		// Beyond that the layouts diverge — we can disambiguate on
 		// offset+length cells, except for sport/dport which we always tag
@@ -1488,8 +1529,6 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family p
 			return PayloadProtoTCP, "sport"
 		case offset == 2 && length == 2:
 			return PayloadProtoTCP, "dport"
-		case offset == 0 && length == 1:
-			return PayloadProtoICMP, "type"
 
 		// UDP / UDPLITE: length & checksum live in TCP-unused cells.
 		case offset == 4 && length == 2:
@@ -1534,7 +1573,7 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 		if len(data) == 2 {
 			return &PortSpec{Port: binary.BigEndian.Uint16(data)}
 		}
-	case "protocol", "type", "ttl", "nexthdr", "hoplimit", "version_ihl", "dscp_ecn",
+	case "protocol", "type", "code", "ttl", "nexthdr", "hoplimit", "version_ihl", "dscp_ecn",
 		"flags", "doff":
 		if len(data) >= 1 {
 			return data[0]
@@ -1543,7 +1582,12 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 		if len(data) == 2 {
 			return binary.BigEndian.Uint16(data)
 		}
-	case "sequence", "ackseq":
+	case "sequence", "ackseq", "gateway":
+		// `sequence` is uint16 for ICMP (len 2) but uint32 for TCP (len 4) —
+		// we pick by length.
+		if len(data) == 2 {
+			return binary.BigEndian.Uint16(data)
+		}
 		if len(data) == 4 {
 			return binary.BigEndian.Uint32(data)
 		}
