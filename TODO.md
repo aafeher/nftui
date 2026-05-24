@@ -32,49 +32,49 @@
 ### Matches
 
 #### IP
-- [ ] `dscp`: Differentiated Services Code Point
-- [ ] `length`: Total packet length
-- [ ] `id`: IP ID
-- [ ] `frag-off`: Fragmentation offset
-- [ ] `ttl`: Time to live
-- [ ] `protocol`: Upper layer protocol
-- [ ] `checksum`: IP header checksum
+- [x] `dscp`: Differentiated Services Code Point
+- [x] `length`: Total packet length
+- [x] `id`: IP ID
+- [x] `frag-off`: Fragmentation offset
+- [x] `ttl`: Time to live
+- [x] `protocol`: Upper layer protocol
+- [x] `checksum`: IP header checksum
 - [x] `saddr`: Source address
 - [x] `daddr`: Destination address
-- [ ] `version`: IP header version
-- [ ] `hdrlength`: IP header length
+- [x] `version`: IP header version
+- [x] `hdrlength`: IP header length
 
 #### IP6
-- [ ] `dscp`: Differentiated Services Code Point
-- [ ] `flowlabel`: Flow label
-- [ ] `length`: Payload length
-- [ ] `nexthdr`: Next header type
-- [ ] `hoplimit`: Hop limit
-- [ ] `saddr`: Source address
-- [ ] `daddr`: Destination address
-- [ ] `version`: IP header version
+- [ ] `dscp`: Differentiated Services Code Point (deferred — multi-byte Bitwise)
+- [ ] `flowlabel`: Flow label (deferred — 20-bit cross-byte)
+- [x] `length`: Payload length
+- [x] `nexthdr`: Next header type
+- [x] `hoplimit`: Hop limit
+- [x] `saddr`: Source address
+- [x] `daddr`: Destination address
+- [x] `version`: IP header version
 
 #### TCP
-- [ ] `dport`: Destination port
-- [ ] `sport`: Source port
-- [ ] `sequence`: Sequence number
-- [ ] `ackseq`: Acknowledgement number
-- [ ] `flags`: TCP flags
-- [ ] `window`: Window
-- [ ] `checksum`: IP header checksum
-- [ ] `urgptr`: Urgent pointer
-- [ ] `doff`: Data offset
+- [x] `dport`: Destination port
+- [x] `sport`: Source port
+- [x] `sequence`: Sequence number
+- [x] `ackseq`: Acknowledgement number
+- [x] `flags`: TCP flags
+- [x] `window`: Window
+- [x] `checksum`: IP header checksum
+- [x] `urgptr`: Urgent pointer
+- [x] `doff`: Data offset
 
 #### UDP
-- [ ] `dport`: Destination port
-- [ ] `sport`: Source port
-- [ ] `length`: Total packet length
-- [ ] `checksum`: UDP checksum
+- [x] `dport`: Destination port
+- [x] `sport`: Source port
+- [x] `length`: Total packet length
+- [x] `checksum`: UDP checksum
 
 #### UDPLite
-- [ ] `dport`: Destination port
-- [ ] `sport`: Source port
-- [ ] `checksum`: UDP checksum
+- [x] `dport`: Destination port (shared with TCP/UDP wire layout)
+- [x] `sport`: Source port (shared with TCP/UDP wire layout)
+- [x] `checksum`: UDP checksum (shared with UDP wire layout)
 
 #### SCTP
 - [ ] `dport`: Destination port
@@ -181,58 +181,58 @@
 - [x] `proto-src`: Source port/ID of the connection
 - [x] `proto-dst`: Destination port/ID of the connection
 - [x] `zone`: Connection tracking zone ID
-- [ ] `secmark`: Security mark
+- [x] `secmark`: Security mark
 - [x] `avgpkt`: Average bytes per packet
 - [x] `label`: Connection tracking labels
-- [ ] `eventmask`: Connection event mask
+- [x] `eventmask`: Connection event mask
 - [x] `count`: Number of connections matching this rule (ct count)
 
 #### Meta
-- [ ] `iifname`: Input interface name
-- [ ] `oifname`: Output interface name
-- [ ] `iif`: Input interface index
-- [ ] `oif`: Output interface index
-- [ ] `iiftype`: Input interface type
-- [ ] `oiftype`: Output interface hardware type
-- [ ] `length`: Length of the packet in bytes
-- [ ] `protocol`: EtherType protocol
-- [ ] `nfproto`: Netfilter protocol family (ipv4/ipv6)
-- [ ] `l4proto`: Layer 4 protocol (tcp/udp/icmp etc.)
-- [ ] `mark`: Packet mark
-- [ ] `priority`: tc class id
-- [ ] `skuid`: UID associated with originating socket
-- [ ] `skgid`: GID associated with originating socket
-- [ ] `rtclassid`: Routing realm
-- [ ] `pkttype`: Packet type
-- [ ] `cpu`: CPU ID
-- [ ] `iifgroup`: Input interface group
-- [ ] `oifgroup`: Output interface group
-- [ ] `cgroup`: Control group ID of the originating process
+- [x] `iifname`: Input interface name
+- [x] `oifname`: Output interface name
+- [x] `iif`: Input interface index
+- [x] `oif`: Output interface index
+- [x] `iiftype`: Input interface type
+- [x] `oiftype`: Output interface hardware type
+- [x] `length`: Length of the packet in bytes
+- [x] `protocol`: EtherType protocol
+- [x] `nfproto`: Netfilter protocol family (ipv4/ipv6)
+- [x] `l4proto`: Layer 4 protocol (tcp/udp/icmp etc.)
+- [x] `mark`: Packet mark
+- [x] `priority`: tc class id
+- [x] `skuid`: UID associated with originating socket
+- [x] `skgid`: GID associated with originating socket
+- [x] `rtclassid`: Routing realm
+- [x] `pkttype`: Packet type
+- [x] `cpu`: CPU ID
+- [x] `iifgroup`: Input interface group
+- [x] `oifgroup`: Output interface group
+- [x] `cgroup`: Control group ID of the originating process
 
 ### Statements
 
 #### Verdict statements
-- [ ] `accept`: Accept the packet
-- [ ] `drop`: Drop the packet silently
-- [ ] `return`: Return to the calling chain
-- [ ] `jump`: Jump to another chain (return after)
-- [ ] `goto`: Go to another chain (no return)
+- [x] `accept`: Accept the packet
+- [x] `drop`: Drop the packet silently
+- [x] `return`: Return to the calling chain
+- [x] `jump`: Jump to another chain (return after)
+- [x] `goto`: Go to another chain (no return)
 
 #### Log
-- [ ] `level`: Log level (emerg/alert/crit/err/warn/notice/info/debug)
-- [ ] `group`: NFLOG group number for userspace logging
-- [ ] `prefix`: Log message prefix string
-- [ ] `snaplen`: Number of bytes to copy to userspace
-- [ ] `queue-threshold`: Number of packets before sending to userspace
+- [x] `level`: Log level (emerg/alert/crit/err/warn/notice/info/debug)
+- [x] `group`: NFLOG group number for userspace logging
+- [x] `prefix`: Log message prefix string
+- [x] `snaplen`: Number of bytes to copy to userspace
+- [x] `queue-threshold`: Number of packets before sending to userspace
 
 #### Reject
-- [ ] `with icmp type`: Reject with specific ICMP type
-- [ ] `with icmpx type`: Reject with inet-family ICMP type
-- [ ] `with tcp reset`: Reject TCP connection with RST
+- [x] `with icmp type`: Reject with specific ICMP type
+- [x] `with icmpx type`: Reject with inet-family ICMP type
+- [x] `with tcp reset`: Reject TCP connection with RST
 
 #### Counter
-- [ ] `packets`: Display/edit packet count
-- [ ] `bytes`: Display/edit byte count
+- [x] `packets`: Display/edit packet count
+- [x] `bytes`: Display/edit byte count
 
 #### Limit
 - [x] `over`: Invert match (match if rate is exceeded)
