@@ -1435,6 +1435,30 @@ func TestNftablesToRuleDefinition_Masquerade(t *testing.T) {
 	if rd.Actions[0].Type != ActionTypeMasq {
 		t.Errorf("action type = %q, want %q", rd.Actions[0].Type, ActionTypeMasq)
 	}
+	if rd.Actions[0].Masq == nil {
+		t.Fatalf("Masq payload is nil")
+	}
+	if rd.Actions[0].Masq.Random || rd.Actions[0].Masq.FullyRandom || rd.Actions[0].Masq.Persistent {
+		t.Errorf("plain masquerade should have no flags set, got %+v", rd.Actions[0].Masq)
+	}
+}
+
+func TestNftablesToRuleDefinition_MasqueradeAllFlags(t *testing.T) {
+	// Verify that masqToAction copies every flag — historic bug missed Persistent.
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Masq{Random: true, FullyRandom: true, Persistent: true},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	m := rd.Actions[0].Masq
+	if m == nil {
+		t.Fatalf("Masq payload is nil")
+	}
+	if !m.Random || !m.FullyRandom || !m.Persistent {
+		t.Errorf("expected all flags set, got Random=%v FullyRandom=%v Persistent=%v",
+			m.Random, m.FullyRandom, m.Persistent)
+	}
 }
 
 // --- Multiple conditions ---

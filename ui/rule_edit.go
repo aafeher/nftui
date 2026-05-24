@@ -127,6 +127,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewRejectField(rd, rule.Table.Family),
 				NewLogField(rd),
 				NewCounterField(rd),
+				NewMasqueradeField(rd),
 			},
 		},
 		{
@@ -440,11 +441,16 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	sb.WriteString(r.tabs[0].fields[5].View())
 	sb.WriteString("\n")
 
-	// Remaining actions (read-only — verdict, reject, log and counter are handled by the editors above).
+	// Masquerade editor (full width — enable + flags).
+	sb.WriteString(r.tabs[0].fields[6].View())
+	sb.WriteString("\n")
+
+	// Remaining actions (read-only — verdict, reject, log, counter, masquerade are handled by the editors above).
 	hasRemaining := false
 	for _, action := range rd.Actions {
 		switch action.Type {
-		case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog, nft.ActionTypeCounter:
+		case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog,
+			nft.ActionTypeCounter, nft.ActionTypeMasq:
 			continue
 		}
 		hasRemaining = true
@@ -455,7 +461,8 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 		sb.WriteString("\n")
 		for _, action := range rd.Actions {
 			switch action.Type {
-			case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog, nft.ActionTypeCounter:
+			case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog,
+				nft.ActionTypeCounter, nft.ActionTypeMasq:
 				// editable — rendered above
 			case nft.ActionTypeNAT:
 				if action.NAT != nil {
@@ -472,10 +479,6 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 			case nft.ActionTypeRedirect:
 				if action.Redirect != nil {
 					sb.WriteString(fmt.Sprintf("  redirect: %+v\n", action.Redirect))
-				}
-			case nft.ActionTypeMasq:
-				if action.Masq != nil {
-					sb.WriteString(fmt.Sprintf("  masquerade: %+v\n", action.Masq))
 				}
 			case nft.ActionTypeCustom:
 				if action.Custom != nil {

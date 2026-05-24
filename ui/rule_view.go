@@ -163,7 +163,7 @@ func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 				}
 			case nft.ActionTypeMasq:
 				if action.Masq != nil {
-					sb.WriteString(fmt.Sprintf("  masquerade: %+v\n", action.Masq))
+					sb.WriteString("  " + formatMasquerade(action.Masq) + "\n")
 				}
 			case nft.ActionTypeCustom:
 				if action.Custom != nil {

@@ -1249,6 +1249,7 @@ func masqToAction(m *expr.Masq, regMap map[uint32]*registerValue) Action {
 			PortRange:   portRange,
 			Random:      m.Random,
 			FullyRandom: m.FullyRandom,
+			Persistent:  m.Persistent,
 		},
 	}
 }
