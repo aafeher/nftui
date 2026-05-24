@@ -226,6 +226,11 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewIcmpv6SequenceField(rd), // 22
 				NewIcmpv6MtuField(rd),      // 23
 				NewIcmpv6MaxDelayField(rd), // 24
+				// SCTP
+				NewSctpSportField(rd),    // 25
+				NewSctpDportField(rd),    // 26
+				NewSctpVtagField(rd),     // 27
+				NewSctpChecksumField(rd), // 28
 			},
 		},
 		{
@@ -723,6 +728,13 @@ func (r ruleEdit) renderTransportTab() string {
 	sb.WriteString(r.row3(f[20].View(), f[21].View(), f[22].View()))
 	sb.WriteString("\n")
 	sb.WriteString(r.row2(f[23].View(), f[24].View()))
+	sb.WriteString("\n")
+
+	sb.WriteString(grayBoldStyle.Render("SCTP"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[25].View(), f[26].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[27].View(), f[28].View()))
 	sb.WriteString("\n")
 
 	return sb.String()

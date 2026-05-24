@@ -162,6 +162,7 @@ const (
 	PayloadProtoUDP    PayloadProtocol = "udp"
 	PayloadProtoICMP   PayloadProtocol = "icmp"
 	PayloadProtoICMPv6 PayloadProtocol = "icmpv6"
+	PayloadProtoSCTP   PayloadProtocol = "sctp"
 	PayloadProtoARP    PayloadProtocol = "arp"
 )
 
@@ -1533,6 +1534,19 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family p
 			case offset == 4 && length == 4:
 				return PayloadProtoICMPv6, "mtu" // packet-too-big uses bytes 4..7 as MTU
 			}
+		case unix.IPPROTO_SCTP:
+			// SCTP fixed header (RFC 4960): sport 0..2, dport 2..4,
+			// verification tag 4..8, checksum 8..12.
+			switch {
+			case offset == 0 && length == 2:
+				return PayloadProtoSCTP, "sport"
+			case offset == 2 && length == 2:
+				return PayloadProtoSCTP, "dport"
+			case offset == 4 && length == 4:
+				return PayloadProtoSCTP, "vtag"
+			case offset == 8 && length == 4:
+				return PayloadProtoSCTP, "checksum"
+			}
 		}
 
 		// TCP, UDP and UDPLITE share the first 4 bytes (sport, dport).
@@ -1595,10 +1609,15 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 			return data[0]
 		}
 	case "length", "id", "frag-off", "checksum", "window", "urgptr":
+		// `checksum` is uint16 for TCP/UDP/ICMP/ICMPv6 but uint32 for SCTP —
+		// pick by length.
 		if len(data) == 2 {
 			return binary.BigEndian.Uint16(data)
 		}
-	case "sequence", "ackseq", "gateway":
+		if len(data) == 4 {
+			return binary.BigEndian.Uint32(data)
+		}
+	case "sequence", "ackseq", "gateway", "vtag":
 		// `sequence` is uint16 for ICMP (len 2) but uint32 for TCP (len 4) —
 		// we pick by length.
 		if len(data) == 2 {

@@ -1123,6 +1123,83 @@ func TestNftablesToRuleDefinition_IcmpChecksumIdSequence(t *testing.T) {
 	}
 }
 
+// --- SCTP smoke tests ---
+
+func TestNftablesToRuleDefinition_SctpHeader(t *testing.T) {
+	// vtag + checksum (uint32 fields).
+	uintCases := []struct {
+		name   string
+		offset uint32
+		length uint32
+		data   []byte
+		field  string
+		want   uint32
+	}{
+		{"vtag", 4, 4, []byte{0x12, 0x34, 0x56, 0x78}, "vtag", 0x12345678},
+		{"checksum", 8, 4, []byte{0xde, 0xad, 0xbe, 0xef}, "checksum", 0xdeadbeef},
+	}
+	for _, c := range uintCases {
+		t.Run(c.name, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Meta{Key: unix.NFT_META_L4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_SCTP}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: c.offset, Len: c.length, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			cond := rd.Conditions[1]
+			if cond.Payload.Protocol != PayloadProtoSCTP {
+				t.Errorf("protocol = %q, want sctp", cond.Payload.Protocol)
+			}
+			if cond.Payload.Field != c.field {
+				t.Errorf("field = %q, want %q", cond.Payload.Field, c.field)
+			}
+			if v, ok := cond.Payload.Value.(uint32); !ok || v != c.want {
+				t.Errorf("value = %v (%T), want uint32(%d)", cond.Payload.Value, cond.Payload.Value, c.want)
+			}
+		})
+	}
+
+	// sport / dport decode via the shared port path → *PortSpec.
+	portCases := []struct {
+		name   string
+		offset uint32
+		port   uint16
+		field  string
+	}{
+		{"sport", 0, 200, "sport"},
+		{"dport", 2, 100, "dport"},
+	}
+	for _, c := range portCases {
+		t.Run(c.name, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Meta{Key: unix.NFT_META_L4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_SCTP}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: c.offset, Len: 2, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: beUint16(c.port)},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			cond := rd.Conditions[1]
+			if cond.Payload.Protocol != PayloadProtoSCTP {
+				t.Errorf("protocol = %q, want sctp", cond.Payload.Protocol)
+			}
+			if cond.Payload.Field != c.field {
+				t.Errorf("field = %q, want %q", cond.Payload.Field, c.field)
+			}
+			ps, ok := cond.Payload.Value.(*PortSpec)
+			if !ok || ps.Port != c.port {
+				t.Errorf("value = %v (%T), want *PortSpec{Port:%d}", cond.Payload.Value, cond.Payload.Value, c.port)
+			}
+		})
+	}
+}
+
 // --- ICMPv6 smoke tests ---
 
 func TestNftablesToRuleDefinition_Icmpv6TypeCode(t *testing.T) {

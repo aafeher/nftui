@@ -79,11 +79,11 @@
 - [x] `checksum`: UDP checksum (shared with UDP wire layout)
 
 #### SCTP
-- [ ] `dport`: Destination port
-- [ ] `sport`: Source port
-- [ ] `checksum`: Checksum
-- [ ] `vtag`: Verification tag
-- [ ] `chunk`: SCTP chunk
+- [x] `dport`: Destination port
+- [x] `sport`: Source port
+- [x] `checksum`: Checksum
+- [x] `vtag`: Verification tag
+- [ ] `chunk`: SCTP chunk (deferred — chunk-type-scoped UX)
 
 #### Dccp
 - [ ] `dport`: Destination port
