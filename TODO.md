@@ -91,10 +91,10 @@
 - [x] `type`: Type of packet
 
 #### Ah
-- [ ] `hdrlength`: AH header length
-- [ ] `reserved`: Reserved field
-- [ ] `spi`: Security Parameters Index
-- [ ] `sequence`: Sequence number
+- [x] `hdrlength`: AH header length
+- [x] `reserved`: Reserved field
+- [x] `spi`: Security Parameters Index
+- [x] `sequence`: Sequence number
 
 #### Esp
 - [ ] `spi`: Security Parameters Index

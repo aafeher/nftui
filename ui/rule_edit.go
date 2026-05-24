@@ -235,6 +235,11 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewDccpSportField(rd), // 29
 				NewDccpDportField(rd), // 30
 				NewDccpTypeField(rd),  // 31
+				// AH
+				NewAhHdrlengthField(rd), // 32
+				NewAhReservedField(rd),  // 33
+				NewAhSpiField(rd),       // 34
+				NewAhSequenceField(rd),  // 35
 			},
 		},
 		{
@@ -746,6 +751,13 @@ func (r ruleEdit) renderTransportTab() string {
 	sb.WriteString(r.row2(f[29].View(), f[30].View()))
 	sb.WriteString("\n")
 	sb.WriteString(f[31].View())
+
+	sb.WriteString(grayBoldStyle.Render("AH"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[32].View(), f[33].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[34].View(), f[35].View()))
+	sb.WriteString("\n")
 
 	return sb.String()
 }

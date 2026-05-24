@@ -164,6 +164,7 @@ const (
 	PayloadProtoICMPv6 PayloadProtocol = "icmpv6"
 	PayloadProtoSCTP   PayloadProtocol = "sctp"
 	PayloadProtoDCCP   PayloadProtocol = "dccp"
+	PayloadProtoAH     PayloadProtocol = "ah"
 	PayloadProtoARP    PayloadProtocol = "arp"
 )
 
@@ -1575,6 +1576,21 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family p
 			case offset == 2 && length == 2:
 				return PayloadProtoDCCP, "dport"
 			}
+		case unix.IPPROTO_AH:
+			// AH header (RFC 4302): nexthdr 0..1, hdrlength 1..2,
+			// reserved 2..4, spi 4..8, sequence 8..12.
+			switch {
+			case offset == 0 && length == 1:
+				return PayloadProtoAH, "nexthdr"
+			case offset == 1 && length == 1:
+				return PayloadProtoAH, "hdrlength"
+			case offset == 2 && length == 2:
+				return PayloadProtoAH, "reserved"
+			case offset == 4 && length == 4:
+				return PayloadProtoAH, "spi"
+			case offset == 8 && length == 4:
+				return PayloadProtoAH, "sequence"
+			}
 		}
 
 		// TCP, UDP and UDPLITE share the first 4 bytes (sport, dport).
@@ -1632,7 +1648,7 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 			return &PortSpec{Port: binary.BigEndian.Uint16(data)}
 		}
 	case "protocol", "type", "code", "ttl", "nexthdr", "hoplimit", "version_ihl", "dscp_ecn",
-		"flags", "doff":
+		"flags", "doff", "hdrlength":
 		if len(data) >= 1 {
 			return data[0]
 		}
@@ -1645,14 +1661,18 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 		if len(data) == 4 {
 			return binary.BigEndian.Uint32(data)
 		}
-	case "sequence", "ackseq", "gateway", "vtag":
-		// `sequence` is uint16 for ICMP (len 2) but uint32 for TCP (len 4) —
-		// we pick by length.
+	case "sequence", "ackseq", "gateway", "vtag", "spi":
+		// `sequence` is uint16 for ICMP (len 2) but uint32 for TCP / AH /
+		// SCTP (len 4) — we pick by length.
 		if len(data) == 2 {
 			return binary.BigEndian.Uint16(data)
 		}
 		if len(data) == 4 {
 			return binary.BigEndian.Uint32(data)
+		}
+	case "reserved":
+		if len(data) == 2 {
+			return binary.BigEndian.Uint16(data)
 		}
 	}
 	return data
