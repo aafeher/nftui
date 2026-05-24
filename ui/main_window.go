@@ -23,6 +23,7 @@ type keyMap struct {
 	NewTable  key.Binding
 	NewChain  key.Binding
 	NewSet    key.Binding
+	Reset     key.Binding
 	OpenChain key.Binding
 	Filter    key.Binding
 	Refresh   key.Binding
@@ -30,14 +31,14 @@ type keyMap struct {
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Expand, k.Edit, k.Delete, k.NewTable, k.NewChain, k.NewSet, k.OpenChain, k.Refresh, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Expand, k.Edit, k.Delete, k.NewTable, k.NewChain, k.NewSet, k.Reset, k.OpenChain, k.Refresh, k.Quit}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Expand, k.Edit, k.Delete},
 		{k.NewTable, k.NewChain, k.NewSet, k.OpenChain},
-		{k.Filter, k.Refresh, k.Quit},
+		{k.Reset, k.Filter, k.Refresh, k.Quit},
 	}
 }
 
@@ -128,6 +129,10 @@ func InitialMainWindow() MainWindow {
 		NewSet: key.NewBinding(
 			key.WithKeys("s"),
 			key.WithHelp("s", "new set"),
+		),
+		Reset: key.NewBinding(
+			key.WithKeys("R"),
+			key.WithHelp("R", "reset counter/quota"),
 		),
 		OpenChain: key.NewBinding(
 			key.WithKeys("f3"),
@@ -551,6 +556,17 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			loadTableTreeCmd(),
 			loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd(),
 		)
+
+	case namedObjectResetMsg:
+		m.loading = true
+		return m, tea.Batch(
+			loadTableTreeCmd(),
+			loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd(),
+		)
+
+	case namedObjectOpErrMsg:
+		m.err = msg.err
+		return m, nil
 
 	case setOpErrMsg:
 		if m.setCreate != nil {

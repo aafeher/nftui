@@ -88,6 +88,28 @@ func ObjTypeLabel(t nftables.ObjType) string {
 	return fmt.Sprintf("obj_%d", uint32(t))
 }
 
+// ResetNamedObject zeros the live state of a stateful object on the
+// kernel. For counters this clears Packets/Bytes; for quotas it clears
+// Consumed. Other types are no-ops at the kernel side (the call still
+// succeeds).
+//
+// `obj.Raw` must be the original nftables.Obj returned by
+// ListNamedObjects — we pass it straight to Conn.ResetObject so the
+// netlink request matches by table+name+type.
+func ResetNamedObject(obj NamedObject) error {
+	if obj.Raw == nil {
+		return fmt.Errorf("reset: no underlying object reference")
+	}
+	conn, err := nftables.New()
+	if err != nil {
+		return fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	if _, err := conn.ResetObject(obj.Raw); err != nil {
+		return fmt.Errorf("failed to reset %s %q: %v", obj.TypeStr, obj.Name, err)
+	}
+	return nil
+}
+
 func summarizeObj(o nftables.Obj) NamedObject {
 	v, ok := o.(*nftables.NamedObj)
 	if !ok || v == nil {

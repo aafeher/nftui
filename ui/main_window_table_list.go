@@ -229,6 +229,17 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+		case "R":
+			items := tm.getFlattenedItems()
+			if tm.cursor < len(items) {
+				selected := items[tm.cursor]
+				if selected.isObj && selected.obj != nil {
+					if selected.obj.Type == nftables.ObjTypeCounter ||
+						selected.obj.Type == nftables.ObjTypeQuota {
+						return tm, resetNamedObjectCmd(*selected.obj)
+					}
+				}
+			}
 		case "e":
 			items := tm.getFlattenedItems()
 			if tm.cursor < len(items) {
