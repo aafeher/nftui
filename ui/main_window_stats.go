@@ -210,10 +210,12 @@ func loadTableTreeCmd() tea.Cmd {
 				chainNodes = append(chainNodes, &chainNode{Chain: *c, Rules: rules})
 			}
 			rulesOfTable, _ := nft.ListRulesOfTable(t)
+			setsOfTable, _ := nft.GetSets(t)
 			nodes = append(nodes, &tableNode{
 				Table:  *t,
 				Chains: chainNodes,
 				Rules:  rulesOfTable,
+				Sets:   setsOfTable,
 			})
 		}
 		return tableTreeRefreshedMsg{nodes: nodes}

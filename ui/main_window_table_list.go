@@ -14,6 +14,7 @@ type tableNode struct {
 	Table    nftables.Table
 	Chains   []*chainNode
 	Rules    []*nftables.Rule
+	Sets     []*nftables.Set
 	Expanded bool
 }
 
@@ -43,11 +44,15 @@ type flatItem struct {
 	tableFamily string
 	tableName   string
 	chainsCount int
+	setsCount   int
 	chainName   string
+	setName     string
 	rulesCount  int
 	isRoot      bool
+	isSet       bool
 	table       *tableNode
 	chain       *nftables.Chain
+	set         *nftables.Set
 }
 
 func initialTableTreeModel() tableTreeModel {
@@ -79,11 +84,16 @@ func initialTableTreeModel() tableTreeModel {
 			panic(err)
 		}
 
+		// Sets are best-effort — failure to enumerate sets (e.g. unsupported
+		// kernel features) shouldn't crash the whole tree.
+		setsOfTable, _ := nft.GetSets(table)
+
 		tableNodes[t] = &tableNode{
 			Table:    *table,
 			Expanded: false,
 			Chains:   chains,
 			Rules:    rulesOfTable,
+			Sets:     setsOfTable,
 		}
 	}
 
@@ -104,6 +114,7 @@ func (tm tableTreeModel) getFlattenedItems() []flatItem {
 			tableFamily: nft.TableFamilyToString(table.Table.Family),
 			tableName:   table.Table.Name,
 			chainsCount: len(table.Chains),
+			setsCount:   len(table.Sets),
 			rulesCount:  len(table.Rules),
 			isRoot:      true,
 			table:       table,
@@ -116,6 +127,15 @@ func (tm tableTreeModel) getFlattenedItems() []flatItem {
 					table:      table,
 					chain:      &chain.Chain,
 					rulesCount: len(chain.Rules),
+				})
+			}
+			for _, set := range table.Sets {
+				items = append(items, flatItem{
+					setName: set.Name,
+					isRoot:  false,
+					isSet:   true,
+					table:   table,
+					set:     set,
 				})
 			}
 		}
@@ -300,7 +320,13 @@ func (tm tableTreeModel) View() string {
 			if item.rulesCount > 1 {
 				rulesLabel = "rules"
 			}
-			chainsCountLabel := fmt.Sprintf("[%d %s, %d %s]", item.chainsCount, chainsLabel, item.rulesCount, rulesLabel)
+			setsLabel := "set"
+			if item.setsCount > 1 {
+				setsLabel = "sets"
+			}
+			chainsCountLabel := fmt.Sprintf("[%d %s, %d %s, %d %s]",
+				item.chainsCount, chainsLabel, item.rulesCount, rulesLabel,
+				item.setsCount, setsLabel)
 
 			var tableFamilyStyled, tableNameStyled, chainsCountStyled, space1, space2 string
 			if isActive {
@@ -319,7 +345,7 @@ func (tm tableTreeModel) View() string {
 
 			label := fmt.Sprintf("%s%s%s%s%s", tableFamilyStyled, space1, tableNameStyled, space2, chainsCountStyled)
 			line := ""
-			if len(item.table.Chains) > 0 {
+			if len(item.table.Chains) > 0 || len(item.table.Sets) > 0 {
 				cursorStyled := cursor
 				expandIconStyled := expandIcon
 				space3 := " "
@@ -341,6 +367,55 @@ func (tm tableTreeModel) View() string {
 
 			if isActive {
 				// Calculate the number of visible characters (without ANSI codes)
+				visibleLength := lipgloss.Width(line)
+				padding := terminalWidth - visibleLength
+				if padding > 0 {
+					line += blueBackgroundStyle.Render(strings.Repeat(" ", padding))
+				}
+			}
+
+			b.WriteString(line)
+			b.WriteString("\n")
+		} else if item.isSet {
+			// Set node: `  ~ <setname> (<keytype>)`
+			var keyTypeStr string
+			if item.set != nil {
+				keyTypeStr = nft.KeyTypeToString(item.set.KeyType)
+			}
+
+			var setNameStyled, typeStyled, parenOpen, parenClose, space1, space2 string
+			if isActive {
+				setNameStyled = blueBackgroundStyle.Inherit(yellowStyle).Render(item.setName)
+				typeStyled = blueBackgroundStyle.Inherit(whiteStyle).Render(keyTypeStr)
+				parenOpen = blueBackgroundStyle.Render("(")
+				parenClose = blueBackgroundStyle.Render(")")
+				space1 = blueBackgroundStyle.Render(" ")
+				space2 = blueBackgroundStyle.Render(" ")
+			} else {
+				setNameStyled = yellowStyle.Render(item.setName)
+				typeStyled = whiteStyle.Render(keyTypeStr)
+				parenOpen = "("
+				parenClose = ")"
+				space1 = " "
+				space2 = " "
+			}
+
+			label := fmt.Sprintf("%s%s%s%s%s%s", setNameStyled, space1, parenOpen, typeStyled, parenClose, space2)
+
+			var cursorStyled, tildeStyled, spaces string
+			if isActive {
+				cursorStyled = blueBackgroundStyle.Render(cursor)
+				tildeStyled = blueBackgroundStyle.Render("~")
+				spaces = blueBackgroundStyle.Render("   ")
+			} else {
+				cursorStyled = cursor
+				tildeStyled = "~"
+				spaces = "   "
+			}
+
+			line := fmt.Sprintf("%s%s%s%s%s", cursorStyled, spaces, tildeStyled, space1, label)
+
+			if isActive {
 				visibleLength := lipgloss.Width(line)
 				padding := terminalWidth - visibleLength
 				if padding > 0 {
