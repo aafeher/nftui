@@ -700,7 +700,7 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 				sb.WriteString("\n")
 				hasMisc = true
 			}
-			sb.WriteString(fmt.Sprintf("  set lookup: %+v\n", condition.SetLookup))
+			sb.WriteString("  " + formatSetLookup(condition) + "\n")
 		}
 		if condition.Custom != nil {
 			if !hasMisc {

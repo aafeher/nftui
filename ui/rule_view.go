@@ -652,12 +652,13 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 			condition.Meta.Key, op, condition.Meta.Value))
 	}
 
-	// SetLookup conditions
+	// SetLookup conditions — render as `<field> [!=] @<setname>` (the form
+	// `nft list` uses; e.g. `ip saddr @trusted_ips` or `meta iif != @lan_ifs`).
 	for _, condition := range rd.Conditions {
 		if condition.SetLookup == nil {
 			continue
 		}
-		sb.WriteString(fmt.Sprintf("  set lookup: %+v\n", condition.SetLookup))
+		sb.WriteString("  " + formatSetLookup(condition) + "\n")
 	}
 
 	// Custom conditions
@@ -760,6 +761,28 @@ func (r ruleView) View() string {
 	)
 
 	return defaultStyle.Render(fullView)
+}
+
+// formatSetLookup renders a set-lookup condition as `<field> [!=] @<setname>`,
+// matching the form `nft list` produces (e.g. `ip saddr @trusted_ips`,
+// `meta iif != @lan_ifs`). Empty Field falls back to a sole `@<setname>`.
+func formatSetLookup(c nft.Condition) string {
+	sl := c.SetLookup
+	if sl == nil {
+		return ""
+	}
+	op := ""
+	if c.Negate {
+		op = "!= "
+	}
+	field := sl.Field
+	if field == "" {
+		return fmt.Sprintf("%s@%s", op, yellowStyle.Render(sl.SetName))
+	}
+	return fmt.Sprintf("%s %s@%s",
+		whiteStyle.Render(field),
+		op,
+		yellowStyle.Render(sl.SetName))
 }
 
 // renderVerdict formats a VerdictAction for display in the rule view:
