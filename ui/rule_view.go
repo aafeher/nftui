@@ -145,7 +145,7 @@ func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 				}
 			case nft.ActionTypeQueue:
 				if action.Queue != nil {
-					sb.WriteString(fmt.Sprintf("  queue: %+v\n", action.Queue))
+					sb.WriteString("  " + formatQueue(action.Queue) + "\n")
 				}
 			case nft.ActionTypeReject:
 				if action.Reject != nil {

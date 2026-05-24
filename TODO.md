@@ -249,7 +249,7 @@
 - [x] `masquerade`: Masquerade (dynamic SNAT to outgoing interface address)
 
 #### Queue
-- [ ] `num`: Queue number or range to send packets to userspace
+- [x] `num`: Queue number or range to send packets to userspace
 
 #### Quota
 - [ ] `[over] <n> [bytes|kbytes|mbytes]`: Quota-based rate limiting

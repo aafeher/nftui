@@ -130,6 +130,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewMasqueradeField(rd),
 				NewSnatField(rd, rule.Table.Family),
 				NewDnatField(rd, rule.Table.Family),
+				NewQueueField(rd),
 			},
 		},
 		{
@@ -455,12 +456,16 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	sb.WriteString(r.tabs[0].fields[8].View())
 	sb.WriteString("\n")
 
-	// Remaining actions (read-only — verdict, reject, log, counter, masquerade, snat, dnat are handled by the editors above).
+	// Queue editor (full width — enable + num + range + flags).
+	sb.WriteString(r.tabs[0].fields[9].View())
+	sb.WriteString("\n")
+
+	// Remaining actions (read-only — verdict, reject, log, counter, masquerade, snat, dnat, queue are handled by the editors above).
 	hasRemaining := false
 	for _, action := range rd.Actions {
 		switch action.Type {
 		case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog,
-			nft.ActionTypeCounter, nft.ActionTypeMasq:
+			nft.ActionTypeCounter, nft.ActionTypeMasq, nft.ActionTypeQueue:
 			continue
 		case nft.ActionTypeNAT:
 			if action.NAT != nil &&
@@ -487,9 +492,7 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 					sb.WriteString("  " + formatNAT(action.NAT) + "\n")
 				}
 			case nft.ActionTypeQueue:
-				if action.Queue != nil {
-					sb.WriteString(fmt.Sprintf("  queue: %+v\n", action.Queue))
-				}
+				// editable — rendered above
 			case nft.ActionTypeSet:
 				if action.Set != nil {
 					sb.WriteString(fmt.Sprintf("  set: %+v\n", action.Set))
