@@ -2523,9 +2523,9 @@ func TestNftablesToRuleDefinition_IPSaddrByteAlignedNeq(t *testing.T) {
 	}
 }
 
-// --- Unknown expression → CustomCondition ---
+// --- Objref → ObjrefAction ---
 
-func TestNftablesToRuleDefinition_UnknownExpr(t *testing.T) {
+func TestNftablesToRuleDefinition_ObjrefCounter(t *testing.T) {
 	rd, err := NftablesToRuleDefinition(makeRule(
 		&expr.Objref{Type: 1, Name: "mycounter"},
 		&expr.Verdict{Kind: expr.VerdictAccept},
@@ -2533,18 +2533,16 @@ func TestNftablesToRuleDefinition_UnknownExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Objref is handled by the default case → CustomCondition
-	hasCustom := false
-	for _, c := range rd.Conditions {
-		if c.Type == ConditionTypeCustom {
-			hasCustom = true
-		}
+	if len(rd.Actions) != 2 {
+		t.Fatalf("expected 2 actions (objref+verdict), got %d", len(rd.Actions))
 	}
-	// Objref is in the switch as a case (skipped with TODO), so it won't be Custom
-	// Just verify no panic and rule is parsed
-	_ = hasCustom
-	if len(rd.Actions) != 1 {
-		t.Errorf("expected 1 action (verdict), got %d", len(rd.Actions))
+	a := rd.Actions[0]
+	if a.Type != ActionTypeObjref || a.Objref == nil {
+		t.Fatalf("expected ActionTypeObjref, got %+v", a)
+	}
+	if a.Objref.Type != 1 || a.Objref.Name != "mycounter" {
+		t.Errorf("Objref = {Type:%d Name:%q}, want {Type:1 Name:\"mycounter\"}",
+			a.Objref.Type, a.Objref.Name)
 	}
 }
 

@@ -540,7 +540,7 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 		switch action.Type {
 		case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog,
 			nft.ActionTypeCounter, nft.ActionTypeMasq, nft.ActionTypeQueue,
-			nft.ActionTypeQuota:
+			nft.ActionTypeQuota, nft.ActionTypeObjref:
 			continue
 		case nft.ActionTypeNAT:
 			if action.NAT != nil &&
@@ -568,6 +568,10 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 				}
 			case nft.ActionTypeQueue, nft.ActionTypeQuota:
 				// editable — rendered above
+			case nft.ActionTypeObjref:
+				if action.Objref != nil {
+					sb.WriteString("  " + formatObjref(action.Objref) + "\n")
+				}
 			case nft.ActionTypeSet:
 				if action.Set != nil {
 					sb.WriteString(fmt.Sprintf("  set: %+v\n", action.Set))

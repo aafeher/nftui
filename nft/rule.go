@@ -310,6 +310,7 @@ type Action struct {
 	Redirect *RedirectAction
 	Masq     *MasqueradeAction
 	Quota    *QuotaAction
+	Objref   *ObjrefAction
 	Custom   *CustomAction
 }
 
@@ -339,6 +340,7 @@ const (
 	ActionTypeRedirect ActionType = "redirect"
 	ActionTypeMasq     ActionType = "masquerade"
 	ActionTypeQuota    ActionType = "quota"
+	ActionTypeObjref   ActionType = "objref"
 	ActionTypeCustom   ActionType = "custom"
 )
 
@@ -465,6 +467,22 @@ const (
 
 // CounterAction represents an action for incrementing a counter.
 type CounterAction struct {
+	Name string
+}
+
+// ObjrefAction is a reference from a rule to a named stateful object
+// (counter, quota, ct helper, limit, secmark, ...). Kernel-side it's an
+// *expr.Objref whose Type carries the object class (NFT_OBJECT_*) and
+// Name the identifier.
+//
+// The render layer turns this into the nft CLI form, e.g.
+//
+//	Type=1 Name="web_traffic"  → `counter name web_traffic`
+//	Type=2 Name="dl_limit"     → `quota name dl_limit`
+//	Type=3 Name="ftp_2121"     → `ct helper set "ftp_2121"`
+//	default                    → `objref <name>`
+type ObjrefAction struct {
+	Type int
 	Name string
 }
 
@@ -755,8 +773,14 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			})
 			i++
 		case *expr.Objref:
-			// Objektum referencia (quota, counter, ct helper, stb.)
-			// TODO: implementation
+			// Reference to a named stateful object (counter / quota /
+			// ct helper / limit / secmark / ...). The kernel ships the
+			// type code (NFT_OBJECT_*) and the name; we forward both
+			// verbatim into an ObjrefAction.
+			rd.Actions = append(rd.Actions, Action{
+				Type:   ActionTypeObjref,
+				Objref: &ObjrefAction{Type: v.Type, Name: v.Name},
+			})
 			i++
 		case *expr.Payload:
 			regMap[v.DestRegister] = &registerValue{
@@ -2186,7 +2210,7 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 			i++
 
 		case *expr.Objref:
-			// TODO
+			parts = append(parts, nftexpr.SerializeObjref(v))
 			i++
 
 		case *expr.Payload:

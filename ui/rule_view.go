@@ -169,6 +169,10 @@ func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 				if action.Quota != nil {
 					sb.WriteString("  " + formatQuota(action.Quota) + "\n")
 				}
+			case nft.ActionTypeObjref:
+				if action.Objref != nil {
+					sb.WriteString("  " + formatObjref(action.Objref) + "\n")
+				}
 			case nft.ActionTypeCustom:
 				if action.Custom != nil {
 					sb.WriteString(fmt.Sprintf("  custom: %+v\n", action.Custom))
@@ -761,6 +765,30 @@ func (r ruleView) View() string {
 	)
 
 	return defaultStyle.Render(fullView)
+}
+
+// formatObjref renders a named-object reference as the form nft uses on
+// the CLI:
+//
+//	counter name <n> / quota name <n> / ct helper set "<n>" /
+//	limit name <n>  / objref <n> (unknown types).
+//
+// Type codes match nftables' NFT_OBJECT_* enum.
+func formatObjref(o *nft.ObjrefAction) string {
+	name := yellowStyle.Render(o.Name)
+	switch o.Type {
+	case 1:
+		return "counter name " + name
+	case 2:
+		return "quota name " + name
+	case 3:
+		return "ct helper set " + whiteStyle.Render(fmt.Sprintf("%q", o.Name))
+	case 5:
+		return "limit name " + name
+	case 8:
+		return "ct expectation set " + name
+	}
+	return "objref " + name + grayStyle.Render(fmt.Sprintf(" (type=%d)", o.Type))
 }
 
 // formatSetLookup renders a set-lookup condition as `<field> [!=] @<setname>`,
