@@ -564,6 +564,13 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd(),
 		)
 
+	case namedObjectDeletedMsg:
+		m.loading = true
+		return m, tea.Batch(
+			loadTableTreeCmd(),
+			loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd(),
+		)
+
 	case namedObjectOpErrMsg:
 		m.err = msg.err
 		return m, nil

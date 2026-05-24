@@ -88,6 +88,27 @@ func ObjTypeLabel(t nftables.ObjType) string {
 	return fmt.Sprintf("obj_%d", uint32(t))
 }
 
+// DeleteNamedObject removes a stateful named object from the kernel.
+// Refuses if the object is still referenced by any rule — the kernel
+// surfaces EBUSY, which we forward verbatim.
+//
+// `obj.Raw` must be the original Obj returned by ListNamedObjects so the
+// netlink request matches by table+name+type.
+func DeleteNamedObject(obj NamedObject) error {
+	if obj.Raw == nil {
+		return fmt.Errorf("delete: no underlying object reference")
+	}
+	conn, err := nftables.New()
+	if err != nil {
+		return fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	conn.DeleteObject(obj.Raw)
+	if err := conn.Flush(); err != nil {
+		return fmt.Errorf("failed to delete %s %q: %v", obj.TypeStr, obj.Name, err)
+	}
+	return nil
+}
+
 // ResetNamedObject zeros the live state of a stateful object on the
 // kernel. For counters this clears Packets/Bytes; for quotas it clears
 // Consumed. Other types are no-ops at the kernel side (the call still

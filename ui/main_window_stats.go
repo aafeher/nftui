@@ -37,6 +37,7 @@ type setCreateSelectedMsg struct{ table *nftables.Table }
 type setOpErrMsg struct{ err error }
 
 type namedObjectResetMsg struct{}
+type namedObjectDeletedMsg struct{}
 type namedObjectOpErrMsg struct{ err error }
 
 type statTablesMsg []*nftables.Table
@@ -243,6 +244,15 @@ func resetNamedObjectCmd(obj nft.NamedObject) tea.Cmd {
 			return namedObjectOpErrMsg{err: err}
 		}
 		return namedObjectResetMsg{}
+	}
+}
+
+func deleteNamedObjectCmd(obj nft.NamedObject) tea.Cmd {
+	return func() tea.Msg {
+		if err := nft.DeleteNamedObject(obj); err != nil {
+			return namedObjectOpErrMsg{err: err}
+		}
+		return namedObjectDeletedMsg{}
 	}
 }
 
