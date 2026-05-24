@@ -1123,6 +1123,47 @@ func TestNftablesToRuleDefinition_IcmpChecksumIdSequence(t *testing.T) {
 	}
 }
 
+// --- ICMPv6 smoke tests ---
+
+func TestNftablesToRuleDefinition_Icmpv6TypeCode(t *testing.T) {
+	cases := []struct {
+		name   string
+		offset uint32
+		data   []byte
+		field  string
+		want   uint8
+	}{
+		{"type echo-request", 0, []byte{128}, "type", 128},
+		{"type echo-reply", 0, []byte{129}, "type", 129},
+		{"code 0", 1, []byte{0}, "code", 0},
+		{"code 3", 1, []byte{3}, "code", 3},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Meta{Key: unix.NFT_META_L4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_ICMPV6}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: c.offset, Len: 1, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			cond := rd.Conditions[1]
+			if cond.Payload.Protocol != PayloadProtoICMPv6 {
+				t.Errorf("protocol = %q, want %q", cond.Payload.Protocol, PayloadProtoICMPv6)
+			}
+			if cond.Payload.Field != c.field {
+				t.Errorf("field = %q, want %q", cond.Payload.Field, c.field)
+			}
+			if v, ok := cond.Payload.Value.(uint8); !ok || v != c.want {
+				t.Errorf("value = %v (%T), want uint8(%d)", cond.Payload.Value, cond.Payload.Value, c.want)
+			}
+		})
+	}
+}
+
 // --- IP / IP6 payload smoke tests ---
 
 type payloadIntCase struct {

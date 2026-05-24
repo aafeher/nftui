@@ -115,8 +115,8 @@
 - [x] `gateway`: ICMP packet gateway
 
 #### ICMPv6
-- [ ] `type`: ICMPv6 packet type
-- [ ] `code`: ICMPv6 packet code
+- [x] `type`: ICMPv6 packet type
+- [x] `code`: ICMPv6 packet code
 - [ ] `checksum`: ICMPv6 packet checksum
 - [ ] `id`: ICMPv6 packet ID
 - [ ] `sequence`: ICMPv6 packet sequence

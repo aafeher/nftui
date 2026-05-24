@@ -1517,6 +1517,22 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family p
 			case offset == 4 && length == 4:
 				return PayloadProtoICMP, "gateway" // dest-unreach uses bytes 4..7 as gateway / mtu
 			}
+		case unix.IPPROTO_ICMPV6:
+			// ICMPv6 fixed header layout matches ICMP byte-for-byte; see RFC 4443.
+			switch {
+			case offset == 0 && length == 1:
+				return PayloadProtoICMPv6, "type"
+			case offset == 1 && length == 1:
+				return PayloadProtoICMPv6, "code"
+			case offset == 2 && length == 2:
+				return PayloadProtoICMPv6, "checksum"
+			case offset == 4 && length == 2:
+				return PayloadProtoICMPv6, "id"
+			case offset == 6 && length == 2:
+				return PayloadProtoICMPv6, "sequence"
+			case offset == 4 && length == 4:
+				return PayloadProtoICMPv6, "mtu" // packet-too-big uses bytes 4..7 as MTU
+			}
 		}
 
 		// TCP, UDP and UDPLITE share the first 4 bytes (sport, dport).
