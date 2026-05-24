@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strconv"
 	"strings"
 
 	"nftui/nft"
@@ -15,28 +16,31 @@ import (
 
 // setCreate is the new-set / new-map dialog. Slot layout:
 //
-//	0: name        (textinput)
-//	1: key type    (Select — ipv4_addr / ipv6_addr / ether_addr / ...)
-//	2: is map      (Select on/off)
-//	3: data type   (Select — only when "is map" == "on")
-//	4: constant    (Select on/off)
-//	5: interval    (Select on/off)
-//	6: timeout     (Select on/off)
-//	7: dynamic     (Select on/off — required for Dynset target sets)
+//	0: name         (textinput)
+//	1: key type     (Select — ipv4_addr / ipv6_addr / ether_addr / ...)
+//	2: is map       (Select on/off)
+//	3: data type    (Select — only when "is map" == "on")
+//	4: data width   (Select — only when data type == "integer"; bytes 1/2/4/8)
+//	5: constant     (Select on/off)
+//	6: interval     (Select on/off)
+//	7: timeout      (Select on/off)
+//	8: dynamic      (Select on/off — required for Dynset target sets)
 //
-// The data-type slot is conditional: it folds out only when the user
-// flips "is map" to on, mirroring the chain_create base/regular pattern.
+// Slots 3 and 4 are conditional: slot 3 only shows when isMap is on,
+// slot 4 only when data type is `integer` (the only variable-width
+// datatype this UI offers).
 type setCreate struct {
 	table *nftables.Table
 
-	nameInput      textinput.Model
-	keyTypeSelect  Select
-	isMapSelect    Select
-	dataTypeSelect Select
-	constantSelect Select
-	intervalSelect Select
-	timeoutSelect  Select
-	dynamicSelect  Select
+	nameInput           textinput.Model
+	keyTypeSelect       Select
+	isMapSelect         Select
+	dataTypeSelect      Select
+	dataTypeBytesSelect Select
+	constantSelect      Select
+	intervalSelect      Select
+	timeoutSelect       Select
+	dynamicSelect       Select
 
 	focusSlot int
 	statusMsg string
@@ -62,6 +66,7 @@ func (k setCreateKeyMap) FullHelp() [][]key.Binding {
 }
 
 var setOnOffOptions = []string{"off", "on"}
+var integerWidthOptions = []string{"1", "2", "4", "8"}
 
 func newSetCreate(table *nftables.Table) setCreate {
 	ti := textinput.New()
@@ -79,6 +84,8 @@ func newSetCreate(table *nftables.Table) setCreate {
 	if dt.Selected < 0 {
 		dt.Selected = 0
 	}
+	dtb := NewSelect(integerWidthOptions)
+	dtb.Selected = indexOf(integerWidthOptions, "4") // matches lib default for `integer`
 
 	cs := NewSelect(setOnOffOptions)
 	is := NewSelect(setOnOffOptions)
@@ -109,18 +116,19 @@ func newSetCreate(table *nftables.Table) setCreate {
 	}
 
 	sc := setCreate{
-		table:          table,
-		nameInput:      ti,
-		keyTypeSelect:  kt,
-		isMapSelect:    im,
-		dataTypeSelect: dt,
-		constantSelect: cs,
-		intervalSelect: is,
-		timeoutSelect:  ts,
-		dynamicSelect:  ds,
-		focusSlot:      0,
-		keys:           km,
-		help:           newHelpModel(),
+		table:               table,
+		nameInput:           ti,
+		keyTypeSelect:       kt,
+		isMapSelect:         im,
+		dataTypeSelect:      dt,
+		dataTypeBytesSelect: dtb,
+		constantSelect:      cs,
+		intervalSelect:      is,
+		timeoutSelect:       ts,
+		dynamicSelect:       ds,
+		focusSlot:           0,
+		keys:                km,
+		help:                newHelpModel(),
 	}
 	sc.applyFocus()
 	return sc
@@ -130,37 +138,46 @@ func (sc setCreate) isMap() bool {
 	return sc.isMapSelect.Value() == "on"
 }
 
-// slotCount: 8 visible fields when isMap is on (slots 0..7), 7 otherwise
-// (slot 3 — data type — folded out). Used only as a tally; navigation
-// hops through specific indices via nextSlot/prevSlot below.
-func (sc setCreate) slotCount() int {
-	if sc.isMap() {
-		return 8
-	}
-	return 7
+// showsDataWidth reports whether slot 4 (integer width Select) is visible.
+// Folded out unless data type is `integer`.
+func (sc setCreate) showsDataWidth() bool {
+	return sc.isMap() && sc.dataTypeSelect.Value() == "integer"
 }
 
-// nextSlot returns the next focus index, wrapping at slot 7 and skipping
-// slot 3 (data type) when isMap is off.
+// nextSlot / prevSlot walk through the visible slot indices, skipping
+// hidden slots (3=data type when !isMap, 4=data width when not integer).
 func (sc setCreate) nextSlot(cur int) int {
-	n := cur + 1
-	if n > 7 {
-		n = 0
+	n := cur
+	for {
+		n++
+		if n > 8 {
+			n = 0
+		}
+		if sc.slotVisible(n) {
+			return n
+		}
 	}
-	if !sc.isMap() && n == 3 {
-		n = 4
-	}
-	return n
 }
 func (sc setCreate) prevSlot(cur int) int {
-	n := cur - 1
-	if n < 0 {
-		n = 7
+	n := cur
+	for {
+		n--
+		if n < 0 {
+			n = 8
+		}
+		if sc.slotVisible(n) {
+			return n
+		}
 	}
-	if !sc.isMap() && n == 3 {
-		n = 2
+}
+func (sc setCreate) slotVisible(slot int) bool {
+	switch slot {
+	case 3:
+		return sc.isMap()
+	case 4:
+		return sc.showsDataWidth()
 	}
-	return n
+	return true
 }
 
 func (sc *setCreate) applyFocus() {
@@ -168,6 +185,7 @@ func (sc *setCreate) applyFocus() {
 	sc.keyTypeSelect.Blur()
 	sc.isMapSelect.Blur()
 	sc.dataTypeSelect.Blur()
+	sc.dataTypeBytesSelect.Blur()
 	sc.constantSelect.Blur()
 	sc.intervalSelect.Blur()
 	sc.timeoutSelect.Blur()
@@ -182,12 +200,14 @@ func (sc *setCreate) applyFocus() {
 	case 3:
 		sc.dataTypeSelect.Focus()
 	case 4:
-		sc.constantSelect.Focus()
+		sc.dataTypeBytesSelect.Focus()
 	case 5:
-		sc.intervalSelect.Focus()
+		sc.constantSelect.Focus()
 	case 6:
-		sc.timeoutSelect.Focus()
+		sc.intervalSelect.Focus()
 	case 7:
+		sc.timeoutSelect.Focus()
+	case 8:
 		sc.dynamicSelect.Focus()
 	}
 }
@@ -201,7 +221,6 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 		sc.statusMsg = msg.err.Error()
 		return sc, nil
 	case tea.KeyMsg:
-		_ = sc.slotCount // referenced in comments; suppress unused warnings if any
 		switch {
 		case key.Matches(msg, sc.keys.NextField):
 			sc.focusSlot = sc.nextSlot(sc.focusSlot)
@@ -234,6 +253,14 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 				}
 				spec.IsMap = true
 				spec.DataType = dt
+				if sc.showsDataWidth() {
+					w, err := strconv.Atoi(sc.dataTypeBytesSelect.Value())
+					if err != nil || w <= 0 {
+						sc.statusMsg = "Invalid integer width."
+						return sc, nil
+					}
+					spec.DataTypeBytes = uint32(w)
+				}
 			}
 			if sc.constantSelect.Value() == "on" {
 				spec.Flags = append(spec.Flags, "constant")
@@ -263,12 +290,14 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 	case 3:
 		sc.dataTypeSelect, cmd = sc.dataTypeSelect.Update(msg)
 	case 4:
-		sc.constantSelect, cmd = sc.constantSelect.Update(msg)
+		sc.dataTypeBytesSelect, cmd = sc.dataTypeBytesSelect.Update(msg)
 	case 5:
-		sc.intervalSelect, cmd = sc.intervalSelect.Update(msg)
+		sc.constantSelect, cmd = sc.constantSelect.Update(msg)
 	case 6:
-		sc.timeoutSelect, cmd = sc.timeoutSelect.Update(msg)
+		sc.intervalSelect, cmd = sc.intervalSelect.Update(msg)
 	case 7:
+		sc.timeoutSelect, cmd = sc.timeoutSelect.Update(msg)
+	case 8:
 		sc.dynamicSelect, cmd = sc.dynamicSelect.Update(msg)
 	}
 	return sc, cmd
@@ -304,6 +333,13 @@ func (sc setCreate) View() string {
 	if sc.isMap() {
 		body.WriteString(grayStyle.Render("Data type : "))
 		body.WriteString(sc.dataTypeSelect.View())
+		body.WriteString("\n\n")
+	}
+
+	if sc.showsDataWidth() {
+		body.WriteString(grayStyle.Render("Data width: "))
+		body.WriteString(sc.dataTypeBytesSelect.View())
+		body.WriteString(grayStyle.Render(" bytes"))
 		body.WriteString("\n\n")
 	}
 

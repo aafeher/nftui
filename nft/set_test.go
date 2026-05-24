@@ -141,6 +141,39 @@ func TestParseVerdict_Errors(t *testing.T) {
 	}
 }
 
+func TestParseSetElementKey_IntegerWidths(t *testing.T) {
+	cases := []struct {
+		width int
+		input string
+		want  []byte
+	}{
+		{1, "7", []byte{7}},
+		{2, "1024", []byte{0x04, 0x00}},
+		{4, "0x10", []byte{0x00, 0x00, 0x00, 0x10}},
+		{8, "0xabcd1234", []byte{0, 0, 0, 0, 0xab, 0xcd, 0x12, 0x34}},
+	}
+	for _, c := range cases {
+		t.Run(c.input, func(t *testing.T) {
+			s := &nftables.Set{KeyType: nftables.SetDatatype{Name: "integer", Bytes: uint32(c.width)}}
+			b, _, err := ParseSetElementKey(s, c.input)
+			if err != nil {
+				t.Fatalf("err: %v", err)
+			}
+			if !bytes.Equal(b, c.want) {
+				t.Errorf("width=%d input=%q: got %v, want %v", c.width, c.input, b, c.want)
+			}
+		})
+	}
+}
+
+func TestParseSetElementKey_IntegerOverflow(t *testing.T) {
+	// 256 doesn't fit in 1 byte.
+	s := &nftables.Set{KeyType: nftables.SetDatatype{Name: "integer", Bytes: 1}}
+	if _, _, err := ParseSetElementKey(s, "256"); err == nil {
+		t.Fatal("expected overflow error for 256 in 1-byte integer")
+	}
+}
+
 func TestFormatVerdict(t *testing.T) {
 	cases := []struct {
 		v    *expr.Verdict

@@ -192,14 +192,22 @@ func ParseSetElementKey(set *nftables.Set, input string) ([]byte, []byte, error)
 		return []byte{byte(n)}, nil, nil
 
 	case nftables.TypeMark.Name, nftables.TypeInteger.Name:
+		// `mark` is always 4 bytes; `integer` may be 1/2/4/8 depending on
+		// the user-chosen width carried in set.KeyType.Bytes. A zero
+		// Bytes value falls back to 4 (the lib default).
+		width := int(set.KeyType.Bytes)
+		if width == 0 {
+			width = 4
+		}
+		parse := func(s string) ([]byte, error) { return parseUintBE(s, width) }
 		if hasRange {
-			start, end, err := dashRangeToBytes(input, parseUint32BE)
+			start, end, err := dashRangeToBytes(input, parse)
 			if err != nil {
 				return nil, nil, err
 			}
 			return start, end, nil
 		}
-		b, err := parseUint32BE(input)
+		b, err := parse(input)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -247,14 +255,29 @@ func parseInetService(s string) ([]byte, error) {
 	return b, nil
 }
 
-// parseUint32BE parses a decimal / 0x-hex uint32 into 4 BigEndian bytes.
-func parseUint32BE(s string) ([]byte, error) {
-	n, err := strconv.ParseUint(strings.TrimSpace(s), 0, 32)
-	if err != nil {
-		return nil, fmt.Errorf("invalid integer: %q", s)
+// parseUintBE parses a decimal / 0x-hex unsigned integer into a
+// BigEndian byte slice of `width` bytes (1, 2, 4 or 8). Rejects values
+// that don't fit the chosen width.
+func parseUintBE(s string, width int) ([]byte, error) {
+	bits := width * 8
+	if bits < 8 || bits > 64 {
+		return nil, fmt.Errorf("integer width %d unsupported (1/2/4/8 bytes only)", width)
 	}
-	b := make([]byte, 4)
-	binary.BigEndian.PutUint32(b, uint32(n))
+	n, err := strconv.ParseUint(strings.TrimSpace(s), 0, bits)
+	if err != nil {
+		return nil, fmt.Errorf("invalid %d-byte integer: %q", width, s)
+	}
+	b := make([]byte, width)
+	switch width {
+	case 1:
+		b[0] = byte(n)
+	case 2:
+		binary.BigEndian.PutUint16(b, uint16(n))
+	case 4:
+		binary.BigEndian.PutUint32(b, uint32(n))
+	case 8:
+		binary.BigEndian.PutUint64(b, n)
+	}
 	return b, nil
 }
 
@@ -415,12 +438,16 @@ func FormatVerdict(v *expr.Verdict) string {
 // CreateSetSpec carries the form values for CreateSet. Splitting it from
 // CreateSet's signature keeps callers tidy as the option set grows
 // (map flag and data type were added for v0.4 map support).
+//
+// DataTypeBytes overrides the default width of the `integer` datatype
+// (1/2/4/8). Ignored for other types where the width is fixed.
 type CreateSetSpec struct {
-	Name     string
-	KeyType  nftables.SetDatatype
-	IsMap    bool
-	DataType nftables.SetDatatype
-	Flags    []string // "constant", "interval", "timeout"
+	Name          string
+	KeyType       nftables.SetDatatype
+	IsMap         bool
+	DataType      nftables.SetDatatype
+	DataTypeBytes uint32
+	Flags         []string // "constant", "interval", "timeout"
 }
 
 // CreateSet adds a new named set (or map) to the kernel.
@@ -440,6 +467,11 @@ func CreateSet(table *nftables.Table, spec CreateSetSpec) error {
 	if spec.IsMap {
 		s.IsMap = true
 		s.DataType = spec.DataType
+		// `integer` data type carries the requested width on the wire;
+		// other types have a fixed Bytes value we leave intact.
+		if spec.DataType.Name == nftables.TypeInteger.Name && spec.DataTypeBytes > 0 {
+			s.DataType.Bytes = spec.DataTypeBytes
+		}
 	}
 	for _, f := range spec.Flags {
 		switch f {

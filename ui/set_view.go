@@ -360,6 +360,24 @@ func formatSetElementKey(s *nftables.Set, key []byte) string {
 		if len(key) == 1 {
 			return fmt.Sprintf("%d", key[0])
 		}
+	case nftables.TypeMark.Name, nftables.TypeInteger.Name:
+		// Decimal render at the actual stored width (1/2/4/8). Mark is
+		// always 4 bytes; integer matches the chosen DataTypeBytes.
+		switch len(key) {
+		case 1:
+			return fmt.Sprintf("%d", key[0])
+		case 2:
+			return fmt.Sprintf("%d", uint16(key[0])<<8|uint16(key[1]))
+		case 4:
+			return fmt.Sprintf("%d",
+				uint32(key[0])<<24|uint32(key[1])<<16|uint32(key[2])<<8|uint32(key[3]))
+		case 8:
+			var n uint64
+			for i := 0; i < 8; i++ {
+				n = (n << 8) | uint64(key[i])
+			}
+			return fmt.Sprintf("%d", n)
+		}
 	}
 	// Hex fallback for unknown / variable types.
 	return "0x" + strings.TrimSpace(strings.ReplaceAll(fmt.Sprintf("% x", key), " ", ""))
