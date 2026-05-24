@@ -1123,6 +1123,48 @@ func TestNftablesToRuleDefinition_IcmpChecksumIdSequence(t *testing.T) {
 	}
 }
 
+// --- Ethernet (L2) smoke tests ---
+
+func TestNftablesToRuleDefinition_EtherSaddrDaddr(t *testing.T) {
+	cases := []struct {
+		name   string
+		offset uint32
+		field  string
+		want   string
+	}{
+		{"saddr", 6, "saddr", "00:11:22:33:44:55"},
+		{"daddr", 0, "daddr", "aa:bb:cc:dd:ee:ff"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			data := []byte{0, 0, 0, 0, 0, 0}
+			if c.name == "saddr" {
+				data = []byte{0x00, 0x11, 0x22, 0x33, 0x44, 0x55}
+			} else {
+				data = []byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
+			}
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Payload{Base: expr.PayloadBaseLLHeader, Offset: c.offset, Len: 6, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: data},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			cond := rd.Conditions[0]
+			if cond.Payload.Protocol != PayloadProtoEther {
+				t.Errorf("protocol = %q, want ether", cond.Payload.Protocol)
+			}
+			if cond.Payload.Field != c.field {
+				t.Errorf("field = %q, want %q", cond.Payload.Field, c.field)
+			}
+			if s, ok := cond.Payload.Value.(string); !ok || s != c.want {
+				t.Errorf("value = %v (%T), want string(%q)", cond.Payload.Value, cond.Payload.Value, c.want)
+			}
+		})
+	}
+}
+
 // --- COMP smoke tests ---
 
 func TestNftablesToRuleDefinition_CompHeader(t *testing.T) {

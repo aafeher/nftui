@@ -382,10 +382,12 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		field string
 	}
 	addrLabels := map[addrKey]string{
-		{nft.PayloadProtoIP, "saddr"}:  "IP src:",
-		{nft.PayloadProtoIP, "daddr"}:  "IP dst:",
-		{nft.PayloadProtoIP6, "saddr"}: "IP6 src:",
-		{nft.PayloadProtoIP6, "daddr"}: "IP6 dst:",
+		{nft.PayloadProtoIP, "saddr"}:    "IP src:",
+		{nft.PayloadProtoIP, "daddr"}:    "IP dst:",
+		{nft.PayloadProtoIP6, "saddr"}:   "IP6 src:",
+		{nft.PayloadProtoIP6, "daddr"}:   "IP6 dst:",
+		{nft.PayloadProtoEther, "saddr"}: "Ether src:",
+		{nft.PayloadProtoEther, "daddr"}: "Ether dst:",
 	}
 	addrFound := map[addrKey]bool{}
 
@@ -402,8 +404,9 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		} else {
 			op += " "
 		}
-		// IPv4 / IPv6 address fields → dedicated lines.
-		if (p.Protocol == nft.PayloadProtoIP || p.Protocol == nft.PayloadProtoIP6) &&
+		// IPv4 / IPv6 / Ethernet address fields → dedicated lines.
+		if (p.Protocol == nft.PayloadProtoIP || p.Protocol == nft.PayloadProtoIP6 ||
+			p.Protocol == nft.PayloadProtoEther) &&
 			(p.Field == "saddr" || p.Field == "daddr") {
 			var valStr string
 			switch v := p.Value.(type) {
@@ -437,6 +440,8 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		{nft.PayloadProtoIP, "daddr"},
 		{nft.PayloadProtoIP6, "saddr"},
 		{nft.PayloadProtoIP6, "daddr"},
+		{nft.PayloadProtoEther, "saddr"},
+		{nft.PayloadProtoEther, "daddr"},
 	} {
 		if !addrFound[k] {
 			label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, addrLabels[k]))

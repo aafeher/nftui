@@ -1648,13 +1648,39 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family p
 		}
 		return PayloadProtoTCP, fmt.Sprintf("offset_%d_len_%d", offset, length)
 
+	case unix.NFT_PAYLOAD_LL_HEADER:
+		// Ethernet link-layer header: dst-mac 0..6, src-mac 6..12, ethertype 12..14.
+		switch {
+		case offset == 0 && length == 6:
+			return PayloadProtoEther, "daddr"
+		case offset == 6 && length == 6:
+			return PayloadProtoEther, "saddr"
+		case offset == 12 && length == 2:
+			return PayloadProtoEther, "type"
+		}
+		return PayloadProtoEther, fmt.Sprintf("offset_%d_len_%d", offset, length)
+
 	default:
 		return PayloadProtoIP, fmt.Sprintf("base_%d_offset_%d_len_%d", base, offset, length)
 	}
 }
 
+// formatMACBytes renders a 6-byte MAC address as `aa:bb:cc:dd:ee:ff`.
+func formatMACBytes(data []byte) string {
+	if len(data) != 6 {
+		return ""
+	}
+	return fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
+		data[0], data[1], data[2], data[3], data[4], data[5])
+}
+
 // decodePayloadValue interprets a payload value from raw data based on protocol and field, returning an appropriate type.
 func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) interface{} {
+	// Ethernet MAC addresses come in at the same field names as the IPv4
+	// / IPv6 addresses (saddr/daddr) but with len 6 — render as colon-hex.
+	if protocol == PayloadProtoEther && (field == "saddr" || field == "daddr") && len(data) == 6 {
+		return formatMACBytes(data)
+	}
 	switch field {
 	case "saddr", "daddr":
 		if len(data) == 4 {

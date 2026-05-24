@@ -124,7 +124,7 @@
 - [x] `max-delay`: ICMPv6 packet max delay
 
 #### Ethernet (Ether)
-- [ ] `saddr`: Source MAC address
+- [x] `saddr`: Source MAC address
 - [ ] `type`: EtherType
 
 #### Dst
