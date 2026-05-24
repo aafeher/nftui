@@ -166,6 +166,7 @@ const (
 	PayloadProtoDCCP   PayloadProtocol = "dccp"
 	PayloadProtoAH     PayloadProtocol = "ah"
 	PayloadProtoESP    PayloadProtocol = "esp"
+	PayloadProtoCOMP   PayloadProtocol = "comp"
 	PayloadProtoARP    PayloadProtocol = "arp"
 )
 
@@ -1600,6 +1601,16 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family p
 			case offset == 4 && length == 4:
 				return PayloadProtoESP, "sequence"
 			}
+		case unix.IPPROTO_COMP:
+			// IPComp header (RFC 3173): nexthdr 0..1, flags 1..2, cpi 2..4.
+			switch {
+			case offset == 0 && length == 1:
+				return PayloadProtoCOMP, "nexthdr"
+			case offset == 1 && length == 1:
+				return PayloadProtoCOMP, "flags"
+			case offset == 2 && length == 2:
+				return PayloadProtoCOMP, "cpi"
+			}
 		}
 
 		// TCP, UDP and UDPLITE share the first 4 bytes (sport, dport).
@@ -1661,7 +1672,7 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 		if len(data) >= 1 {
 			return data[0]
 		}
-	case "length", "id", "frag-off", "checksum", "window", "urgptr":
+	case "length", "id", "frag-off", "checksum", "window", "urgptr", "cpi":
 		// `checksum` is uint16 for TCP/UDP/ICMP/ICMPv6 but uint32 for SCTP —
 		// pick by length.
 		if len(data) == 2 {

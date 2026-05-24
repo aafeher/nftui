@@ -101,9 +101,9 @@
 - [x] `sequence`: Sequence number
 
 #### Comp
-- [ ] `nexthdr`: Next header protocol
-- [ ] `flags`: Flags
-- [ ] `cpi`: Compression Parameter Index
+- [x] `nexthdr`: Next header protocol
+- [x] `flags`: Flags
+- [x] `cpi`: Compression Parameter Index
 
 #### ICMP
 - [x] `type`: ICMP packet type

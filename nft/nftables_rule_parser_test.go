@@ -1123,6 +1123,48 @@ func TestNftablesToRuleDefinition_IcmpChecksumIdSequence(t *testing.T) {
 	}
 }
 
+// --- COMP smoke tests ---
+
+func TestNftablesToRuleDefinition_CompHeader(t *testing.T) {
+	cases := []struct {
+		name   string
+		offset uint32
+		length uint32
+		data   []byte
+		field  string
+		want   any
+	}{
+		{"nexthdr", 0, 1, []byte{unix.IPPROTO_TCP}, "nexthdr", uint8(unix.IPPROTO_TCP)},
+		{"flags", 1, 1, []byte{0x00}, "flags", uint8(0)},
+		{"cpi", 2, 2, []byte{0x12, 0x34}, "cpi", uint16(0x1234)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Meta{Key: unix.NFT_META_L4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_COMP}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: c.offset, Len: c.length, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			cond := rd.Conditions[1]
+			if cond.Payload.Protocol != PayloadProtoCOMP {
+				t.Errorf("protocol = %q, want comp", cond.Payload.Protocol)
+			}
+			if cond.Payload.Field != c.field {
+				t.Errorf("field = %q, want %q", cond.Payload.Field, c.field)
+			}
+			if cond.Payload.Value != c.want {
+				t.Errorf("value = %v (%T), want %v (%T)",
+					cond.Payload.Value, cond.Payload.Value, c.want, c.want)
+			}
+		})
+	}
+}
+
 // --- ESP smoke tests ---
 
 func TestNftablesToRuleDefinition_EspHeader(t *testing.T) {

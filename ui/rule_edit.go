@@ -243,6 +243,10 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				// ESP
 				NewEspSpiField(rd),      // 36
 				NewEspSequenceField(rd), // 37
+				// COMP
+				NewCompNexthdrField(rd), // 38
+				NewCompFlagsField(rd),   // 39
+				NewCompCpiField(rd),     // 40
 			},
 		},
 		{
@@ -765,6 +769,11 @@ func (r ruleEdit) renderTransportTab() string {
 	sb.WriteString(grayBoldStyle.Render("ESP"))
 	sb.WriteString("\n")
 	sb.WriteString(r.row2(f[36].View(), f[37].View()))
+	sb.WriteString("\n")
+
+	sb.WriteString(grayBoldStyle.Render("COMP"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row3(f[38].View(), f[39].View(), f[40].View()))
 	sb.WriteString("\n")
 
 	return sb.String()
