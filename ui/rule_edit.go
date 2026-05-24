@@ -219,8 +219,13 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewIcmpMtuField(rd),      // 16
 				NewIcmpGatewayField(rd),  // 17
 				// ICMPv6
-				NewIcmpv6TypeField(rd), // 18
-				NewIcmpv6CodeField(rd), // 19
+				NewIcmpv6TypeField(rd),     // 18
+				NewIcmpv6CodeField(rd),     // 19
+				NewIcmpv6ChecksumField(rd), // 20
+				NewIcmpv6IdField(rd),       // 21
+				NewIcmpv6SequenceField(rd), // 22
+				NewIcmpv6MtuField(rd),      // 23
+				NewIcmpv6MaxDelayField(rd), // 24
 			},
 		},
 		{
@@ -714,6 +719,10 @@ func (r ruleEdit) renderTransportTab() string {
 	sb.WriteString(grayBoldStyle.Render("ICMPv6"))
 	sb.WriteString("\n")
 	sb.WriteString(r.row2(f[18].View(), f[19].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row3(f[20].View(), f[21].View(), f[22].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[23].View(), f[24].View()))
 	sb.WriteString("\n")
 
 	return sb.String()

@@ -117,11 +117,11 @@
 #### ICMPv6
 - [x] `type`: ICMPv6 packet type
 - [x] `code`: ICMPv6 packet code
-- [ ] `checksum`: ICMPv6 packet checksum
-- [ ] `id`: ICMPv6 packet ID
-- [ ] `sequence`: ICMPv6 packet sequence
-- [ ] `mtu`: ICMPv6 packet MTU
-- [ ] `max-delay`: ICMPv6 packet max delay
+- [x] `checksum`: ICMPv6 packet checksum
+- [x] `id`: ICMPv6 packet ID
+- [x] `sequence`: ICMPv6 packet sequence
+- [x] `mtu`: ICMPv6 packet MTU
+- [x] `max-delay`: ICMPv6 packet max delay
 
 #### Ethernet (Ether)
 - [ ] `saddr`: Source MAC address
