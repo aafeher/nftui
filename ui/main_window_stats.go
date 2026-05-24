@@ -29,6 +29,10 @@ type chainCreateSelectedMsg struct{ table *nftables.Table }
 type chainCreatedMsg struct{}
 type chainDeletedMsg struct{}
 
+type setElementAddedMsg struct{}
+type setElementDeletedMsg struct{}
+type setOpErrMsg struct{ err error }
+
 type statTablesMsg []*nftables.Table
 type statChainsMsg []*nftables.Chain
 type statRulesAcceptMsg []*nftables.Rule
@@ -188,6 +192,24 @@ func deleteChainCmd(chain *nftables.Chain) tea.Cmd {
 			return chainOpErrMsg{err: err}
 		}
 		return chainDeletedMsg{}
+	}
+}
+
+func addSetElementCmd(set *nftables.Set, key []byte) tea.Cmd {
+	return func() tea.Msg {
+		if err := nft.AddSetElement(set, key, nil); err != nil {
+			return setOpErrMsg{err: err}
+		}
+		return setElementAddedMsg{}
+	}
+}
+
+func deleteSetElementCmd(set *nftables.Set, key []byte) tea.Cmd {
+	return func() tea.Msg {
+		if err := nft.DeleteSetElement(set, key); err != nil {
+			return setOpErrMsg{err: err}
+		}
+		return setElementDeletedMsg{}
 	}
 }
 

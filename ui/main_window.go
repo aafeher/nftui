@@ -494,6 +494,24 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case setElementAddedMsg:
+		if m.setView != nil {
+			m.setView.RefreshElements()
+		}
+		return m, nil
+
+	case setElementDeletedMsg:
+		if m.setView != nil {
+			m.setView.RefreshElements()
+		}
+		return m, nil
+
+	case setOpErrMsg:
+		if m.setView != nil {
+			m.setView.statusMsg = msg.err.Error()
+		}
+		return m, nil
+
 	case ruleDeletedMsg:
 		if m.chainView != nil {
 			prevCursor := m.chainView.cursor

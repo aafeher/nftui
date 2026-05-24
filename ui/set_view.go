@@ -7,37 +7,53 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"nftui/nft"
 )
 
-// setView renders the metadata + elements of a single named set.
+// setView renders the metadata + elements of a single named set, and lets
+// the user add or remove elements interactively.
 //
-// Read-only for now: lists name, key type, flags and the current
-// elements with one row per element. Add / remove operations land in
-// a later milestone item.
+// Element selection has a cursor (↑/↓). `a` opens a prompt for a new
+// element value (parsed type-aware from the set's KeyType). `d` opens a
+// y/N confirmation for deleting the selected element. The keys
+// roundtrip to the kernel via nft.AddSetElement / nft.DeleteSetElement
+// and the main_window refresh handler reloads the set so the new state
+// is visible immediately.
 type setView struct {
-	set      *nftables.Set
-	table    *tableNode
-	elements []nftables.SetElement
-	width    int
-	height   int
-	help     help.Model
-	keys     setViewKeyMap
+	set           *nftables.Set
+	table         *tableNode
+	elements      []nftables.SetElement
+	width         int
+	height        int
+	help          help.Model
+	keys          setViewKeyMap
+	cursor        int
+	scrollOffset  int
+	statusMsg     string
+	showAddPrompt bool
+	addInput      textinput.Model
+	addErr        string
+	showDelete    bool
 }
 
 type setViewKeyMap struct {
-	Back key.Binding
-	Quit key.Binding
+	Up     key.Binding
+	Down   key.Binding
+	Add    key.Binding
+	Delete key.Binding
+	Back   key.Binding
+	Quit   key.Binding
 }
 
 func (k setViewKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Back, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Add, k.Delete, k.Back, k.Quit}
 }
 func (k setViewKeyMap) FullHelp() [][]key.Binding {
-	return [][]key.Binding{{k.Back, k.Quit}}
+	return [][]key.Binding{{k.Up, k.Down, k.Add, k.Delete}, {k.Back, k.Quit}}
 }
 
 func newSetView(set *nftables.Set, table *tableNode) setView {
@@ -46,6 +62,22 @@ func newSetView(set *nftables.Set, table *tableNode) setView {
 	elements := nft.GetSetElements(set)
 
 	km := setViewKeyMap{
+		Up: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓/j", "down"),
+		),
+		Add: key.NewBinding(
+			key.WithKeys("a"),
+			key.WithHelp("a", "add element"),
+		),
+		Delete: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "delete element"),
+		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "f3"),
 			key.WithHelp("esc/f3", "back"),
@@ -64,14 +96,86 @@ func newSetView(set *nftables.Set, table *tableNode) setView {
 	}
 }
 
-func (sv setView) IsModal() bool { return false }
+// IsModal reports whether a prompt or confirmation overlay is shown; if so,
+// main_window funnels every key through Update so nothing else intercepts.
+func (sv setView) IsModal() bool {
+	return sv.showAddPrompt || sv.showDelete
+}
 
 func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		sv.width, sv.height = msg.Width, msg.Height
 	case tea.KeyMsg:
+		sv.statusMsg = ""
+
+		if sv.showAddPrompt {
+			switch msg.String() {
+			case "esc":
+				sv.showAddPrompt = false
+				sv.addErr = ""
+				return sv, nil
+			case "enter":
+				val := strings.TrimSpace(sv.addInput.Value())
+				if val == "" {
+					sv.addErr = "value required"
+					return sv, nil
+				}
+				keyBytes, err := nft.ParseSetElementKey(sv.set, val)
+				if err != nil {
+					sv.addErr = err.Error()
+					return sv, nil
+				}
+				sv.showAddPrompt = false
+				sv.addErr = ""
+				return sv, addSetElementCmd(sv.set, keyBytes)
+			}
+			var cmd tea.Cmd
+			sv.addInput, cmd = sv.addInput.Update(msg)
+			return sv, cmd
+		}
+
+		if sv.showDelete {
+			switch msg.String() {
+			case "y", "Y":
+				sv.showDelete = false
+				if sv.cursor >= 0 && sv.cursor < len(sv.elements) {
+					el := sv.elements[sv.cursor]
+					return sv, deleteSetElementCmd(sv.set, el.Key)
+				}
+				return sv, nil
+			case "n", "N", "esc":
+				sv.showDelete = false
+				return sv, nil
+			}
+			return sv, nil
+		}
+
 		switch {
+		case key.Matches(msg, sv.keys.Up):
+			if sv.cursor > 0 {
+				sv.cursor--
+				if sv.cursor < sv.scrollOffset {
+					sv.scrollOffset = sv.cursor
+				}
+			}
+		case key.Matches(msg, sv.keys.Down):
+			if sv.cursor < len(sv.elements)-1 {
+				sv.cursor++
+			}
+		case key.Matches(msg, sv.keys.Add):
+			sv.showAddPrompt = true
+			sv.addErr = ""
+			ti := textinput.New()
+			ti.Placeholder = setKeyTypeHint(sv.set)
+			ti.Focus()
+			ti.CharLimit = 64
+			ti.Width = 40
+			sv.addInput = ti
+		case key.Matches(msg, sv.keys.Delete):
+			if len(sv.elements) > 0 && sv.cursor >= 0 && sv.cursor < len(sv.elements) {
+				sv.showDelete = true
+			}
 		case key.Matches(msg, sv.keys.Back):
 			return sv, func() tea.Msg { return setViewBackMsg{} }
 		case key.Matches(msg, sv.keys.Quit):
@@ -81,8 +185,40 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 	return sv, nil
 }
 
+// RefreshElements re-fetches the set's elements after a mutation.
+// Cursor clamps to the new length so we never index out of range.
+func (sv *setView) RefreshElements() {
+	sv.elements = nft.GetSetElements(sv.set)
+	if sv.cursor >= len(sv.elements) {
+		sv.cursor = len(sv.elements) - 1
+	}
+	if sv.cursor < 0 {
+		sv.cursor = 0
+	}
+}
+
 // setViewBackMsg signals MainWindow to switch back to the tree.
 type setViewBackMsg struct{}
+
+// setKeyTypeHint returns a short placeholder for the add-element prompt
+// based on KeyType (e.g. "10.0.0.1" for ipv4_addr).
+func setKeyTypeHint(s *nftables.Set) string {
+	switch s.KeyType.Name {
+	case nftables.TypeIPAddr.Name:
+		return "10.0.0.1"
+	case nftables.TypeIP6Addr.Name:
+		return "fe80::1"
+	case nftables.TypeEtherAddr.Name:
+		return "aa:bb:cc:dd:ee:ff"
+	case nftables.TypeInetService.Name:
+		return "443"
+	case nftables.TypeInetProto.Name:
+		return "6"
+	case nftables.TypeMark.Name, nftables.TypeInteger.Name:
+		return "0 / 0x10"
+	}
+	return s.KeyType.Name
+}
 
 // setFlagsLabel collects the boolean flag-fields of a *nftables.Set into a
 // human-readable list ("constant, interval, timeout, dynamic, ...").
@@ -186,13 +322,27 @@ func (sv setView) View() string {
 	if len(sv.elements) == 0 {
 		b.WriteString("  " + grayStyle.Render("(empty)") + "\n")
 	} else {
-		for _, el := range sv.elements {
-			b.WriteString("  " + formatSetElementKey(sv.set, el.Key))
-			if sv.set.IsMap && len(el.Val) > 0 {
-				b.WriteString(grayStyle.Render(" → ") + formatSetElementKey(sv.set, el.Val))
+		for i, el := range sv.elements {
+			cursor := "  "
+			if i == sv.cursor {
+				cursor = "> "
 			}
+			line := cursor + formatSetElementKey(sv.set, el.Key)
+			if sv.set.IsMap && len(el.Val) > 0 {
+				line += grayStyle.Render(" → ") + formatSetElementKey(sv.set, el.Val)
+			}
+			if i == sv.cursor {
+				line = blueBackgroundStyle.Render(line)
+			}
+			b.WriteString(line)
 			b.WriteString("\n")
 		}
+	}
+
+	if sv.statusMsg != "" {
+		b.WriteString("\n")
+		b.WriteString(redBoldStyle.Render("Error: " + sv.statusMsg))
+		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
@@ -202,7 +352,43 @@ func (sv setView) View() string {
 	contentBox := normalGrayBorder.
 		Width(sv.width - 2).
 		Render(out)
-	return lipgloss.NewStyle().Render(contentBox)
+	base := lipgloss.NewStyle().Render(contentBox)
+
+	if sv.showAddPrompt {
+		title := fmt.Sprintf("Add element to %s (%s)", sv.set.Name, nft.KeyTypeToString(sv.set.KeyType))
+		body := title + "\n\n" + sv.addInput.View()
+		if sv.addErr != "" {
+			body += "\n\n" + redBoldStyle.Render(sv.addErr)
+		}
+		body += "\n\n" + grayStyle.Render("Enter: confirm  •  Esc: cancel")
+		prompt := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("39")).
+			Padding(1, 2).
+			Width(60).
+			Render(body)
+		overlay := lipgloss.Place(sv.width, sv.height,
+			lipgloss.Center, lipgloss.Center, prompt)
+		return lipgloss.Place(sv.width, sv.height, lipgloss.Left, lipgloss.Top, base+"\n"+overlay)
+	}
+
+	if sv.showDelete && sv.cursor >= 0 && sv.cursor < len(sv.elements) {
+		el := sv.elements[sv.cursor]
+		body := fmt.Sprintf("Delete element %s from set %s?\n\n[Y]es / [N]o",
+			formatSetElementKey(sv.set, el.Key), sv.set.Name)
+		confirm := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("196")).
+			Padding(1, 2).
+			Width(60).
+			Align(lipgloss.Center).
+			Render(body)
+		overlay := lipgloss.Place(sv.width, sv.height,
+			lipgloss.Center, lipgloss.Center, confirm)
+		return lipgloss.Place(sv.width, sv.height, lipgloss.Left, lipgloss.Top, base+"\n"+overlay)
+	}
+
+	return base
 }
 
 // maxIntSV is a tiny local helper — Go 1.25 has builtin max() but renaming
