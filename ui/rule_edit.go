@@ -131,6 +131,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewSnatField(rd, rule.Table.Family),
 				NewDnatField(rd, rule.Table.Family),
 				NewQueueField(rd),
+				NewQuotaField(rd),
 			},
 		},
 		{
@@ -460,12 +461,17 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	sb.WriteString(r.tabs[0].fields[9].View())
 	sb.WriteString("\n")
 
-	// Remaining actions (read-only — verdict, reject, log, counter, masquerade, snat, dnat, queue are handled by the editors above).
+	// Quota editor (full width — enable + amount + unit + over).
+	sb.WriteString(r.tabs[0].fields[10].View())
+	sb.WriteString("\n")
+
+	// Remaining actions (read-only — verdict, reject, log, counter, masquerade, snat, dnat, queue, quota are handled by the editors above).
 	hasRemaining := false
 	for _, action := range rd.Actions {
 		switch action.Type {
 		case nft.ActionTypeVerdict, nft.ActionTypeReject, nft.ActionTypeLog,
-			nft.ActionTypeCounter, nft.ActionTypeMasq, nft.ActionTypeQueue:
+			nft.ActionTypeCounter, nft.ActionTypeMasq, nft.ActionTypeQueue,
+			nft.ActionTypeQuota:
 			continue
 		case nft.ActionTypeNAT:
 			if action.NAT != nil &&
@@ -491,7 +497,7 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 				} else if action.NAT != nil {
 					sb.WriteString("  " + formatNAT(action.NAT) + "\n")
 				}
-			case nft.ActionTypeQueue:
+			case nft.ActionTypeQueue, nft.ActionTypeQuota:
 				// editable — rendered above
 			case nft.ActionTypeSet:
 				if action.Set != nil {

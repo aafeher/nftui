@@ -252,4 +252,4 @@
 - [x] `num`: Queue number or range to send packets to userspace
 
 #### Quota
-- [ ] `[over] <n> [bytes|kbytes|mbytes]`: Quota-based rate limiting
+- [x] `[over] <n> [bytes|kbytes|mbytes]`: Quota-based rate limiting

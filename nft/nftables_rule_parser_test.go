@@ -1443,6 +1443,43 @@ func TestNftablesToRuleDefinition_Masquerade(t *testing.T) {
 	}
 }
 
+func TestNftablesToRuleDefinition_Quota(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Quota{Bytes: 1000, Over: false, Consumed: 42},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rd.Actions) != 2 {
+		t.Fatalf("expected 2 actions (quota + verdict), got %d", len(rd.Actions))
+	}
+	q := rd.Actions[0]
+	if q.Type != ActionTypeQuota {
+		t.Errorf("action[0] type = %q, want %q", q.Type, ActionTypeQuota)
+	}
+	if q.Quota == nil {
+		t.Fatalf("Quota payload is nil")
+	}
+	if q.Quota.Bytes != 1000 || q.Quota.Over || q.Quota.Consumed != 42 {
+		t.Errorf("Quota = %+v, want {1000 false 42}", q.Quota)
+	}
+}
+
+func TestNftablesToRuleDefinition_QuotaOver(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Quota{Bytes: 50 * 1024 * 1024, Over: true},
+		&expr.Verdict{Kind: expr.VerdictDrop},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	q := rd.Actions[0].Quota
+	if q == nil || !q.Over || q.Bytes != 50*1024*1024 {
+		t.Errorf("Quota = %+v, want {52428800 true 0}", q)
+	}
+}
+
 func TestNftablesToRuleDefinition_MasqueradeAllFlags(t *testing.T) {
 	// Verify that masqToAction copies every flag — historic bug missed Persistent.
 	rd, err := NftablesToRuleDefinition(makeRule(

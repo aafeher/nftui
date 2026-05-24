@@ -165,6 +165,10 @@ func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 				if action.Masq != nil {
 					sb.WriteString("  " + formatMasquerade(action.Masq) + "\n")
 				}
+			case nft.ActionTypeQuota:
+				if action.Quota != nil {
+					sb.WriteString("  " + formatQuota(action.Quota) + "\n")
+				}
 			case nft.ActionTypeCustom:
 				if action.Custom != nil {
 					sb.WriteString(fmt.Sprintf("  custom: %+v\n", action.Custom))

@@ -246,6 +246,7 @@ type Action struct {
 	Set      *SetAction
 	Redirect *RedirectAction
 	Masq     *MasqueradeAction
+	Quota    *QuotaAction
 	Custom   *CustomAction
 }
 
@@ -274,8 +275,19 @@ const (
 	ActionTypeSet      ActionType = "set"
 	ActionTypeRedirect ActionType = "redirect"
 	ActionTypeMasq     ActionType = "masquerade"
+	ActionTypeQuota    ActionType = "quota"
 	ActionTypeCustom   ActionType = "custom"
 )
+
+// QuotaAction represents a `quota [over] <n> bytes` statement. The kernel
+// stores the budget in raw bytes (the CLI's `kbytes`/`mbytes` are just
+// multipliers); Consumed is the live counter of bytes already accounted
+// against the quota (read-only on the wire).
+type QuotaAction struct {
+	Bytes    uint64
+	Over     bool
+	Consumed uint64
+}
 
 // VerdictAction represents an action with a specific verdict type and an optional target chain for jump/goto actions.
 type VerdictAction struct {
@@ -717,7 +729,7 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			})
 			i++
 		case *expr.Quota:
-			// TODO: handling quota
+			rd.Actions = append(rd.Actions, quotaToAction(v))
 			i++
 		case *expr.Dynset:
 			action := dynsetToAction(v, regMap)
@@ -1307,6 +1319,21 @@ func rejectToAction(r *expr.Reject) Action {
 }
 
 // queueToAction converts a *expr.Queue into an Action of type ActionTypeQueue with queue-specific properties and flags.
+// quotaToAction converts a *expr.Quota into an Action of type ActionTypeQuota.
+// The kernel always stores the budget in raw bytes; the unit selection
+// (bytes/kbytes/mbytes) is a CLI concern, surfaced again by the field
+// editor at display time.
+func quotaToAction(q *expr.Quota) Action {
+	return Action{
+		Type: ActionTypeQuota,
+		Quota: &QuotaAction{
+			Bytes:    q.Bytes,
+			Over:     q.Over,
+			Consumed: q.Consumed,
+		},
+	}
+}
+
 func queueToAction(q *expr.Queue) Action {
 	var queueRange *QueueRange
 	if q.Num != q.Total-1 {
