@@ -31,6 +31,10 @@ type tableTreeModel struct {
 	scrollOffset      int
 	width             int
 	showDeleteConfirm bool
+	// statusMsg is a transient hint (e.g. "no resettable object under
+	// cursor"). Cleared on the next key press so old messages never
+	// linger past the action they're about.
+	statusMsg string
 }
 
 // IsModal reports whether the tree is currently showing a modal dialog (e.g.
@@ -164,6 +168,10 @@ func (tm tableTreeModel) getFlattenedItems() []flatItem {
 func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Any keypress clears the transient status hint from the previous
+		// action — the message is only meant to outlive a single beat.
+		tm.statusMsg = ""
+
 		if tm.showDeleteConfirm {
 			switch msg.String() {
 			case "y", "Y":
@@ -239,12 +247,12 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			items := tm.getFlattenedItems()
 			if tm.cursor < len(items) {
 				selected := items[tm.cursor]
-				if selected.isObj && selected.obj != nil {
-					if selected.obj.Type == nftables.ObjTypeCounter ||
-						selected.obj.Type == nftables.ObjTypeQuota {
-						return tm, resetNamedObjectCmd(*selected.obj)
-					}
+				if selected.isObj && selected.obj != nil &&
+					(selected.obj.Type == nftables.ObjTypeCounter ||
+						selected.obj.Type == nftables.ObjTypeQuota) {
+					return tm, resetNamedObjectCmd(*selected.obj)
 				}
+				tm.statusMsg = "no resettable counter/quota under cursor"
 			}
 		case "e":
 			items := tm.getFlattenedItems()
@@ -656,6 +664,15 @@ func (tm tableTreeModel) View() string {
 			b.WriteString(line)
 			b.WriteString("\n")
 		}
+	}
+
+	if tm.statusMsg != "" {
+		// Yellow hint line under the tree — visible until the next key
+		// press clears it (see Update). Indented to align with table
+		// rows so it doesn't look like a separate widget.
+		b.WriteString("\n")
+		b.WriteString(yellowStyle.Render("  ! " + tm.statusMsg))
+		b.WriteString("\n")
 	}
 
 	base := b.String()
