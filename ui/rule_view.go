@@ -135,7 +135,7 @@ func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 				}
 			case nft.ActionTypeNAT:
 				if action.NAT != nil {
-					sb.WriteString(fmt.Sprintf("  nat: %+v\n", action.NAT))
+					sb.WriteString("  " + formatNAT(action.NAT) + "\n")
 				}
 			case nft.ActionTypeLog:
 				if action.Log != nil {

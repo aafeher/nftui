@@ -245,7 +245,7 @@
 
 #### Nat
 - [ ] `dnat to`: Destination address translation
-- [ ] `snat to`: Source address translation
+- [x] `snat to`: Source address translation
 - [x] `masquerade`: Masquerade (dynamic SNAT to outgoing interface address)
 
 #### Queue
