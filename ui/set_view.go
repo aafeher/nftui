@@ -36,6 +36,8 @@ type setView struct {
 	statusMsg     string
 	showAddPrompt bool
 	addInput      textinput.Model
+	addValInput   textinput.Model
+	addFocusVal   bool // only true for map sets after Tab/Enter from key
 	addErr        string
 	showDelete    bool
 }
@@ -115,23 +117,53 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 				sv.showAddPrompt = false
 				sv.addErr = ""
 				return sv, nil
+			case "tab", "shift+tab":
+				// Tab toggles between key and value inputs (maps only).
+				if sv.set.IsMap {
+					sv.addFocusVal = !sv.addFocusVal
+					if sv.addFocusVal {
+						sv.addInput.Blur()
+						sv.addValInput.Focus()
+					} else {
+						sv.addValInput.Blur()
+						sv.addInput.Focus()
+					}
+				}
+				return sv, nil
 			case "enter":
-				val := strings.TrimSpace(sv.addInput.Value())
-				if val == "" {
-					sv.addErr = "value required"
+				keyStr := strings.TrimSpace(sv.addInput.Value())
+				if keyStr == "" {
+					sv.addErr = "key required"
 					return sv, nil
 				}
-				keyBytes, err := nft.ParseSetElementKey(sv.set, val)
+				keyBytes, err := nft.ParseSetElementKey(sv.set, keyStr)
 				if err != nil {
 					sv.addErr = err.Error()
 					return sv, nil
 				}
+				var valBytes []byte
+				if sv.set.IsMap {
+					valStr := strings.TrimSpace(sv.addValInput.Value())
+					if valStr == "" {
+						sv.addErr = "value required"
+						return sv, nil
+					}
+					valBytes, err = nft.ParseSetElementVal(sv.set, valStr)
+					if err != nil {
+						sv.addErr = err.Error()
+						return sv, nil
+					}
+				}
 				sv.showAddPrompt = false
 				sv.addErr = ""
-				return sv, addSetElementCmd(sv.set, keyBytes)
+				return sv, addSetElementCmd(sv.set, keyBytes, valBytes)
 			}
 			var cmd tea.Cmd
-			sv.addInput, cmd = sv.addInput.Update(msg)
+			if sv.set.IsMap && sv.addFocusVal {
+				sv.addValInput, cmd = sv.addValInput.Update(msg)
+			} else {
+				sv.addInput, cmd = sv.addInput.Update(msg)
+			}
 			return sv, cmd
 		}
 
@@ -166,12 +198,20 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 		case key.Matches(msg, sv.keys.Add):
 			sv.showAddPrompt = true
 			sv.addErr = ""
+			sv.addFocusVal = false
 			ti := textinput.New()
 			ti.Placeholder = setKeyTypeHint(sv.set)
 			ti.Focus()
 			ti.CharLimit = 64
 			ti.Width = 40
 			sv.addInput = ti
+			if sv.set.IsMap {
+				vi := textinput.New()
+				vi.Placeholder = setDataTypeHint(sv.set)
+				vi.CharLimit = 64
+				vi.Width = 40
+				sv.addValInput = vi
+			}
 		case key.Matches(msg, sv.keys.Delete):
 			if len(sv.elements) > 0 && sv.cursor >= 0 && sv.cursor < len(sv.elements) {
 				sv.showDelete = true
@@ -199,6 +239,13 @@ func (sv *setView) RefreshElements() {
 
 // setViewBackMsg signals MainWindow to switch back to the tree.
 type setViewBackMsg struct{}
+
+// setDataTypeHint mirrors setKeyTypeHint but uses the map's DataType.
+func setDataTypeHint(s *nftables.Set) string {
+	tmp := *s
+	tmp.KeyType = s.DataType
+	return setKeyTypeHint(&tmp)
+}
 
 // setKeyTypeHint returns a short placeholder for the add-element prompt
 // based on KeyType (e.g. "10.0.0.1" for ipv4_addr).
@@ -255,6 +302,15 @@ func setFlagsLabel(s *nftables.Set) string {
 		return ""
 	}
 	return strings.Join(flags, ", ")
+}
+
+// formatSetElementVal renders a map element's value bytes using the set's
+// DataType. Same type coverage as formatSetElementKey, just dispatched on
+// DataType.Name. Falls back to hex for unsupported types (e.g. verdict).
+func formatSetElementVal(s *nftables.Set, val []byte) string {
+	tmp := *s
+	tmp.KeyType = s.DataType
+	return formatSetElementKey(&tmp, val)
 }
 
 // formatSetElementKey renders an element key as a human-readable string.
@@ -329,7 +385,7 @@ func (sv setView) View() string {
 			}
 			line := cursor + formatSetElementKey(sv.set, el.Key)
 			if sv.set.IsMap && len(el.Val) > 0 {
-				line += grayStyle.Render(" → ") + formatSetElementKey(sv.set, el.Val)
+				line += grayStyle.Render(" → ") + formatSetElementVal(sv.set, el.Val)
 			}
 			if i == sv.cursor {
 				line = blueBackgroundStyle.Render(line)
@@ -355,12 +411,28 @@ func (sv setView) View() string {
 	base := lipgloss.NewStyle().Render(contentBox)
 
 	if sv.showAddPrompt {
-		title := fmt.Sprintf("Add element to %s (%s)", sv.set.Name, nft.KeyTypeToString(sv.set.KeyType))
-		body := title + "\n\n" + sv.addInput.View()
+		var title, body string
+		if sv.set.IsMap {
+			title = fmt.Sprintf("Add entry to %s (%s → %s)",
+				sv.set.Name,
+				nft.KeyTypeToString(sv.set.KeyType),
+				nft.KeyTypeToString(sv.set.DataType))
+			body = title + "\n\n" +
+				grayStyle.Render("Key   : ") + sv.addInput.View() + "\n" +
+				grayStyle.Render("Value : ") + sv.addValInput.View()
+		} else {
+			title = fmt.Sprintf("Add element to %s (%s)",
+				sv.set.Name, nft.KeyTypeToString(sv.set.KeyType))
+			body = title + "\n\n" + sv.addInput.View()
+		}
 		if sv.addErr != "" {
 			body += "\n\n" + redBoldStyle.Render(sv.addErr)
 		}
-		body += "\n\n" + grayStyle.Render("Enter: confirm  •  Esc: cancel")
+		if sv.set.IsMap {
+			body += "\n\n" + grayStyle.Render("Tab: switch field  •  Enter: confirm  •  Esc: cancel")
+		} else {
+			body += "\n\n" + grayStyle.Render("Enter: confirm  •  Esc: cancel")
+		}
 		prompt := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("39")).

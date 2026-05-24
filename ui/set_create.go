@@ -13,22 +13,25 @@ import (
 	"github.com/google/nftables"
 )
 
-// setCreate is the new-set dialog. Slot layout:
+// setCreate is the new-set / new-map dialog. Slot layout:
 //
 //	0: name        (textinput)
 //	1: key type    (Select — ipv4_addr / ipv6_addr / ether_addr / ...)
-//	2: constant    (Select on/off)
-//	3: interval    (Select on/off)
-//	4: timeout     (Select on/off)
+//	2: is map      (Select on/off)
+//	3: data type   (Select — only when "is map" == "on")
+//	4: constant    (Select on/off)
+//	5: interval    (Select on/off)
+//	6: timeout     (Select on/off)
 //
-// Keeping flag selectors as on/off Selects matches the rest of the form
-// idiom in this codebase (chain_create.go). Map / dynamic / counter
-// flavors aren't exposed yet — they need extra fields to be useful.
+// The data-type slot is conditional: it folds out only when the user
+// flips "is map" to on, mirroring the chain_create base/regular pattern.
 type setCreate struct {
 	table *nftables.Table
 
 	nameInput      textinput.Model
 	keyTypeSelect  Select
+	isMapSelect    Select
+	dataTypeSelect Select
 	constantSelect Select
 	intervalSelect Select
 	timeoutSelect  Select
@@ -66,6 +69,13 @@ func newSetCreate(table *nftables.Table) setCreate {
 	kt := NewSelect(nft.SupportedSetKeyTypes())
 	kt.Selected = 0
 
+	im := NewSelect(setOnOffOptions)
+	dt := NewSelect(nft.SupportedSetKeyTypes())
+	dt.Selected = indexOf(nft.SupportedSetKeyTypes(), "mark")
+	if dt.Selected < 0 {
+		dt.Selected = 0
+	}
+
 	cs := NewSelect(setOnOffOptions)
 	is := NewSelect(setOnOffOptions)
 	ts := NewSelect(setOnOffOptions)
@@ -97,6 +107,8 @@ func newSetCreate(table *nftables.Table) setCreate {
 		table:          table,
 		nameInput:      ti,
 		keyTypeSelect:  kt,
+		isMapSelect:    im,
+		dataTypeSelect: dt,
 		constantSelect: cs,
 		intervalSelect: is,
 		timeoutSelect:  ts,
@@ -108,9 +120,49 @@ func newSetCreate(table *nftables.Table) setCreate {
 	return sc
 }
 
+func (sc setCreate) isMap() bool {
+	return sc.isMapSelect.Value() == "on"
+}
+
+// slotCount collapses the data-type slot when the user toggled isMap off.
+// Slot indices are stable: 3 is data-type, 4..6 are constant/interval/timeout.
+// When isMap is off we treat slot 3 as "missing" and shift the user past it
+// in next/prev navigation.
+func (sc setCreate) slotCount() int {
+	if sc.isMap() {
+		return 7
+	}
+	// Without map: slot 3 hidden, so logical slot count is 6 (0,1,2,4,5,6).
+	return 6
+}
+
+// nextSlot returns the next focus index, skipping slot 3 when isMap is off.
+func (sc setCreate) nextSlot(cur int) int {
+	n := cur + 1
+	if n > 6 {
+		n = 0
+	}
+	if !sc.isMap() && n == 3 {
+		n = 4
+	}
+	return n
+}
+func (sc setCreate) prevSlot(cur int) int {
+	n := cur - 1
+	if n < 0 {
+		n = 6
+	}
+	if !sc.isMap() && n == 3 {
+		n = 2
+	}
+	return n
+}
+
 func (sc *setCreate) applyFocus() {
 	sc.nameInput.Blur()
 	sc.keyTypeSelect.Blur()
+	sc.isMapSelect.Blur()
+	sc.dataTypeSelect.Blur()
 	sc.constantSelect.Blur()
 	sc.intervalSelect.Blur()
 	sc.timeoutSelect.Blur()
@@ -120,10 +172,14 @@ func (sc *setCreate) applyFocus() {
 	case 1:
 		sc.keyTypeSelect.Focus()
 	case 2:
-		sc.constantSelect.Focus()
+		sc.isMapSelect.Focus()
 	case 3:
-		sc.intervalSelect.Focus()
+		sc.dataTypeSelect.Focus()
 	case 4:
+		sc.constantSelect.Focus()
+	case 5:
+		sc.intervalSelect.Focus()
+	case 6:
 		sc.timeoutSelect.Focus()
 	}
 }
@@ -137,13 +193,14 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 		sc.statusMsg = msg.err.Error()
 		return sc, nil
 	case tea.KeyMsg:
+		_ = sc.slotCount // referenced in comments; suppress unused warnings if any
 		switch {
 		case key.Matches(msg, sc.keys.NextField):
-			sc.focusSlot = (sc.focusSlot + 1) % 5
+			sc.focusSlot = sc.nextSlot(sc.focusSlot)
 			sc.applyFocus()
 			return sc, nil
 		case key.Matches(msg, sc.keys.PrevField):
-			sc.focusSlot = (sc.focusSlot - 1 + 5) % 5
+			sc.focusSlot = sc.prevSlot(sc.focusSlot)
 			sc.applyFocus()
 			return sc, nil
 		case key.Matches(msg, sc.keys.Save):
@@ -157,18 +214,30 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 				sc.statusMsg = "Unknown key type."
 				return sc, nil
 			}
-			var flags []string
+			spec := nft.CreateSetSpec{
+				Name:    name,
+				KeyType: kt,
+			}
+			if sc.isMap() {
+				dt, ok := nft.KeyTypeFromString(sc.dataTypeSelect.Value())
+				if !ok {
+					sc.statusMsg = "Unknown data type."
+					return sc, nil
+				}
+				spec.IsMap = true
+				spec.DataType = dt
+			}
 			if sc.constantSelect.Value() == "on" {
-				flags = append(flags, "constant")
+				spec.Flags = append(spec.Flags, "constant")
 			}
 			if sc.intervalSelect.Value() == "on" {
-				flags = append(flags, "interval")
+				spec.Flags = append(spec.Flags, "interval")
 			}
 			if sc.timeoutSelect.Value() == "on" {
-				flags = append(flags, "timeout")
+				spec.Flags = append(spec.Flags, "timeout")
 			}
 			sc.statusMsg = ""
-			return sc, createSetCmd(sc.table, name, kt, flags)
+			return sc, createSetCmd(sc.table, spec)
 		}
 	}
 
@@ -179,10 +248,14 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 	case 1:
 		sc.keyTypeSelect, cmd = sc.keyTypeSelect.Update(msg)
 	case 2:
-		sc.constantSelect, cmd = sc.constantSelect.Update(msg)
+		sc.isMapSelect, cmd = sc.isMapSelect.Update(msg)
 	case 3:
-		sc.intervalSelect, cmd = sc.intervalSelect.Update(msg)
+		sc.dataTypeSelect, cmd = sc.dataTypeSelect.Update(msg)
 	case 4:
+		sc.constantSelect, cmd = sc.constantSelect.Update(msg)
+	case 5:
+		sc.intervalSelect, cmd = sc.intervalSelect.Update(msg)
+	case 6:
 		sc.timeoutSelect, cmd = sc.timeoutSelect.Update(msg)
 	}
 	return sc, cmd
@@ -193,7 +266,7 @@ func (sc setCreate) View() string {
 	divider := grayStyle.Width(sc.width).Render(strings.Repeat("─", sc.width))
 
 	var body strings.Builder
-	body.WriteString(defaultBoldStyle.Render("Create new set"))
+	body.WriteString(defaultBoldStyle.Render("Create new set / map"))
 	body.WriteString("\n\n")
 
 	body.WriteString(grayStyle.Render("Table     : "))
@@ -210,6 +283,16 @@ func (sc setCreate) View() string {
 	body.WriteString(grayStyle.Render("Key type  : "))
 	body.WriteString(sc.keyTypeSelect.View())
 	body.WriteString("\n\n")
+
+	body.WriteString(grayStyle.Render("Is map    : "))
+	body.WriteString(sc.isMapSelect.View())
+	body.WriteString("\n\n")
+
+	if sc.isMap() {
+		body.WriteString(grayStyle.Render("Data type : "))
+		body.WriteString(sc.dataTypeSelect.View())
+		body.WriteString("\n\n")
+	}
 
 	body.WriteString(grayStyle.Render("Constant  : "))
 	body.WriteString(sc.constantSelect.View())

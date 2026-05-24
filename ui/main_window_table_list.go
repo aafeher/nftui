@@ -399,23 +399,29 @@ func (tm tableTreeModel) View() string {
 			b.WriteString(line)
 			b.WriteString("\n")
 		} else if item.isSet {
-			// Set node: `  ~ <setname> (<keytype>)`
-			var keyTypeStr string
+			// Set node:
+			//   plain set: `  ~ <name> (<keytype>)`
+			//   map:       `  ≈ <name> (<keytype> → <datatype>)`
+			isMapItem := item.set != nil && item.set.IsMap
+			var typeStr string
 			if item.set != nil {
-				keyTypeStr = nft.KeyTypeToString(item.set.KeyType)
+				typeStr = nft.KeyTypeToString(item.set.KeyType)
+				if isMapItem {
+					typeStr = nft.KeyTypeToString(item.set.KeyType) + " → " + nft.KeyTypeToString(item.set.DataType)
+				}
 			}
 
 			var setNameStyled, typeStyled, parenOpen, parenClose, space1, space2 string
 			if isActive {
 				setNameStyled = blueBackgroundStyle.Inherit(yellowStyle).Render(item.setName)
-				typeStyled = blueBackgroundStyle.Inherit(whiteStyle).Render(keyTypeStr)
+				typeStyled = blueBackgroundStyle.Inherit(whiteStyle).Render(typeStr)
 				parenOpen = blueBackgroundStyle.Render("(")
 				parenClose = blueBackgroundStyle.Render(")")
 				space1 = blueBackgroundStyle.Render(" ")
 				space2 = blueBackgroundStyle.Render(" ")
 			} else {
 				setNameStyled = yellowStyle.Render(item.setName)
-				typeStyled = whiteStyle.Render(keyTypeStr)
+				typeStyled = whiteStyle.Render(typeStr)
 				parenOpen = "("
 				parenClose = ")"
 				space1 = " "
@@ -424,14 +430,18 @@ func (tm tableTreeModel) View() string {
 
 			label := fmt.Sprintf("%s%s%s%s%s%s", setNameStyled, space1, parenOpen, typeStyled, parenClose, space2)
 
+			icon := "~"
+			if isMapItem {
+				icon = "≈"
+			}
 			var cursorStyled, tildeStyled, spaces string
 			if isActive {
 				cursorStyled = blueBackgroundStyle.Render(cursor)
-				tildeStyled = blueBackgroundStyle.Render("~")
+				tildeStyled = blueBackgroundStyle.Render(icon)
 				spaces = blueBackgroundStyle.Render("   ")
 			} else {
 				cursorStyled = cursor
-				tildeStyled = "~"
+				tildeStyled = icon
 				spaces = "   "
 			}
 

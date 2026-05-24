@@ -161,20 +161,36 @@ func SupportedSetKeyTypes() []string {
 	}
 }
 
-// CreateSet adds a new named set to the kernel. `flags` is a small set of
-// human-readable flag names: "constant", "interval", "timeout". Anonymous /
-// dynamic / map flags are not exposed in the UI form yet.
-func CreateSet(table *nftables.Table, name string, keyType nftables.SetDatatype, flags []string) error {
+// CreateSetSpec carries the form values for CreateSet. Splitting it from
+// CreateSet's signature keeps callers tidy as the option set grows
+// (map flag and data type were added for v0.4 map support).
+type CreateSetSpec struct {
+	Name     string
+	KeyType  nftables.SetDatatype
+	IsMap    bool
+	DataType nftables.SetDatatype
+	Flags    []string // "constant", "interval", "timeout"
+}
+
+// CreateSet adds a new named set (or map) to the kernel.
+//
+// For maps (spec.IsMap=true) the DataType is mandatory; it sets the value
+// datatype. Anonymous / dynamic flags are not exposed in the UI form yet.
+func CreateSet(table *nftables.Table, spec CreateSetSpec) error {
 	conn, err := nftables.New()
 	if err != nil {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
 	}
 	s := &nftables.Set{
 		Table:   table,
-		Name:    name,
-		KeyType: keyType,
+		Name:    spec.Name,
+		KeyType: spec.KeyType,
 	}
-	for _, f := range flags {
+	if spec.IsMap {
+		s.IsMap = true
+		s.DataType = spec.DataType
+	}
+	for _, f := range spec.Flags {
 		switch f {
 		case "constant":
 			s.Constant = true
@@ -205,6 +221,16 @@ func DeleteSet(set *nftables.Set) error {
 		return fmt.Errorf("failed to delete set: %v", err)
 	}
 	return nil
+}
+
+// ParseSetElementVal parses a value string into raw bytes using the set's
+// DataType. Same datatype coverage as ParseSetElementKey.
+func ParseSetElementVal(set *nftables.Set, input string) ([]byte, error) {
+	// We piggyback on ParseSetElementKey by wrapping a temporary *nftables.Set
+	// whose KeyType is the original's DataType.
+	tmp := *set
+	tmp.KeyType = set.DataType
+	return ParseSetElementKey(&tmp, input)
 }
 
 // AddSetElement adds a single element to the named set. For map-type sets the

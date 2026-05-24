@@ -198,9 +198,9 @@ func deleteChainCmd(chain *nftables.Chain) tea.Cmd {
 	}
 }
 
-func addSetElementCmd(set *nftables.Set, key []byte) tea.Cmd {
+func addSetElementCmd(set *nftables.Set, key, val []byte) tea.Cmd {
 	return func() tea.Msg {
-		if err := nft.AddSetElement(set, key, nil); err != nil {
+		if err := nft.AddSetElement(set, key, val); err != nil {
 			return setOpErrMsg{err: err}
 		}
 		return setElementAddedMsg{}
@@ -216,9 +216,9 @@ func deleteSetElementCmd(set *nftables.Set, key []byte) tea.Cmd {
 	}
 }
 
-func createSetCmd(table *nftables.Table, name string, keyType nftables.SetDatatype, flags []string) tea.Cmd {
+func createSetCmd(table *nftables.Table, spec nft.CreateSetSpec) tea.Cmd {
 	return func() tea.Msg {
-		if err := nft.CreateSet(table, name, keyType, flags); err != nil {
+		if err := nft.CreateSet(table, spec); err != nil {
 			return setOpErrMsg{err: err}
 		}
 		return setCreatedMsg{}
