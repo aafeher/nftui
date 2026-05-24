@@ -76,6 +76,30 @@ type MainWindow struct {
 	showQuitConfirm       bool
 }
 
+// applyContextualKeys toggles the Enabled state on cursor-sensitive
+// MainWindow keybindings:
+//
+//	NewSet (`s`)   — needs at least one table in the tree
+//	Reset  (`R`)   — needs cursor on a counter / quota object row
+//
+// Called from View just before help.View(m.keys); the help component
+// reads the current Enabled flag at render time.
+func (m *MainWindow) applyContextualKeys() {
+	m.keys.NewSet.SetEnabled(len(m.tableTree.nodes) > 0)
+
+	resettable := false
+	items := m.tableTree.getFlattenedItems()
+	if m.tableTree.cursor < len(items) {
+		sel := items[m.tableTree.cursor]
+		if sel.isObj && sel.obj != nil &&
+			(sel.obj.Type == nftables.ObjTypeCounter ||
+				sel.obj.Type == nftables.ObjTypeQuota) {
+			resettable = true
+		}
+	}
+	m.keys.Reset.SetEnabled(resettable)
+}
+
 type chainSelectedMsg struct {
 	chain *nftables.Chain
 	table *tableNode
@@ -870,6 +894,10 @@ func (m MainWindow) View() string {
 		Padding(0, 1).
 		Render(tablesBoxContent)
 
+	// Context-aware footer: hide bindings whose action doesn't apply to
+	// the cursor's current row. `help.View` honors SetEnabled, so a
+	// disabled binding drops out of both ShortHelp and FullHelp output.
+	m.applyContextualKeys()
 	footer := m.help.View(m.keys)
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
