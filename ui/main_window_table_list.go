@@ -440,7 +440,10 @@ func (tm tableTreeModel) View() string {
 		} else if item.isSet {
 			// Set node:
 			//   plain set: `  ~ <name> (<keytype>)`
-			//   map:       `  ≈ <name> (<keytype> → <datatype>)`
+			//   map:       `  = <name> (<keytype> → <datatype>)`
+			//
+			// ASCII-only icons so the tree renders identically on minimal
+			// terminals (no UTF-8 dependency).
 			isMapItem := item.set != nil && item.set.IsMap
 			var typeStr string
 			if item.set != nil {
@@ -471,7 +474,7 @@ func (tm tableTreeModel) View() string {
 
 			icon := "~"
 			if isMapItem {
-				icon = "≈"
+				icon = "="
 			}
 			var cursorStyled, tildeStyled, spaces string
 			if isActive {
