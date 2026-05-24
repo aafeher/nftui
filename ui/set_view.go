@@ -40,6 +40,7 @@ type setView struct {
 	addValInput   textinput.Model
 	addFocusVal   bool // only true for map sets after Tab/Enter from key
 	addErr        string
+	addLastHint   string // "added <key>[ → <val>]" from the previous Enter
 	showDelete    bool
 }
 
@@ -117,6 +118,7 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 			case "esc":
 				sv.showAddPrompt = false
 				sv.addErr = ""
+				sv.addLastHint = ""
 				return sv, nil
 			case "tab", "shift+tab":
 				// Tab toggles between key and value inputs (maps only).
@@ -144,8 +146,9 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 				}
 				var valBytes []byte
 				var verdict *expr.Verdict
+				valStr := ""
 				if sv.set.IsMap {
-					valStr := strings.TrimSpace(sv.addValInput.Value())
+					valStr = strings.TrimSpace(sv.addValInput.Value())
 					if valStr == "" {
 						sv.addErr = "value required"
 						return sv, nil
@@ -160,8 +163,23 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 						return sv, nil
 					}
 				}
-				sv.showAddPrompt = false
+				// Keep the prompt open for the next entry. Clearing the
+				// inputs and surfacing a brief "added X" hint gives the
+				// bulk-insert pattern (run nft list separately to verify
+				// each one if needed); Esc exits the loop.
 				sv.addErr = ""
+				if sv.set.IsMap {
+					sv.addLastHint = fmt.Sprintf("added %s → %s", keyStr, valStr)
+				} else {
+					sv.addLastHint = "added " + keyStr
+				}
+				sv.addInput.SetValue("")
+				sv.addValInput.SetValue("")
+				if sv.set.IsMap {
+					sv.addFocusVal = false
+					sv.addValInput.Blur()
+					sv.addInput.Focus()
+				}
 				return sv, addSetElementCmd(sv.set, keyBytes, keyEnd, valBytes, verdict)
 			}
 			var cmd tea.Cmd
@@ -204,6 +222,7 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 		case key.Matches(msg, sv.keys.Add):
 			sv.showAddPrompt = true
 			sv.addErr = ""
+			sv.addLastHint = ""
 			sv.addFocusVal = false
 			ti := textinput.New()
 			ti.Placeholder = setKeyTypeHint(sv.set)
@@ -470,13 +489,16 @@ func (sv setView) View() string {
 				sv.set.Name, nft.KeyTypeToString(sv.set.KeyType))
 			body = title + "\n\n" + sv.addInput.View()
 		}
+		if sv.addLastHint != "" && sv.addErr == "" {
+			body += "\n\n" + greenStyle.Render(sv.addLastHint)
+		}
 		if sv.addErr != "" {
 			body += "\n\n" + redBoldStyle.Render(sv.addErr)
 		}
 		if sv.set.IsMap {
-			body += "\n\n" + grayStyle.Render("Tab: switch field  •  Enter: confirm  •  Esc: cancel")
+			body += "\n\n" + grayStyle.Render("Tab: switch field  •  Enter: add (loop)  •  Esc: done")
 		} else {
-			body += "\n\n" + grayStyle.Render("Enter: confirm  •  Esc: cancel")
+			body += "\n\n" + grayStyle.Render("Enter: add (loop)  •  Esc: done")
 		}
 		prompt := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
