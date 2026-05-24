@@ -2523,6 +2523,50 @@ func TestNftablesToRuleDefinition_IPSaddrByteAlignedNeq(t *testing.T) {
 	}
 }
 
+// --- Dynset → SetAction ---
+
+func TestNftablesToRuleDefinition_DynsetAddIpSaddr(t *testing.T) {
+	// Wire pattern: load ip saddr into reg 1, then `add @blocklist { ... timeout 1h }`.
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{DestRegister: 1, Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4},
+		&expr.Dynset{
+			SrcRegKey: 1,
+			SetName:   "blocklist",
+			Operation: 0,                    // ADD
+			Timeout:   3600 * 1_000_000_000, // 1h in nanoseconds
+		},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var setAction *Action
+	for i := range rd.Actions {
+		if rd.Actions[i].Type == ActionTypeSet {
+			setAction = &rd.Actions[i]
+			break
+		}
+	}
+	if setAction == nil || setAction.Set == nil {
+		t.Fatalf("expected a SetAction, got actions=%+v", rd.Actions)
+	}
+	if setAction.Set.SetName != "blocklist" {
+		t.Errorf("SetName = %q, want blocklist", setAction.Set.SetName)
+	}
+	if setAction.Set.Operation != "add" {
+		t.Errorf("Operation = %q, want add", setAction.Set.Operation)
+	}
+	// identifyPayloadField returns the bare field name ("saddr") when the
+	// rule has no Table context; the live-kernel path adds the "ip "
+	// prefix via tableFamilyHint. Matching lookupToCondition's behavior.
+	if setAction.Set.KeyField != "saddr" {
+		t.Errorf("KeyField = %q, want saddr", setAction.Set.KeyField)
+	}
+	if setAction.Set.Timeout.Seconds() != 3600 {
+		t.Errorf("Timeout = %v, want 1h0m0s", setAction.Set.Timeout)
+	}
+}
+
 // --- Objref → ObjrefAction ---
 
 func TestNftablesToRuleDefinition_ObjrefCounter(t *testing.T) {

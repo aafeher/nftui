@@ -574,7 +574,7 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 				}
 			case nft.ActionTypeSet:
 				if action.Set != nil {
-					sb.WriteString(fmt.Sprintf("  set: %+v\n", action.Set))
+					sb.WriteString("  " + formatSetAction(action.Set) + "\n")
 				}
 			case nft.ActionTypeRedirect:
 				if action.Redirect != nil {

@@ -155,7 +155,7 @@ func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 				}
 			case nft.ActionTypeSet:
 				if action.Set != nil {
-					sb.WriteString(fmt.Sprintf("  set: %+v\n", action.Set))
+					sb.WriteString("  " + formatSetAction(action.Set) + "\n")
 				}
 			case nft.ActionTypeRedirect:
 				if action.Redirect != nil {
@@ -765,6 +765,42 @@ func (r ruleView) View() string {
 	)
 
 	return defaultStyle.Render(fullView)
+}
+
+// formatSetAction renders a Dynset update (`add @set { ... }`) as the
+// nft CLI form:
+//
+//	add @blocklist { ip saddr timeout 1h }
+//	update @sessions { ip daddr }
+//	delete @blocklist { ip saddr }
+//	add @blocklist { ip saddr != timeout 30s }   (Invert)
+//
+// Empty SetName is rendered as `@?` so a missing field is visible
+// instead of silently swallowed.
+func formatSetAction(s *nft.SetAction) string {
+	op := s.Operation
+	if op == "" {
+		op = "add"
+	}
+	setName := s.SetName
+	if setName == "" {
+		setName = "?"
+	}
+	var inner []string
+	if s.KeyField != "" {
+		inner = append(inner, whiteStyle.Render(s.KeyField))
+	}
+	if s.Invert {
+		inner = append(inner, "!=")
+	}
+	if s.Timeout > 0 {
+		inner = append(inner, "timeout "+grayStyle.Render(s.Timeout.String()))
+	}
+	body := ""
+	if len(inner) > 0 {
+		body = " { " + strings.Join(inner, " ") + " }"
+	}
+	return op + " @" + yellowStyle.Render(setName) + body
 }
 
 // formatObjref renders a named-object reference as the form nft uses on

@@ -6,6 +6,7 @@ import (
 	"net"
 	nftexpr "nftui/nft/expr"
 	"strings"
+	"time"
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
@@ -528,12 +529,19 @@ const (
 	RejectTypeICMPX    RejectType = "icmpx"
 )
 
-// SetAction represents an action to modify or update a set with specific elements, target set names, and update flags.
+// SetAction represents an `add @setname { ... }` / `update @setname { ... }`
+// dynamic set update statement (Dynset expression). The kernel encodes
+// the operation as a uint32 (NFT_DYNSET_OP_*); we keep the string form
+// in Operation so renderers don't import the unix package.
 type SetAction struct {
-	SetName  string
-	MapName  string
-	Elements []SetElement
-	Update   bool // add vagy update
+	SetName   string
+	MapName   string
+	Elements  []SetElement
+	Update    bool   // add vagy update
+	Operation string // "add" / "update" / "delete" (NFT_DYNSET_OP_*)
+	KeyField  string // resolved from SrcRegKey via regMap (e.g. "ip saddr")
+	Timeout   time.Duration
+	Invert    bool
 }
 
 // SetElement represents a single element in a set with a key and an optional associated value.
@@ -1644,15 +1652,81 @@ func queueToAction(q *expr.Queue) Action {
 	}
 }
 
-// dynsetToAction converts a Dynset expression into a corresponding Action with a SetAction type.
+// dynsetToAction converts a Dynset expression into a SetAction.
+//
+// The kernel side uses register-based plumbing: SrcRegKey points at the
+// register that holds the element key (typically a Payload or Meta load
+// emitted earlier in the rule). We resolve that register via the same
+// regMap the lookup/cmp paths use, so the rendered form ends up like
+//
+//	add @blocklist { ip saddr timeout 1h }
+//
+// instead of just `set: blocklist`. SrcRegData (map value) is not yet
+// surfaced; first pass focuses on the plain-set case.
 func dynsetToAction(d *expr.Dynset, regMap map[uint32]*registerValue) Action {
-	// TODO: full implementation
+	keyField := ""
+	if regVal, ok := regMap[d.SrcRegKey]; ok && regVal != nil {
+		switch regVal.valueType {
+		case regTypeMeta:
+			keyField = metaKeyToString(regVal.metaKey)
+		case regTypePayload:
+			_, keyField = identifyPayloadField(
+				regVal.payloadBase, regVal.payloadOff, regVal.payloadLen,
+				regVal.payloadFamily, regVal.l4Proto, regVal.etherType)
+		case regTypeCT:
+			keyField = nftexpr.CtKeyToString(regVal.ctKey)
+		}
+	}
+
+	op := dynsetOpToString(d.Operation)
 	return Action{
 		Type: ActionTypeSet,
 		Set: &SetAction{
-			SetName: d.SetName,
+			SetName:   d.SetName,
+			Operation: op,
+			Update:    op == "update",
+			KeyField:  keyField,
+			Timeout:   d.Timeout,
+			Invert:    d.Invert,
 		},
 	}
+}
+
+// formatDynsetSimple renders a *expr.Dynset for the RuleToHumanReadable
+// one-liner. keyField is the already-resolved field name (e.g. "ip saddr")
+// pulled from the local string-typed regMap — that path doesn't track
+// the richer registerValue context the parser does.
+func formatDynsetSimple(d *expr.Dynset, keyField string) string {
+	var inner []string
+	if keyField != "" {
+		inner = append(inner, keyField)
+	}
+	if d.Invert {
+		inner = append(inner, "!=")
+	}
+	if d.Timeout > 0 {
+		inner = append(inner, "timeout "+d.Timeout.String())
+	}
+	body := ""
+	if len(inner) > 0 {
+		body = " { " + strings.Join(inner, " ") + " }"
+	}
+	return dynsetOpToString(d.Operation) + " @" + d.SetName + body
+}
+
+// dynsetOpToString maps the kernel's uint32 op code (NFT_DYNSET_OP_*) to
+// the nft CLI keyword. unix only exports ADD/UPDATE in older releases —
+// 2 (DELETE) is a stable kernel value, hard-coded.
+func dynsetOpToString(op uint32) string {
+	switch op {
+	case uint32(unix.NFT_DYNSET_OP_ADD):
+		return "add"
+	case uint32(unix.NFT_DYNSET_OP_UPDATE):
+		return "update"
+	case 2:
+		return "delete"
+	}
+	return "add"
 }
 
 // tableFamilyHint derives the payloadFamilyHint from the rule's parent
@@ -2305,7 +2379,7 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 			i++
 
 		case *expr.Dynset:
-			// TODO
+			parts = append(parts, formatDynsetSimple(v, regMap[v.SrcRegKey]))
 			i++
 
 		case *expr.Log:
