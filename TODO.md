@@ -97,8 +97,8 @@
 - [x] `sequence`: Sequence number
 
 #### Esp
-- [ ] `spi`: Security Parameters Index
-- [ ] `sequence`: Sequence number
+- [x] `spi`: Security Parameters Index
+- [x] `sequence`: Sequence number
 
 #### Comp
 - [ ] `nexthdr`: Next header protocol

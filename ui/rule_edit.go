@@ -240,6 +240,9 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewAhReservedField(rd),  // 33
 				NewAhSpiField(rd),       // 34
 				NewAhSequenceField(rd),  // 35
+				// ESP
+				NewEspSpiField(rd),      // 36
+				NewEspSequenceField(rd), // 37
 			},
 		},
 		{
@@ -757,6 +760,11 @@ func (r ruleEdit) renderTransportTab() string {
 	sb.WriteString(r.row2(f[32].View(), f[33].View()))
 	sb.WriteString("\n")
 	sb.WriteString(r.row2(f[34].View(), f[35].View()))
+	sb.WriteString("\n")
+
+	sb.WriteString(grayBoldStyle.Render("ESP"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[36].View(), f[37].View()))
 	sb.WriteString("\n")
 
 	return sb.String()

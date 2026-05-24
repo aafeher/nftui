@@ -165,6 +165,7 @@ const (
 	PayloadProtoSCTP   PayloadProtocol = "sctp"
 	PayloadProtoDCCP   PayloadProtocol = "dccp"
 	PayloadProtoAH     PayloadProtocol = "ah"
+	PayloadProtoESP    PayloadProtocol = "esp"
 	PayloadProtoARP    PayloadProtocol = "arp"
 )
 
@@ -1590,6 +1591,14 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family p
 				return PayloadProtoAH, "spi"
 			case offset == 8 && length == 4:
 				return PayloadProtoAH, "sequence"
+			}
+		case unix.IPPROTO_ESP:
+			// ESP header (RFC 4303): spi 0..4, sequence 4..8.
+			switch {
+			case offset == 0 && length == 4:
+				return PayloadProtoESP, "spi"
+			case offset == 4 && length == 4:
+				return PayloadProtoESP, "sequence"
 			}
 		}
 
