@@ -160,6 +160,10 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						tm.showDeleteConfirm = false
 						return tm, deleteChainCmd(selected.chain)
 					}
+					if selected.isSet && selected.set != nil {
+						tm.showDeleteConfirm = false
+						return tm, deleteSetCmd(selected.set)
+					}
 				}
 				tm.showDeleteConfirm = false
 				return tm, nil
@@ -192,8 +196,19 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			items := tm.getFlattenedItems()
 			if tm.cursor < len(items) {
 				selected := items[tm.cursor]
-				if selected.isRoot || selected.chain != nil {
+				if selected.isRoot || selected.chain != nil || (selected.isSet && selected.set != nil) {
 					tm.showDeleteConfirm = true
+				}
+			}
+		case "s":
+			items := tm.getFlattenedItems()
+			if tm.cursor < len(items) {
+				selected := items[tm.cursor]
+				if selected.table != nil {
+					t := &selected.table.Table
+					return tm, func() tea.Msg {
+						return setCreateSelectedMsg{table: t}
+					}
 				}
 			}
 		case "e":
@@ -549,6 +564,8 @@ func (tm tableTreeModel) View() string {
 					warning = fmt.Sprintf("\n\nWARNING: The chain has %d rule(s). Deleting it will also delete all of them.", selected.rulesCount)
 				}
 				confirmText = fmt.Sprintf("Are you sure you want to delete the '%s' chain?%s\n\n[Y]es / [N]o", selected.chainName, warning)
+			case selected.isSet && selected.set != nil:
+				confirmText = fmt.Sprintf("Are you sure you want to delete the '%s' set?\n\nWARNING: Deleting a set referenced by rules will fail at kernel level.\n\n[Y]es / [N]o", selected.setName)
 			default:
 				return base
 			}

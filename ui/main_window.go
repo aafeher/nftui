@@ -22,6 +22,7 @@ type keyMap struct {
 	Delete    key.Binding
 	NewTable  key.Binding
 	NewChain  key.Binding
+	NewSet    key.Binding
 	OpenChain key.Binding
 	Filter    key.Binding
 	Refresh   key.Binding
@@ -29,13 +30,13 @@ type keyMap struct {
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Expand, k.Edit, k.Delete, k.NewTable, k.NewChain, k.OpenChain, k.Refresh, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Expand, k.Edit, k.Delete, k.NewTable, k.NewChain, k.NewSet, k.OpenChain, k.Refresh, k.Quit}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Expand, k.Edit, k.Delete},
-		{k.NewTable, k.NewChain, k.OpenChain},
+		{k.NewTable, k.NewChain, k.NewSet, k.OpenChain},
 		{k.Filter, k.Refresh, k.Quit},
 	}
 }
@@ -64,7 +65,8 @@ type MainWindow struct {
 	chainEdit             *chainEdit
 	chainCreate           *chainCreate
 	setView               *setView
-	activeView            string // "main", "chain", "ruleView", "ruleEdit", "tableEdit", "tableCreate", "chainEdit", "chainCreate", "set"
+	setCreate             *setCreate
+	activeView            string // "main", "chain", "ruleView", "ruleEdit", "tableEdit", "tableCreate", "chainEdit", "chainCreate", "set", "setCreate"
 	help                  help.Model
 	width                 int
 	height                int
@@ -122,6 +124,10 @@ func InitialMainWindow() MainWindow {
 		NewChain: key.NewBinding(
 			key.WithKeys("c"),
 			key.WithHelp("c", "new chain"),
+		),
+		NewSet: key.NewBinding(
+			key.WithKeys("s"),
+			key.WithHelp("s", "new set"),
 		),
 		OpenChain: key.NewBinding(
 			key.WithKeys("f3"),
@@ -405,6 +411,22 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+		if m.activeView == "setCreate" && m.setCreate != nil {
+			switch {
+			case key.Matches(msg, m.setCreate.keys.Back):
+				m.activeView = "main"
+				m.setCreate = nil
+				return m, nil
+			case key.Matches(msg, m.setCreate.keys.Quit):
+				m.showQuitConfirm = true
+				return m, nil
+			default:
+				updatedSC, cmd := m.setCreate.Update(msg)
+				m.setCreate = &updatedSC
+				return m, cmd
+			}
+		}
+
 		if m.activeView == "ruleEdit" && m.ruleEdit != nil {
 			switch {
 			case key.Matches(msg, m.ruleEdit.keys.Back):
@@ -506,7 +528,36 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case setCreateSelectedMsg:
+		sc := newSetCreate(msg.table)
+		sc.width = m.width
+		sc.height = m.height
+		m.setCreate = &sc
+		m.activeView = "setCreate"
+		return m, nil
+
+	case setCreatedMsg:
+		m.setCreate = nil
+		m.activeView = "main"
+		m.loading = true
+		return m, tea.Batch(
+			loadTableTreeCmd(),
+			loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd(),
+		)
+
+	case setDeletedMsg:
+		m.loading = true
+		return m, tea.Batch(
+			loadTableTreeCmd(),
+			loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd(),
+		)
+
 	case setOpErrMsg:
+		if m.setCreate != nil {
+			updatedSC, cmd := m.setCreate.Update(msg)
+			m.setCreate = &updatedSC
+			return m, cmd
+		}
 		if m.setView != nil {
 			m.setView.statusMsg = msg.err.Error()
 		}
@@ -641,6 +692,22 @@ func (m MainWindow) View() string {
 			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, ccContent+"\n"+overlay)
 		}
 		return ccContent
+	}
+
+	if m.activeView == "setCreate" && m.setCreate != nil {
+		scContent := m.setCreate.View()
+		if m.showQuitConfirm {
+			confirmBox := lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("220")).
+				Padding(1, 2).
+				Width(40).
+				Align(lipgloss.Center).
+				Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
+			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, scContent+"\n"+overlay)
+		}
+		return scContent
 	}
 
 	if m.activeView == "chain" && m.chainView != nil {

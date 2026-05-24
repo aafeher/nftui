@@ -31,6 +31,9 @@ type chainDeletedMsg struct{}
 
 type setElementAddedMsg struct{}
 type setElementDeletedMsg struct{}
+type setCreatedMsg struct{}
+type setDeletedMsg struct{}
+type setCreateSelectedMsg struct{ table *nftables.Table }
 type setOpErrMsg struct{ err error }
 
 type statTablesMsg []*nftables.Table
@@ -210,6 +213,24 @@ func deleteSetElementCmd(set *nftables.Set, key []byte) tea.Cmd {
 			return setOpErrMsg{err: err}
 		}
 		return setElementDeletedMsg{}
+	}
+}
+
+func createSetCmd(table *nftables.Table, name string, keyType nftables.SetDatatype, flags []string) tea.Cmd {
+	return func() tea.Msg {
+		if err := nft.CreateSet(table, name, keyType, flags); err != nil {
+			return setOpErrMsg{err: err}
+		}
+		return setCreatedMsg{}
+	}
+}
+
+func deleteSetCmd(set *nftables.Set) tea.Cmd {
+	return func() tea.Msg {
+		if err := nft.DeleteSet(set); err != nil {
+			return setOpErrMsg{err: err}
+		}
+		return setDeletedMsg{}
 	}
 }
 

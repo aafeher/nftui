@@ -125,6 +125,88 @@ func ParseSetElementKey(set *nftables.Set, input string) ([]byte, error) {
 	return nil, fmt.Errorf("unsupported key type for add/remove: %s", set.KeyType.Name)
 }
 
+// KeyTypeFromString maps a label produced by KeyTypeToString back to its
+// nftables.SetDatatype constant. Returns ok=false on an unrecognized name.
+func KeyTypeFromString(name string) (nftables.SetDatatype, bool) {
+	switch name {
+	case "ipv4_addr":
+		return nftables.TypeIPAddr, true
+	case "ipv6_addr":
+		return nftables.TypeIP6Addr, true
+	case "ether_addr":
+		return nftables.TypeEtherAddr, true
+	case "inet_service":
+		return nftables.TypeInetService, true
+	case "inet_proto":
+		return nftables.TypeInetProto, true
+	case "mark":
+		return nftables.TypeMark, true
+	case "integer":
+		return nftables.TypeInteger, true
+	}
+	return nftables.SetDatatype{}, false
+}
+
+// SupportedSetKeyTypes lists the key-type labels the create-set dialog
+// offers. Restricted to the datatypes ParseSetElementKey can roundtrip.
+func SupportedSetKeyTypes() []string {
+	return []string{
+		"ipv4_addr",
+		"ipv6_addr",
+		"ether_addr",
+		"inet_service",
+		"inet_proto",
+		"mark",
+		"integer",
+	}
+}
+
+// CreateSet adds a new named set to the kernel. `flags` is a small set of
+// human-readable flag names: "constant", "interval", "timeout". Anonymous /
+// dynamic / map flags are not exposed in the UI form yet.
+func CreateSet(table *nftables.Table, name string, keyType nftables.SetDatatype, flags []string) error {
+	conn, err := nftables.New()
+	if err != nil {
+		return fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	s := &nftables.Set{
+		Table:   table,
+		Name:    name,
+		KeyType: keyType,
+	}
+	for _, f := range flags {
+		switch f {
+		case "constant":
+			s.Constant = true
+		case "interval":
+			s.Interval = true
+		case "timeout":
+			s.HasTimeout = true
+		}
+	}
+	if err := conn.AddSet(s, nil); err != nil {
+		return fmt.Errorf("failed to stage set: %v", err)
+	}
+	if err := conn.Flush(); err != nil {
+		return fmt.Errorf("failed to create set: %v", err)
+	}
+	return nil
+}
+
+// DeleteSet removes the named set from the kernel. The kernel refuses to
+// delete a set that is referenced by rules — the error is surfaced verbatim.
+func DeleteSet(set *nftables.Set) error {
+	conn, err := nftables.New()
+	if err != nil {
+		return fmt.Errorf("failed to connect to nftables: %v", err)
+	}
+	conn.DelSet(set)
+	if err := conn.Flush(); err != nil {
+		return fmt.Errorf("failed to delete set: %v", err)
+	}
+	return nil
+}
+
 // AddSetElement adds a single element to the named set. For map-type sets the
 // value argument is required; for plain sets it must be nil.
 func AddSetElement(set *nftables.Set, key, val []byte) error {
