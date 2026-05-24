@@ -237,6 +237,13 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 					}
 				}
+				if selected.isSet && selected.set != nil {
+					s := selected.set
+					t := selected.table
+					return tm, func() tea.Msg {
+						return setSelectedMsg{set: s, table: t}
+					}
+				}
 			}
 		case "enter", "right":
 			items := tm.getFlattenedItems()

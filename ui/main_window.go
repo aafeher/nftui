@@ -63,7 +63,8 @@ type MainWindow struct {
 	tableCreate           *tableCreate
 	chainEdit             *chainEdit
 	chainCreate           *chainCreate
-	activeView            string // "main", "chain", "ruleView", "ruleEdit", "tableEdit", "tableCreate", "chainEdit", "chainCreate"
+	setView               *setView
+	activeView            string // "main", "chain", "ruleView", "ruleEdit", "tableEdit", "tableCreate", "chainEdit", "chainCreate", "set"
 	help                  help.Model
 	width                 int
 	height                int
@@ -74,6 +75,11 @@ type MainWindow struct {
 
 type chainSelectedMsg struct {
 	chain *nftables.Chain
+	table *tableNode
+}
+
+type setSelectedMsg struct {
+	set   *nftables.Set
 	table *tableNode
 }
 
@@ -170,6 +176,19 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cv.height = m.height
 		m.chainView = &cv
 		m.activeView = "chain"
+		return m, nil
+
+	case setSelectedMsg:
+		sv := newSetView(msg.set, msg.table)
+		sv.width = m.width
+		sv.height = m.height
+		m.setView = &sv
+		m.activeView = "set"
+		return m, nil
+
+	case setViewBackMsg:
+		m.activeView = "main"
+		m.setView = nil
 		return m, nil
 
 	case ruleViewSelectedMsg:
@@ -295,6 +314,12 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.chainView = &updatedChainView
 				return m, cmd
 			}
+		}
+
+		if m.activeView == "set" && m.setView != nil {
+			updatedSetView, cmd := m.setView.Update(msg)
+			m.setView = &updatedSetView
+			return m, cmd
 		}
 
 		if m.activeView == "ruleView" && m.ruleView != nil {
@@ -621,6 +646,10 @@ func (m MainWindow) View() string {
 		}
 
 		return chainViewContent
+	}
+
+	if m.activeView == "set" && m.setView != nil {
+		return m.setView.View()
 	}
 
 	if m.activeView == "ruleView" && m.ruleView != nil {
