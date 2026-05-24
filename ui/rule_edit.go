@@ -164,6 +164,28 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 			},
 		},
 		{
+			name: "IP",
+			fields: []FieldEditor{
+				// IPv4 header fields
+				NewIPProtocolField(rd),  // 0
+				NewIPTtlField(rd),       // 1
+				NewIPLengthField(rd),    // 2
+				NewIPDscpField(rd),      // 3
+				NewIPVersionField(rd),   // 4
+				NewIPHdrlengthField(rd), // 5
+				NewIPIdField(rd),        // 6
+				NewIPFragOffField(rd),   // 7
+				NewIPChecksumField(rd),  // 8
+				// IPv6 header fields
+				NewIP6SaddrField(rd),    // 9
+				NewIP6DaddrField(rd),    // 10
+				NewIP6LengthField(rd),   // 11
+				NewIP6NexthdrField(rd),  // 12
+				NewIP6HoplimitField(rd), // 13
+				NewIP6VersionField(rd),  // 14
+			},
+		},
+		{
 			name: "Meta",
 			fields: []FieldEditor{
 				NewMetaIiftypeField(rd),   // 0: slots 0,1
@@ -558,12 +580,42 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 	return sb.String()
 }
 
+// renderIPTab renders the IP (IPv4 + IPv6 header) tab content.
+func (r ruleEdit) renderIPTab() string {
+	// tabs[3].fields:
+	//   IPv4: 0=Protocol, 1=Ttl, 2=Length, 3=Dscp, 4=Version, 5=Hdrlength,
+	//         6=Id, 7=FragOff, 8=Checksum
+	//   IPv6: 9=Saddr, 10=Daddr, 11=Length, 12=Nexthdr, 13=Hoplimit, 14=Version
+	f := r.tabs[3].fields
+	var sb strings.Builder
+
+	sb.WriteString(grayBoldStyle.Render("IPv4 header"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row3(f[0].View(), f[1].View(), f[2].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row3(f[3].View(), f[4].View(), f[5].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row3(f[6].View(), f[7].View(), f[8].View()))
+	sb.WriteString("\n")
+
+	sb.WriteString(grayBoldStyle.Render("IPv6 header"))
+	sb.WriteString("\n")
+	sb.WriteString(f[9].View())
+	sb.WriteString(f[10].View())
+	sb.WriteString(r.row3(f[11].View(), f[12].View(), f[13].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[14].View(), ""))
+	sb.WriteString("\n")
+
+	return sb.String()
+}
+
 // renderMetaTab renders the Meta tab content (16 fields).
 func (r ruleEdit) renderMetaTab() string {
-	// tabs[3].fields: 0=Iiftype, 1=Oiftype, 2=Nfproto, 3=L4proto, 4=Protocol,
+	// tabs[4].fields: 0=Iiftype, 1=Oiftype, 2=Nfproto, 3=L4proto, 4=Protocol,
 	//   5=Length, 6=Mark, 7=Priority, 8=Rtclassid, 9=Skuid, 10=Skgid,
 	//   11=Cgroup, 12=Cpu, 13=Iifgroup, 14=Oifgroup, 15=Pkttype
-	f := r.tabs[3].fields
+	f := r.tabs[4].fields
 	var sb strings.Builder
 
 	// Row 1: iiftype | oiftype | nfproto
@@ -608,8 +660,8 @@ func isMetaKeyHandledByEditor(k nft.MetaKey) bool {
 
 // renderLimitTab renders the Limit tab content.
 func (r ruleEdit) renderLimitTab() string {
-	// tabs[4].fields: 0=Over, 1=Rate, 2=Unit, 3=Burst, 4=Type
-	f := r.tabs[4].fields
+	// tabs[5].fields: 0=Over, 1=Rate, 2=Unit, 3=Burst, 4=Type
+	f := r.tabs[5].fields
 	var sb strings.Builder
 
 	// Row 1: Over | Rate | Unit
@@ -656,8 +708,10 @@ func (r ruleEdit) View() string {
 	case 2:
 		content.WriteString(r.renderNetworkTab(ruleDefinition))
 	case 3:
-		content.WriteString(r.renderMetaTab())
+		content.WriteString(r.renderIPTab())
 	case 4:
+		content.WriteString(r.renderMetaTab())
+	case 5:
 		content.WriteString(r.renderLimitTab())
 	}
 

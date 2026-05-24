@@ -1042,6 +1042,95 @@ func TestNftablesToRuleDefinition_MetaMark(t *testing.T) {
 	}
 }
 
+// --- IP / IP6 payload smoke tests ---
+
+type payloadIntCase struct {
+	name     string
+	offset   uint32
+	length   uint32
+	data     []byte
+	protocol PayloadProtocol
+	field    string
+	want     any
+}
+
+func runPayloadIntCase(t *testing.T, c payloadIntCase) {
+	t.Helper()
+	rule := makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: c.offset, Len: c.length, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	)
+	// Stamp the family hint so identifyPayloadField can disambiguate
+	// IPv4 id vs IPv6 length at offset 4, len 2.
+	if c.protocol == PayloadProtoIP6 {
+		rule.Table = &nftables.Table{Family: nftables.TableFamilyIPv6}
+	} else {
+		rule.Table = &nftables.Table{Family: nftables.TableFamilyIPv4}
+	}
+	rd, err := NftablesToRuleDefinition(rule)
+	if err != nil {
+		t.Fatalf("%s: unexpected error: %v", c.name, err)
+	}
+	if len(rd.Conditions) != 1 {
+		t.Fatalf("%s: expected 1 condition, got %d", c.name, len(rd.Conditions))
+	}
+	got := rd.Conditions[0]
+	if got.Type != ConditionTypePayload {
+		t.Errorf("%s: type = %q, want Payload", c.name, got.Type)
+	}
+	if got.Payload.Protocol != c.protocol {
+		t.Errorf("%s: protocol = %q, want %q", c.name, got.Payload.Protocol, c.protocol)
+	}
+	if got.Payload.Field != c.field {
+		t.Errorf("%s: field = %q, want %q", c.name, got.Payload.Field, c.field)
+	}
+	if got.Payload.Value != c.want {
+		t.Errorf("%s: value = %v (%T), want %v (%T)",
+			c.name, got.Payload.Value, got.Payload.Value, c.want, c.want)
+	}
+}
+
+func TestNftablesToRuleDefinition_IPHeaderSmoke(t *testing.T) {
+	cases := []payloadIntCase{
+		{"ip ttl", 8, 1, []byte{64}, PayloadProtoIP, "ttl", uint8(64)},
+		{"ip protocol", 9, 1, []byte{unix.IPPROTO_TCP}, PayloadProtoIP, "protocol", uint8(unix.IPPROTO_TCP)},
+		{"ip length", 2, 2, []byte{0x05, 0xdc}, PayloadProtoIP, "length", uint16(1500)},
+		{"ip id", 4, 2, []byte{0x12, 0x34}, PayloadProtoIP, "id", uint16(0x1234)},
+		{"ip frag-off", 6, 2, []byte{0x40, 0x00}, PayloadProtoIP, "frag-off", uint16(0x4000)},
+		{"ip checksum", 10, 2, []byte{0xab, 0xcd}, PayloadProtoIP, "checksum", uint16(0xabcd)},
+		{"ip6 nexthdr", 6, 1, []byte{unix.IPPROTO_TCP}, PayloadProtoIP6, "nexthdr", uint8(unix.IPPROTO_TCP)},
+		{"ip6 hoplimit", 7, 1, []byte{64}, PayloadProtoIP6, "hoplimit", uint8(64)},
+		{"ip6 length", 4, 2, []byte{0x05, 0xdc}, PayloadProtoIP6, "length", uint16(1500)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) { runPayloadIntCase(t, c) })
+	}
+}
+
+func TestNftablesToRuleDefinition_IP6Saddr(t *testing.T) {
+	addr := net.ParseIP("fe80::1").To16()
+	rule := makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 8, Len: 16, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: addr},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	)
+	rule.Table = &nftables.Table{Family: nftables.TableFamilyIPv6}
+	rd, err := NftablesToRuleDefinition(rule)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Payload.Protocol != PayloadProtoIP6 || c.Payload.Field != "saddr" {
+		t.Errorf("got %q/%q, want %q/%q",
+			c.Payload.Protocol, c.Payload.Field, PayloadProtoIP6, "saddr")
+	}
+	ipa, ok := c.Payload.Value.(*IPAddress)
+	if !ok || !ipa.IP.Equal(addr) {
+		t.Errorf("value = %v (%T), want IPAddress(fe80::1)", c.Payload.Value, c.Payload.Value)
+	}
+}
+
 // --- Payload conditions ---
 
 func TestNftablesToRuleDefinition_PayloadDport(t *testing.T) {

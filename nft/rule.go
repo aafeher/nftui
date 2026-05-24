@@ -659,10 +659,11 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			i++
 		case *expr.Payload:
 			regMap[v.DestRegister] = &registerValue{
-				valueType:   regTypePayload,
-				payloadBase: v.Base,
-				payloadOff:  v.Offset,
-				payloadLen:  v.Len,
+				valueType:     regTypePayload,
+				payloadBase:   v.Base,
+				payloadOff:    v.Offset,
+				payloadLen:    v.Len,
+				payloadFamily: tableFamilyHint(rule),
 			}
 			i++
 		case *expr.Lookup:
@@ -798,9 +799,10 @@ type registerValue struct {
 	metaKey expr.MetaKey
 
 	// Payload
-	payloadBase expr.PayloadBase
-	payloadOff  uint32
-	payloadLen  uint32
+	payloadBase   expr.PayloadBase
+	payloadOff    uint32
+	payloadLen    uint32
+	payloadFamily payloadFamilyHint
 
 	// Immediate
 	immediateData []byte
@@ -856,7 +858,43 @@ func metaCompareToCondition(regVal *registerValue, cmp *compareContext) (Conditi
 
 // payloadCompareToCondition converts a payload comparison context into a Condition by interpreting protocol and field info.
 func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition, error) {
-	protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen)
+	protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily)
+
+	// Refine bit-packed IPv4 header fields based on the Bitwise mask:
+	//   offset 0 len 1, mask 0xf0 → version (high nibble; raw value = data>>4)
+	//   offset 0 len 1, mask 0x0f → hdrlength (low nibble; raw value = data)
+	//   offset 1 len 1, mask 0xfc → dscp (high 6 bits; raw value = data>>2)
+	if regVal.hasBitwise && protocol == PayloadProtoIP &&
+		regVal.payloadLen == 1 && len(cmp.data) == 1 && len(regVal.bitwiseMask) == 1 {
+		mask := regVal.bitwiseMask[0]
+		v := cmp.data[0]
+		switch {
+		case regVal.payloadOff == 0 && mask == 0xf0:
+			return Condition{
+				Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
+				Payload: &PayloadCondition{Protocol: protocol, Field: "version", Value: uint8(v >> 4)},
+			}, nil
+		case regVal.payloadOff == 0 && mask == 0x0f:
+			return Condition{
+				Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
+				Payload: &PayloadCondition{Protocol: protocol, Field: "hdrlength", Value: uint8(v & 0x0f)},
+			}, nil
+		case regVal.payloadOff == 1 && mask == 0xfc:
+			return Condition{
+				Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
+				Payload: &PayloadCondition{Protocol: protocol, Field: "dscp", Value: uint8(v >> 2)},
+			}, nil
+		}
+	}
+	// IPv6 version (offset 0 len 1, mask 0xf0; raw value = data>>4).
+	if regVal.hasBitwise && protocol == PayloadProtoIP6 &&
+		regVal.payloadLen == 1 && len(cmp.data) == 1 && len(regVal.bitwiseMask) == 1 &&
+		regVal.payloadOff == 0 && regVal.bitwiseMask[0] == 0xf0 {
+		return Condition{
+			Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
+			Payload: &PayloadCondition{Protocol: protocol, Field: "version", Value: uint8(cmp.data[0] >> 4)},
+		}, nil
+	}
 
 	var value interface{}
 	if regVal.hasBitwise && (field == "saddr" || field == "daddr") &&
@@ -945,7 +983,7 @@ func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition
 func rangeToCondition(regVal *registerValue, rng *expr.Range) (Condition, error) {
 	switch regVal.valueType {
 	case regTypePayload:
-		protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen)
+		protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily)
 		fromVal := decodePayloadValue(protocol, field, rng.FromData)
 		toVal := decodePayloadValue(protocol, field, rng.ToData)
 
@@ -989,7 +1027,7 @@ func lookupToCondition(regVal *registerValue, lookup *expr.Lookup) Condition {
 	case regTypeMeta:
 		field = metaKeyToString(regVal.metaKey)
 	case regTypePayload:
-		_, field = identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen)
+		_, field = identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily)
 	case regTypeCT:
 		field = nftexpr.CtKeyToString(regVal.ctKey)
 	}
@@ -1263,17 +1301,107 @@ func dynsetToAction(d *expr.Dynset, regMap map[uint32]*registerValue) Action {
 	}
 }
 
+// tableFamilyHint derives the payloadFamilyHint from the rule's parent
+// table family. Safe for rules with no Table set (test fixtures): returns
+// payloadFamilyAny, which yields the IPv4 layout — consistent with the
+// dominant case.
+func tableFamilyHint(rule *nftables.Rule) payloadFamilyHint {
+	if rule == nil || rule.Table == nil {
+		return payloadFamilyAny
+	}
+	switch rule.Table.Family {
+	case nftables.TableFamilyIPv6:
+		return payloadFamilyIPv6
+	case nftables.TableFamilyIPv4:
+		return payloadFamilyIPv4
+	}
+	return payloadFamilyAny
+}
+
+// payloadFamilyHint conveys the chain-family context to identifyPayloadField
+// so it can resolve the offset/length conflict between IPv4 and IPv6 header
+// fields (e.g. offset 4 len 2 = IPv4 id OR IPv6 payload length).
+type payloadFamilyHint int
+
+const (
+	payloadFamilyAny  payloadFamilyHint = iota // ambiguous — pick IPv4 by default
+	payloadFamilyIPv4                          // hint: this rule lives in an IPv4 (or inet w/ IPv4 ctx) chain
+	payloadFamilyIPv6                          // hint: this rule lives in an IPv6 (or inet w/ IPv6 ctx) chain
+)
+
 // identifyPayloadField determines the protocol and field name based on payload base, offset, and length values.
-func identifyPayloadField(base expr.PayloadBase, offset, length uint32) (PayloadProtocol, string) {
+//
+// IPv4 fixed-header layout (when length matches the byte-aligned size of a
+// header field, we name it directly; otherwise we fall through to the generic
+// "offset_X_len_Y" form so the user still sees the condition):
+//
+//	offset 0 len 1  → byte holding version (high nibble) + hdrlength (low)
+//	offset 1 len 1  → DSCP (bits 7..2) + ECN (bits 1..0)
+//	offset 2 len 2  → total length (uint16 BE)
+//	offset 4 len 2  → id (uint16 BE)
+//	offset 6 len 2  → flags + fragment offset
+//	offset 8 len 1  → TTL
+//	offset 9 len 1  → protocol
+//	offset 10 len 2 → checksum
+//	offset 12 len 4 → saddr (with /24 etc. byte-aligned shorts: len 1..4)
+//	offset 16 len 4 → daddr
+//
+// IPv6 fixed-header layout:
+//
+//	offset 0..3       → version + traffic class + flow label (bit-packed)
+//	offset 4 len 2    → payload length
+//	offset 6 len 1    → next header
+//	offset 7 len 1    → hop limit
+//	offset 8 len 16   → saddr
+//	offset 24 len 16  → daddr
+//
+// The TUI uses the same Base (PayloadBaseNetworkHeader) for IPv4 and IPv6 —
+// the protocol family is determined by the chain/table family, not by the
+// raw expression. Here we disambiguate on offset+length boundaries that are
+// unambiguous between the two layouts.
+func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family payloadFamilyHint) (PayloadProtocol, string) {
 	switch base {
 	case unix.NFT_PAYLOAD_NETWORK_HEADER:
-		if offset == 9 && length == 1 {
+		// Unmistakably-IPv6 offsets (len 16 saddr/daddr, ip6 nexthdr/hoplimit).
+		switch {
+		case offset == 8 && length == 16:
+			return PayloadProtoIP6, "saddr"
+		case offset == 24 && length == 16:
+			return PayloadProtoIP6, "daddr"
+		case offset == 6 && length == 1:
+			return PayloadProtoIP6, "nexthdr"
+		case offset == 7 && length == 1:
+			return PayloadProtoIP6, "hoplimit"
+		}
+		// Ambiguous IPv4/IPv6 cells — only pick IPv6 when the rule's family
+		// hint says so. Otherwise fall through to the IPv4 layout.
+		if family == payloadFamilyIPv6 {
+			switch {
+			case offset == 4 && length == 2:
+				return PayloadProtoIP6, "length"
+			}
+		}
+		// IPv4 layout.
+		switch {
+		case offset == 0 && length == 1:
+			return PayloadProtoIP, "version_ihl"
+		case offset == 1 && length == 1:
+			return PayloadProtoIP, "dscp_ecn"
+		case offset == 2 && length == 2:
+			return PayloadProtoIP, "length"
+		case offset == 4 && length == 2:
+			return PayloadProtoIP, "id"
+		case offset == 6 && length == 2:
+			return PayloadProtoIP, "frag-off"
+		case offset == 8 && length == 1:
+			return PayloadProtoIP, "ttl"
+		case offset == 9 && length == 1:
 			return PayloadProtoIP, "protocol"
-		}
-		if offset == 12 && length >= 1 && length <= 4 {
+		case offset == 10 && length == 2:
+			return PayloadProtoIP, "checksum"
+		case offset == 12 && length >= 1 && length <= 4:
 			return PayloadProtoIP, "saddr"
-		}
-		if offset == 16 && length >= 1 && length <= 4 {
+		case offset == 16 && length >= 1 && length <= 4:
 			return PayloadProtoIP, "daddr"
 		}
 		return PayloadProtoIP, fmt.Sprintf("offset_%d_len_%d", offset, length)
@@ -1309,9 +1437,13 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 		if len(data) == 2 {
 			return &PortSpec{Port: binary.BigEndian.Uint16(data)}
 		}
-	case "protocol", "type":
+	case "protocol", "type", "ttl", "nexthdr", "hoplimit", "version_ihl", "dscp_ecn":
 		if len(data) >= 1 {
 			return data[0]
+		}
+	case "length", "id", "frag-off", "checksum":
+		if len(data) == 2 {
+			return binary.BigEndian.Uint16(data)
 		}
 	}
 	return data

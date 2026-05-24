@@ -372,10 +372,21 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 	var sb strings.Builder
 	labelWidth := 18
 
-	// IP source address
-	saddrFound := false
-	daddrFound := false
+	// IPv4 / IPv6 source + destination addresses — dedicated lines for each.
+	type addrKey struct {
+		proto nft.PayloadProtocol
+		field string
+	}
+	addrLabels := map[addrKey]string{
+		{nft.PayloadProtoIP, "saddr"}:  "IP src:",
+		{nft.PayloadProtoIP, "daddr"}:  "IP dst:",
+		{nft.PayloadProtoIP6, "saddr"}: "IP6 src:",
+		{nft.PayloadProtoIP6, "daddr"}: "IP6 dst:",
+	}
+	addrFound := map[addrKey]bool{}
 
+	// First pass: render addrs; collect generic payload extras for a second pass.
+	var extras []nft.Condition
 	for _, condition := range rd.Conditions {
 		if condition.Payload == nil {
 			continue
@@ -390,40 +401,64 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		} else {
 			op += " "
 		}
-		var valStr string
-		switch v := p.Value.(type) {
-		case *nft.IPAddress:
-			if v.Subnet != nil {
-				valStr = v.Subnet.String()
-			} else {
-				valStr = v.IP.String()
+		// Address fields → dedicated lines.
+		if p.Field == "saddr" || p.Field == "daddr" {
+			var valStr string
+			switch v := p.Value.(type) {
+			case *nft.IPAddress:
+				if v.Subnet != nil {
+					valStr = v.Subnet.String()
+				} else {
+					valStr = v.IP.String()
+				}
+			default:
+				valStr = fmt.Sprintf("%v", p.Value)
 			}
-		default:
-			valStr = fmt.Sprintf("%v", p.Value)
-		}
-
-		switch p.Field {
-		case "saddr":
-			saddrFound = true
-			label := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "IP src:"))
-			sb.WriteString(label + " " + fmt.Sprintf("%s%s %s\n", op, string(p.Protocol), valStr))
-		case "daddr":
-			daddrFound = true
-			label := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "IP dst:"))
-			sb.WriteString(label + " " + fmt.Sprintf("%s%s %s\n", op, string(p.Protocol), valStr))
-		default:
-			label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, string(p.Protocol)+" "+p.Field+":"))
+			k := addrKey{p.Protocol, p.Field}
+			addrFound[k] = true
+			label := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, addrLabels[k]))
 			sb.WriteString(label + " " + op + valStr + "\n")
+			continue
+		}
+		// All other ip/ip6 header fields → collected for the "IP/IP6 header" block below.
+		extras = append(extras, condition)
+	}
+
+	for _, k := range []addrKey{
+		{nft.PayloadProtoIP, "saddr"},
+		{nft.PayloadProtoIP, "daddr"},
+		{nft.PayloadProtoIP6, "saddr"},
+		{nft.PayloadProtoIP6, "daddr"},
+	} {
+		if !addrFound[k] {
+			label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, addrLabels[k]))
+			sb.WriteString(label + " " + grayStyle.Render("(empty)") + "\n")
 		}
 	}
 
-	if !saddrFound {
-		label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "IP src:"))
-		sb.WriteString(label + " " + grayStyle.Render("(empty)") + "\n")
-	}
-	if !daddrFound {
-		label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "IP dst:"))
-		sb.WriteString(label + " " + grayStyle.Render("(empty)") + "\n")
+	if len(extras) > 0 {
+		sb.WriteString("\n")
+		sb.WriteString(grayBoldStyle.Render("IP / IP6 header:"))
+		sb.WriteString("\n")
+		for _, condition := range extras {
+			p := condition.Payload
+			op := string(condition.Operation)
+			if op == "==" {
+				op = ""
+			} else {
+				op += " "
+			}
+			var valStr string
+			switch v := p.Value.(type) {
+			case uint8:
+				valStr = fmt.Sprintf("%d", v)
+			case uint16:
+				valStr = fmt.Sprintf("%d", v)
+			default:
+				valStr = fmt.Sprintf("%v", p.Value)
+			}
+			sb.WriteString("  " + string(p.Protocol) + " " + p.Field + " " + op + valStr + "\n")
+		}
 	}
 
 	// meta iifname / oifname / iif / oif — dedicated lines, always shown.
