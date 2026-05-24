@@ -129,6 +129,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewCounterField(rd),
 				NewMasqueradeField(rd),
 				NewSnatField(rd, rule.Table.Family),
+				NewDnatField(rd, rule.Table.Family),
 			},
 		},
 		{
@@ -450,7 +451,11 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	sb.WriteString(r.tabs[0].fields[7].View())
 	sb.WriteString("\n")
 
-	// Remaining actions (read-only — verdict, reject, log, counter, masquerade, snat are handled by the editors above).
+	// DNAT editor (full width — enable + addr + port + flags).
+	sb.WriteString(r.tabs[0].fields[8].View())
+	sb.WriteString("\n")
+
+	// Remaining actions (read-only — verdict, reject, log, counter, masquerade, snat, dnat are handled by the editors above).
 	hasRemaining := false
 	for _, action := range rd.Actions {
 		switch action.Type {
@@ -458,7 +463,8 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 			nft.ActionTypeCounter, nft.ActionTypeMasq:
 			continue
 		case nft.ActionTypeNAT:
-			if action.NAT != nil && action.NAT.Type == nft.NATTypeSNAT {
+			if action.NAT != nil &&
+				(action.NAT.Type == nft.NATTypeSNAT || action.NAT.Type == nft.NATTypeDNAT) {
 				continue
 			}
 		}
@@ -474,7 +480,8 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 				nft.ActionTypeCounter, nft.ActionTypeMasq:
 				// editable — rendered above
 			case nft.ActionTypeNAT:
-				if action.NAT != nil && action.NAT.Type == nft.NATTypeSNAT {
+				if action.NAT != nil &&
+					(action.NAT.Type == nft.NATTypeSNAT || action.NAT.Type == nft.NATTypeDNAT) {
 					// editable — rendered above
 				} else if action.NAT != nil {
 					sb.WriteString("  " + formatNAT(action.NAT) + "\n")

@@ -244,7 +244,7 @@
 - [x] `type`: Limit type (packets/bytes)
 
 #### Nat
-- [ ] `dnat to`: Destination address translation
+- [x] `dnat to`: Destination address translation
 - [x] `snat to`: Source address translation
 - [x] `masquerade`: Masquerade (dynamic SNAT to outgoing interface address)
 
