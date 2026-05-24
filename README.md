@@ -170,7 +170,6 @@ ui/                            Bubble Tea TUI
   field_*.go                   one file per FieldEditor
 examples/example-nftables-01.conf  manual-test fixture
 ROADMAP.md                     versioned milestone plan
-TODO.md                        feature checklist
 ```
 
 ## Testing
