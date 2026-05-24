@@ -246,7 +246,7 @@
 #### Nat
 - [ ] `dnat to`: Destination address translation
 - [ ] `snat to`: Source address translation
-- [ ] `masquerade`: Masquerade (dynamic SNAT to outgoing interface address)
+- [x] `masquerade`: Masquerade (dynamic SNAT to outgoing interface address)
 
 #### Queue
 - [ ] `num`: Queue number or range to send packets to userspace
