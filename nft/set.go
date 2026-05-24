@@ -198,6 +198,11 @@ func CreateSet(table *nftables.Table, spec CreateSetSpec) error {
 			s.Interval = true
 		case "timeout":
 			s.HasTimeout = true
+		case "dynamic":
+			// `dynamic` is required for sets fed by Dynset rules
+			// (`add @setname { ... }`). The kernel surfaces it through
+			// nftables.Set.Dynamic.
+			s.Dynamic = true
 		}
 	}
 	if err := conn.AddSet(s, nil); err != nil {

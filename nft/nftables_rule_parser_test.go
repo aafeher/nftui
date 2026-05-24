@@ -2556,11 +2556,10 @@ func TestNftablesToRuleDefinition_DynsetAddIpSaddr(t *testing.T) {
 	if setAction.Set.Operation != "add" {
 		t.Errorf("Operation = %q, want add", setAction.Set.Operation)
 	}
-	// identifyPayloadField returns the bare field name ("saddr") when the
-	// rule has no Table context; the live-kernel path adds the "ip "
-	// prefix via tableFamilyHint. Matching lookupToCondition's behavior.
-	if setAction.Set.KeyField != "saddr" {
-		t.Errorf("KeyField = %q, want saddr", setAction.Set.KeyField)
+	// regValueFieldLabel produces the qualified form `<proto> <field>` so
+	// the rendered set update copies cleanly to nft CLI (e.g. `ip saddr`).
+	if setAction.Set.KeyField != "ip saddr" {
+		t.Errorf("KeyField = %q, want %q", setAction.Set.KeyField, "ip saddr")
 	}
 	if setAction.Set.Timeout.Seconds() != 3600 {
 		t.Errorf("Timeout = %v, want 1h0m0s", setAction.Set.Timeout)

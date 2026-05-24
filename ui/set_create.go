@@ -22,6 +22,7 @@ import (
 //	4: constant    (Select on/off)
 //	5: interval    (Select on/off)
 //	6: timeout     (Select on/off)
+//	7: dynamic     (Select on/off — required for Dynset target sets)
 //
 // The data-type slot is conditional: it folds out only when the user
 // flips "is map" to on, mirroring the chain_create base/regular pattern.
@@ -35,6 +36,7 @@ type setCreate struct {
 	constantSelect Select
 	intervalSelect Select
 	timeoutSelect  Select
+	dynamicSelect  Select
 
 	focusSlot int
 	statusMsg string
@@ -79,6 +81,7 @@ func newSetCreate(table *nftables.Table) setCreate {
 	cs := NewSelect(setOnOffOptions)
 	is := NewSelect(setOnOffOptions)
 	ts := NewSelect(setOnOffOptions)
+	ds := NewSelect(setOnOffOptions)
 
 	km := setCreateKeyMap{
 		NextField: key.NewBinding(
@@ -112,6 +115,7 @@ func newSetCreate(table *nftables.Table) setCreate {
 		constantSelect: cs,
 		intervalSelect: is,
 		timeoutSelect:  ts,
+		dynamicSelect:  ds,
 		focusSlot:      0,
 		keys:           km,
 		help:           newHelpModel(),
@@ -124,22 +128,21 @@ func (sc setCreate) isMap() bool {
 	return sc.isMapSelect.Value() == "on"
 }
 
-// slotCount collapses the data-type slot when the user toggled isMap off.
-// Slot indices are stable: 3 is data-type, 4..6 are constant/interval/timeout.
-// When isMap is off we treat slot 3 as "missing" and shift the user past it
-// in next/prev navigation.
+// slotCount: 8 visible fields when isMap is on (slots 0..7), 7 otherwise
+// (slot 3 — data type — folded out). Used only as a tally; navigation
+// hops through specific indices via nextSlot/prevSlot below.
 func (sc setCreate) slotCount() int {
 	if sc.isMap() {
-		return 7
+		return 8
 	}
-	// Without map: slot 3 hidden, so logical slot count is 6 (0,1,2,4,5,6).
-	return 6
+	return 7
 }
 
-// nextSlot returns the next focus index, skipping slot 3 when isMap is off.
+// nextSlot returns the next focus index, wrapping at slot 7 and skipping
+// slot 3 (data type) when isMap is off.
 func (sc setCreate) nextSlot(cur int) int {
 	n := cur + 1
-	if n > 6 {
+	if n > 7 {
 		n = 0
 	}
 	if !sc.isMap() && n == 3 {
@@ -150,7 +153,7 @@ func (sc setCreate) nextSlot(cur int) int {
 func (sc setCreate) prevSlot(cur int) int {
 	n := cur - 1
 	if n < 0 {
-		n = 6
+		n = 7
 	}
 	if !sc.isMap() && n == 3 {
 		n = 2
@@ -166,6 +169,7 @@ func (sc *setCreate) applyFocus() {
 	sc.constantSelect.Blur()
 	sc.intervalSelect.Blur()
 	sc.timeoutSelect.Blur()
+	sc.dynamicSelect.Blur()
 	switch sc.focusSlot {
 	case 0:
 		sc.nameInput.Focus()
@@ -181,6 +185,8 @@ func (sc *setCreate) applyFocus() {
 		sc.intervalSelect.Focus()
 	case 6:
 		sc.timeoutSelect.Focus()
+	case 7:
+		sc.dynamicSelect.Focus()
 	}
 }
 
@@ -236,6 +242,9 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 			if sc.timeoutSelect.Value() == "on" {
 				spec.Flags = append(spec.Flags, "timeout")
 			}
+			if sc.dynamicSelect.Value() == "on" {
+				spec.Flags = append(spec.Flags, "dynamic")
+			}
 			sc.statusMsg = ""
 			return sc, createSetCmd(sc.table, spec)
 		}
@@ -257,6 +266,8 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 		sc.intervalSelect, cmd = sc.intervalSelect.Update(msg)
 	case 6:
 		sc.timeoutSelect, cmd = sc.timeoutSelect.Update(msg)
+	case 7:
+		sc.dynamicSelect, cmd = sc.dynamicSelect.Update(msg)
 	}
 	return sc, cmd
 }
@@ -304,6 +315,10 @@ func (sc setCreate) View() string {
 
 	body.WriteString(grayStyle.Render("Timeout   : "))
 	body.WriteString(sc.timeoutSelect.View())
+	body.WriteString("\n\n")
+
+	body.WriteString(grayStyle.Render("Dynamic   : "))
+	body.WriteString(sc.dynamicSelect.View())
 	body.WriteString("\n")
 
 	if sc.statusMsg != "" {

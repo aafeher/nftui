@@ -1365,18 +1365,42 @@ func rangeToCondition(regVal *registerValue, rng *expr.Range) (Condition, error)
 	}
 }
 
-// lookupToCondition converts a registerValue and a Lookup expression into a Condition for set lookup operations.
-func lookupToCondition(regVal *registerValue, lookup *expr.Lookup) Condition {
-	field := ""
-
+// regValueFieldLabel resolves the human-readable field-name for the value
+// currently held in a register. The form matches what `nft list` produces:
+//
+//	payload (ip saddr / ip6 daddr / tcp dport / arp htype / ...) → "<proto> <field>"
+//	meta (mark / iif / oif / ...)                                → "<key>"   (no proto)
+//	ct  (state / mark / ...)                                     → "<key>"   (no proto)
+//
+// Returns an empty string for unset / unsupported registers.
+func regValueFieldLabel(regVal *registerValue) string {
+	if regVal == nil {
+		return ""
+	}
 	switch regVal.valueType {
 	case regTypeMeta:
-		field = metaKeyToString(regVal.metaKey)
+		return metaKeyToString(regVal.metaKey)
 	case regTypePayload:
-		_, field = identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto, regVal.etherType)
+		proto, field := identifyPayloadField(
+			regVal.payloadBase, regVal.payloadOff, regVal.payloadLen,
+			regVal.payloadFamily, regVal.l4Proto, regVal.etherType)
+		switch {
+		case field == "":
+			return ""
+		case proto == "":
+			return field
+		default:
+			return string(proto) + " " + field
+		}
 	case regTypeCT:
-		field = nftexpr.CtKeyToString(regVal.ctKey)
+		return nftexpr.CtKeyToString(regVal.ctKey)
 	}
+	return ""
+}
+
+// lookupToCondition converts a registerValue and a Lookup expression into a Condition for set lookup operations.
+func lookupToCondition(regVal *registerValue, lookup *expr.Lookup) Condition {
+	field := regValueFieldLabel(regVal)
 
 	return Condition{
 		Type:   ConditionTypeSetLookup,
@@ -1665,17 +1689,8 @@ func queueToAction(q *expr.Queue) Action {
 // surfaced; first pass focuses on the plain-set case.
 func dynsetToAction(d *expr.Dynset, regMap map[uint32]*registerValue) Action {
 	keyField := ""
-	if regVal, ok := regMap[d.SrcRegKey]; ok && regVal != nil {
-		switch regVal.valueType {
-		case regTypeMeta:
-			keyField = metaKeyToString(regVal.metaKey)
-		case regTypePayload:
-			_, keyField = identifyPayloadField(
-				regVal.payloadBase, regVal.payloadOff, regVal.payloadLen,
-				regVal.payloadFamily, regVal.l4Proto, regVal.etherType)
-		case regTypeCT:
-			keyField = nftexpr.CtKeyToString(regVal.ctKey)
-		}
+	if regVal, ok := regMap[d.SrcRegKey]; ok {
+		keyField = regValueFieldLabel(regVal)
 	}
 
 	op := dynsetOpToString(d.Operation)
