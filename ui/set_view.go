@@ -136,7 +136,7 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 					sv.addErr = "key required"
 					return sv, nil
 				}
-				keyBytes, err := nft.ParseSetElementKey(sv.set, keyStr)
+				keyBytes, keyEnd, err := nft.ParseSetElementKey(sv.set, keyStr)
 				if err != nil {
 					sv.addErr = err.Error()
 					return sv, nil
@@ -156,7 +156,7 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 				}
 				sv.showAddPrompt = false
 				sv.addErr = ""
-				return sv, addSetElementCmd(sv.set, keyBytes, valBytes)
+				return sv, addSetElementCmd(sv.set, keyBytes, keyEnd, valBytes)
 			}
 			var cmd tea.Cmd
 			if sv.set.IsMap && sv.addFocusVal {
@@ -248,23 +248,35 @@ func setDataTypeHint(s *nftables.Set) string {
 }
 
 // setKeyTypeHint returns a short placeholder for the add-element prompt
-// based on KeyType (e.g. "10.0.0.1" for ipv4_addr).
+// based on KeyType. Interval-flag sets get a CIDR / range suffix hint.
 func setKeyTypeHint(s *nftables.Set) string {
+	var base string
 	switch s.KeyType.Name {
 	case nftables.TypeIPAddr.Name:
-		return "10.0.0.1"
+		base = "10.0.0.1"
+		if s.Interval {
+			base = "10.0.0.1 | 10.0.0.0/24 | 10.0.0.1-10.0.0.5"
+		}
 	case nftables.TypeIP6Addr.Name:
-		return "fe80::1"
+		base = "fe80::1"
+		if s.Interval {
+			base = "fe80::1 | 2001:db8::/64"
+		}
 	case nftables.TypeEtherAddr.Name:
-		return "aa:bb:cc:dd:ee:ff"
+		base = "aa:bb:cc:dd:ee:ff"
 	case nftables.TypeInetService.Name:
-		return "443"
+		base = "443"
+		if s.Interval {
+			base = "443 | 1024-2048"
+		}
 	case nftables.TypeInetProto.Name:
-		return "6"
+		base = "6"
 	case nftables.TypeMark.Name, nftables.TypeInteger.Name:
-		return "0 / 0x10"
+		base = "0 / 0x10"
+	default:
+		base = s.KeyType.Name
 	}
-	return s.KeyType.Name
+	return base
 }
 
 // setFlagsLabel collects the boolean flag-fields of a *nftables.Set into a
