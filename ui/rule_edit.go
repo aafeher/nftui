@@ -211,8 +211,13 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewUdpChecksumField(rd), // 10
 				// ICMP fields — these inject the `meta l4proto icmp`
 				// prefix automatically on Save.
-				NewIcmpTypeField(rd), // 11
-				NewIcmpCodeField(rd), // 12
+				NewIcmpTypeField(rd),     // 11
+				NewIcmpCodeField(rd),     // 12
+				NewIcmpChecksumField(rd), // 13
+				NewIcmpIdField(rd),       // 14
+				NewIcmpSequenceField(rd), // 15
+				NewIcmpMtuField(rd),      // 16
+				NewIcmpGatewayField(rd),  // 17
 			},
 		},
 		{
@@ -672,7 +677,8 @@ func (r ruleEdit) renderTransportTab() string {
 	//   0=TcpSport, 1=TcpDport, 2=TcpFlags, 3=TcpSequence, 4=TcpAckseq,
 	//   5=TcpWindow, 6=TcpChecksum, 7=TcpUrgptr, 8=TcpDoff,
 	//   9=UdpLength, 10=UdpChecksum,
-	//   11=IcmpType, 12=IcmpCode
+	//   11=IcmpType, 12=IcmpCode, 13=IcmpChecksum, 14=IcmpId,
+	//   15=IcmpSequence, 16=IcmpMtu, 17=IcmpGateway
 	f := r.tabs[4].fields
 	var sb strings.Builder
 
@@ -696,6 +702,10 @@ func (r ruleEdit) renderTransportTab() string {
 	sb.WriteString(grayBoldStyle.Render("ICMP"))
 	sb.WriteString("\n")
 	sb.WriteString(r.row2(f[11].View(), f[12].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row3(f[13].View(), f[14].View(), f[15].View()))
+	sb.WriteString("\n")
+	sb.WriteString(r.row2(f[16].View(), f[17].View()))
 	sb.WriteString("\n")
 
 	return sb.String()

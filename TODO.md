@@ -108,11 +108,11 @@
 #### ICMP
 - [x] `type`: ICMP packet type
 - [x] `code`: ICMP packet code
-- [ ] `checksum`: ICMP packet checksum
-- [ ] `id`: ICMP packet ID
-- [ ] `sequence`: ICMP packet sequence
-- [ ] `mtu`: ICMP packet MTU
-- [ ] `gateway`: ICMP packet gateway
+- [x] `checksum`: ICMP packet checksum
+- [x] `id`: ICMP packet ID
+- [x] `sequence`: ICMP packet sequence
+- [x] `mtu`: ICMP packet MTU
+- [x] `gateway`: ICMP packet gateway
 
 #### ICMPv6
 - [ ] `type`: ICMPv6 packet type
