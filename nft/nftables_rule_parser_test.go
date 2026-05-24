@@ -1123,6 +1123,69 @@ func TestNftablesToRuleDefinition_IcmpChecksumIdSequence(t *testing.T) {
 	}
 }
 
+// --- VLAN smoke tests ---
+
+func TestNftablesToRuleDefinition_VlanId(t *testing.T) {
+	// `vlan id 100` → Bitwise{0x0f, 0xff} + Cmp{[0x00, 0x64]} (VID=100=0x064).
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseLLHeader, Offset: 14, Len: 2, DestRegister: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 2,
+			Mask: []byte{0x0f, 0xff}, Xor: []byte{0, 0}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x00, 0x64}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cond := rd.Conditions[0]
+	if cond.Payload.Protocol != PayloadProtoVlan || cond.Payload.Field != "id" {
+		t.Errorf("got %q/%q, want vlan/id", cond.Payload.Protocol, cond.Payload.Field)
+	}
+	if v, ok := cond.Payload.Value.(uint16); !ok || v != 100 {
+		t.Errorf("value = %v (%T), want uint16(100)", cond.Payload.Value, cond.Payload.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_VlanCfi(t *testing.T) {
+	// `vlan cfi 1` → Bitwise{0x10} + Cmp{[0x10]} (CFI=1 in bit 4).
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseLLHeader, Offset: 14, Len: 1, DestRegister: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 1, Mask: []byte{0x10}, Xor: []byte{0}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x10}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cond := rd.Conditions[0]
+	if cond.Payload.Protocol != PayloadProtoVlan || cond.Payload.Field != "cfi" {
+		t.Errorf("got %q/%q, want vlan/cfi", cond.Payload.Protocol, cond.Payload.Field)
+	}
+	if v, ok := cond.Payload.Value.(uint8); !ok || v != 1 {
+		t.Errorf("value = %v (%T), want uint8(1)", cond.Payload.Value, cond.Payload.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_VlanPcp(t *testing.T) {
+	// `vlan pcp 3` → Bitwise{0xe0} + Cmp{[0x60]} (PCP=3, encoded 3<<5).
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Payload{Base: expr.PayloadBaseLLHeader, Offset: 14, Len: 1, DestRegister: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 1, Mask: []byte{0xe0}, Xor: []byte{0}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x60}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cond := rd.Conditions[0]
+	if cond.Payload.Protocol != PayloadProtoVlan || cond.Payload.Field != "pcp" {
+		t.Errorf("got %q/%q, want vlan/pcp", cond.Payload.Protocol, cond.Payload.Field)
+	}
+	if v, ok := cond.Payload.Value.(uint8); !ok || v != 3 {
+		t.Errorf("value = %v (%T), want uint8(3)", cond.Payload.Value, cond.Payload.Value)
+	}
+}
+
 // --- Ether type smoke tests ---
 
 func TestNftablesToRuleDefinition_EtherType(t *testing.T) {

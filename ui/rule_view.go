@@ -449,6 +449,29 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		}
 	}
 
+	// VLAN tag fields (id / cfi / pcp) — dedicated lines.
+	vlanFound := map[string]bool{}
+	for _, condition := range rd.Conditions {
+		if condition.Payload == nil || condition.Payload.Protocol != nft.PayloadProtoVlan {
+			continue
+		}
+		vlanFound[condition.Payload.Field] = true
+		op := string(condition.Operation)
+		if op == "==" {
+			op = ""
+		} else {
+			op += " "
+		}
+		label := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "VLAN "+condition.Payload.Field+":"))
+		sb.WriteString(label + " " + op + fmt.Sprintf("%v", condition.Payload.Value) + "\n")
+	}
+	for _, name := range []string{"id", "cfi", "pcp"} {
+		if !vlanFound[name] {
+			lp := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "VLAN "+name+":"))
+			sb.WriteString(lp + " " + grayStyle.Render("(empty)") + "\n")
+		}
+	}
+
 	// Ether type — dedicated line, always shown.
 	etherTypeFound := false
 	for _, condition := range rd.Conditions {

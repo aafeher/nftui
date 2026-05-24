@@ -156,9 +156,9 @@
 - [ ] `seg-left`: Number of route segments remaining
 
 #### Vlan
-- [ ] `id`: VLAN tag ID (0–4095)
-- [ ] `cfi`: Canonical Format Indicator bit
-- [ ] `pcp`: Priority Code Point (0–7)
+- [x] `id`: VLAN tag ID (0–4095)
+- [x] `cfi`: Canonical Format Indicator bit
+- [x] `pcp`: Priority Code Point (0–7)
 
 #### Arp
 - [ ] `ptype`: Payload (protocol) type

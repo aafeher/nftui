@@ -169,6 +169,9 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewEtherSaddrField(rd),  // slots 12,13
 				NewEtherDaddrField(rd),  // slots 14,15
 				NewEtherTypeField(rd),   // slots 16,17
+				NewVlanIdField(rd),      // slot 18
+				NewVlanCfiField(rd),     // slot 19
+				NewVlanPcpField(rd),     // slot 20
 			},
 		},
 		{
@@ -613,7 +616,7 @@ func (r ruleEdit) renderCTTab() string {
 func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 	// tabs[2].fields: 0=IPSaddr, 1=IPDaddr, 2=MetaIifname, 3=MetaOifname,
 	//                 4=MetaIif, 5=MetaOif, 6=EtherSaddr, 7=EtherDaddr,
-	//                 8=EtherType
+	//                 8=EtherType, 9=VlanId, 10=VlanCfi, 11=VlanPcp
 	f := r.tabs[2].fields
 	var sb strings.Builder
 
@@ -626,6 +629,10 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 	sb.WriteString(f[6].View())
 	sb.WriteString(f[7].View())
 	sb.WriteString(f[8].View())
+	sb.WriteString(grayBoldStyle.Render("VLAN tag"))
+	sb.WriteString("\n")
+	sb.WriteString(r.row3(f[9].View(), f[10].View(), f[11].View()))
+	sb.WriteString("\n")
 
 	// Read-only conditions (meta — excluding the ones we render above —
 	// plus set lookup and custom).

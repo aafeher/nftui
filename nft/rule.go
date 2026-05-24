@@ -167,6 +167,7 @@ const (
 	PayloadProtoAH     PayloadProtocol = "ah"
 	PayloadProtoESP    PayloadProtocol = "esp"
 	PayloadProtoCOMP   PayloadProtocol = "comp"
+	PayloadProtoVlan   PayloadProtocol = "vlan"
 	PayloadProtoARP    PayloadProtocol = "arp"
 )
 
@@ -977,6 +978,38 @@ func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Cond
 		return Condition{
 			Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
 			Payload: &PayloadCondition{Protocol: PayloadProtoTCP, Field: "doff", Value: uint8(cmp.data[0] >> 4)},
+		}, nil
+	}
+	// VLAN id (LL, offset 14 len 2, mask [0x0f, 0xff]) — 12-bit VID.
+	if regVal.hasBitwise &&
+		regVal.payloadBase == unix.NFT_PAYLOAD_LL_HEADER &&
+		regVal.payloadOff == 14 && regVal.payloadLen == 2 &&
+		len(cmp.data) == 2 && len(regVal.bitwiseMask) == 2 &&
+		regVal.bitwiseMask[0] == 0x0f && regVal.bitwiseMask[1] == 0xff {
+		vid := (uint16(cmp.data[0]&0x0f) << 8) | uint16(cmp.data[1])
+		return Condition{
+			Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
+			Payload: &PayloadCondition{Protocol: PayloadProtoVlan, Field: "id", Value: vid},
+		}, nil
+	}
+	// VLAN cfi (LL, offset 14 len 1, mask 0x10) — 1-bit CFI/DEI flag.
+	if regVal.hasBitwise &&
+		regVal.payloadBase == unix.NFT_PAYLOAD_LL_HEADER &&
+		regVal.payloadOff == 14 && regVal.payloadLen == 1 &&
+		len(cmp.data) == 1 && len(regVal.bitwiseMask) == 1 && regVal.bitwiseMask[0] == 0x10 {
+		return Condition{
+			Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
+			Payload: &PayloadCondition{Protocol: PayloadProtoVlan, Field: "cfi", Value: uint8((cmp.data[0] & 0x10) >> 4)},
+		}, nil
+	}
+	// VLAN pcp (LL, offset 14 len 1, mask 0xe0) — 3-bit Priority Code Point.
+	if regVal.hasBitwise &&
+		regVal.payloadBase == unix.NFT_PAYLOAD_LL_HEADER &&
+		regVal.payloadOff == 14 && regVal.payloadLen == 1 &&
+		len(cmp.data) == 1 && len(regVal.bitwiseMask) == 1 && regVal.bitwiseMask[0] == 0xe0 {
+		return Condition{
+			Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
+			Payload: &PayloadCondition{Protocol: PayloadProtoVlan, Field: "pcp", Value: uint8((cmp.data[0] & 0xe0) >> 5)},
 		}, nil
 	}
 	// DCCP type (transport, offset 8 len 1, mask 0x1e; raw value = data>>1).
