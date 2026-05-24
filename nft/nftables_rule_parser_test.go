@@ -1131,6 +1131,63 @@ func TestNftablesToRuleDefinition_IP6Saddr(t *testing.T) {
 	}
 }
 
+// --- Transport header smoke tests ---
+
+func TestNftablesToRuleDefinition_TransportHeaderSmoke(t *testing.T) {
+	cases := []struct {
+		name     string
+		offset   uint32
+		length   uint32
+		data     []byte
+		protocol PayloadProtocol
+		field    string
+		want     any
+	}{
+		{"tcp dport", 2, 2, beUint16(443), PayloadProtoTCP, "dport", &PortSpec{Port: 443}},
+		{"tcp sport", 0, 2, beUint16(80), PayloadProtoTCP, "sport", &PortSpec{Port: 80}},
+		{"tcp sequence", 4, 4, []byte{0x12, 0x34, 0x56, 0x78}, PayloadProtoTCP, "sequence", uint32(0x12345678)},
+		{"tcp ackseq", 8, 4, []byte{0x01, 0x02, 0x03, 0x04}, PayloadProtoTCP, "ackseq", uint32(0x01020304)},
+		{"tcp flags", 13, 1, []byte{0x02}, PayloadProtoTCP, "flags", uint8(0x02)},
+		{"tcp window", 14, 2, []byte{0xff, 0xff}, PayloadProtoTCP, "window", uint16(0xffff)},
+		{"tcp checksum", 16, 2, []byte{0xab, 0xcd}, PayloadProtoTCP, "checksum", uint16(0xabcd)},
+		{"tcp urgptr", 18, 2, []byte{0x00, 0x05}, PayloadProtoTCP, "urgptr", uint16(5)},
+		{"udp length", 4, 2, []byte{0x00, 0x40}, PayloadProtoUDP, "length", uint16(64)},
+		{"udp checksum", 6, 2, []byte{0xab, 0xcd}, PayloadProtoUDP, "checksum", uint16(0xabcd)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: c.offset, Len: c.length, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			cond := rd.Conditions[0]
+			if cond.Payload.Protocol != c.protocol {
+				t.Errorf("protocol = %q, want %q", cond.Payload.Protocol, c.protocol)
+			}
+			if cond.Payload.Field != c.field {
+				t.Errorf("field = %q, want %q", cond.Payload.Field, c.field)
+			}
+			// Compare via fmt.Sprintf for *PortSpec convenience.
+			if c.field == "sport" || c.field == "dport" {
+				gotPs, _ := cond.Payload.Value.(*PortSpec)
+				wantPs, _ := c.want.(*PortSpec)
+				if gotPs == nil || wantPs == nil || gotPs.Port != wantPs.Port {
+					t.Errorf("value = %v, want %v", cond.Payload.Value, c.want)
+				}
+				return
+			}
+			if cond.Payload.Value != c.want {
+				t.Errorf("value = %v (%T), want %v (%T)",
+					cond.Payload.Value, cond.Payload.Value, c.want, c.want)
+			}
+		})
+	}
+}
+
 // --- Payload conditions ---
 
 func TestNftablesToRuleDefinition_PayloadDport(t *testing.T) {

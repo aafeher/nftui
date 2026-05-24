@@ -895,6 +895,15 @@ func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Cond
 			Payload: &PayloadCondition{Protocol: protocol, Field: "version", Value: uint8(cmp.data[0] >> 4)},
 		}, nil
 	}
+	// TCP doff (transport, offset 12 len 1, mask 0xf0; raw value = data>>4).
+	if regVal.hasBitwise && regVal.payloadBase == unix.NFT_PAYLOAD_TRANSPORT_HEADER &&
+		regVal.payloadOff == 12 && regVal.payloadLen == 1 &&
+		len(cmp.data) == 1 && len(regVal.bitwiseMask) == 1 && regVal.bitwiseMask[0] == 0xf0 {
+		return Condition{
+			Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
+			Payload: &PayloadCondition{Protocol: PayloadProtoTCP, Field: "doff", Value: uint8(cmp.data[0] >> 4)},
+		}, nil
+	}
 
 	var value interface{}
 	if regVal.hasBitwise && (field == "saddr" || field == "daddr") &&
@@ -1407,14 +1416,40 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family p
 		return PayloadProtoIP, fmt.Sprintf("offset_%d_len_%d", offset, length)
 
 	case unix.NFT_PAYLOAD_TRANSPORT_HEADER:
-		if offset == 0 && length == 2 {
+		// TCP, UDP and UDPLITE share the first 4 bytes (sport, dport).
+		// Beyond that the layouts diverge — we can disambiguate on
+		// offset+length cells, except for sport/dport which we always tag
+		// as TCP by convention (the meta l4proto context tells the user
+		// whether it is actually udp/udplite).
+		switch {
+		case offset == 0 && length == 2:
 			return PayloadProtoTCP, "sport"
-		}
-		if offset == 2 && length == 2 {
+		case offset == 2 && length == 2:
 			return PayloadProtoTCP, "dport"
-		}
-		if offset == 0 && length == 1 {
+		case offset == 0 && length == 1:
 			return PayloadProtoICMP, "type"
+
+		// UDP / UDPLITE: length & checksum live in TCP-unused cells.
+		case offset == 4 && length == 2:
+			return PayloadProtoUDP, "length"
+		case offset == 6 && length == 2:
+			return PayloadProtoUDP, "checksum"
+
+		// TCP-specific cells.
+		case offset == 4 && length == 4:
+			return PayloadProtoTCP, "sequence"
+		case offset == 8 && length == 4:
+			return PayloadProtoTCP, "ackseq"
+		case offset == 12 && length == 1:
+			return PayloadProtoTCP, "doff" // bit-packed (high 4 bits)
+		case offset == 13 && length == 1:
+			return PayloadProtoTCP, "flags"
+		case offset == 14 && length == 2:
+			return PayloadProtoTCP, "window"
+		case offset == 16 && length == 2:
+			return PayloadProtoTCP, "checksum"
+		case offset == 18 && length == 2:
+			return PayloadProtoTCP, "urgptr"
 		}
 		return PayloadProtoTCP, fmt.Sprintf("offset_%d_len_%d", offset, length)
 
@@ -1437,13 +1472,18 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 		if len(data) == 2 {
 			return &PortSpec{Port: binary.BigEndian.Uint16(data)}
 		}
-	case "protocol", "type", "ttl", "nexthdr", "hoplimit", "version_ihl", "dscp_ecn":
+	case "protocol", "type", "ttl", "nexthdr", "hoplimit", "version_ihl", "dscp_ecn",
+		"flags", "doff":
 		if len(data) >= 1 {
 			return data[0]
 		}
-	case "length", "id", "frag-off", "checksum":
+	case "length", "id", "frag-off", "checksum", "window", "urgptr":
 		if len(data) == 2 {
 			return binary.BigEndian.Uint16(data)
+		}
+	case "sequence", "ackseq":
+		if len(data) == 4 {
+			return binary.BigEndian.Uint32(data)
 		}
 	}
 	return data

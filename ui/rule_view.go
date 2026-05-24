@@ -385,24 +385,22 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 	}
 	addrFound := map[addrKey]bool{}
 
-	// First pass: render addrs; collect generic payload extras for a second pass.
-	var extras []nft.Condition
+	// First pass: render addrs; bucket the rest by header layer.
+	var ipExtras, transportExtras []nft.Condition
 	for _, condition := range rd.Conditions {
 		if condition.Payload == nil {
 			continue
 		}
 		p := condition.Payload
-		if p.Protocol != nft.PayloadProtoIP && p.Protocol != nft.PayloadProtoIP6 {
-			continue
-		}
 		op := string(condition.Operation)
 		if op == "==" {
 			op = ""
 		} else {
 			op += " "
 		}
-		// Address fields → dedicated lines.
-		if p.Field == "saddr" || p.Field == "daddr" {
+		// IPv4 / IPv6 address fields → dedicated lines.
+		if (p.Protocol == nft.PayloadProtoIP || p.Protocol == nft.PayloadProtoIP6) &&
+			(p.Field == "saddr" || p.Field == "daddr") {
 			var valStr string
 			switch v := p.Value.(type) {
 			case *nft.IPAddress:
@@ -420,8 +418,12 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 			sb.WriteString(label + " " + op + valStr + "\n")
 			continue
 		}
-		// All other ip/ip6 header fields → collected for the "IP/IP6 header" block below.
-		extras = append(extras, condition)
+		switch p.Protocol {
+		case nft.PayloadProtoIP, nft.PayloadProtoIP6:
+			ipExtras = append(ipExtras, condition)
+		case nft.PayloadProtoTCP, nft.PayloadProtoUDP:
+			transportExtras = append(transportExtras, condition)
+		}
 	}
 
 	for _, k := range []addrKey{
@@ -436,11 +438,14 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		}
 	}
 
-	if len(extras) > 0 {
+	renderPayloadBlock := func(title string, conds []nft.Condition) {
+		if len(conds) == 0 {
+			return
+		}
 		sb.WriteString("\n")
-		sb.WriteString(grayBoldStyle.Render("IP / IP6 header:"))
+		sb.WriteString(grayBoldStyle.Render(title))
 		sb.WriteString("\n")
-		for _, condition := range extras {
+		for _, condition := range conds {
 			p := condition.Payload
 			op := string(condition.Operation)
 			if op == "==" {
@@ -450,9 +455,13 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 			}
 			var valStr string
 			switch v := p.Value.(type) {
+			case *nft.PortSpec:
+				valStr = fmt.Sprintf("%d", v.Port)
 			case uint8:
 				valStr = fmt.Sprintf("%d", v)
 			case uint16:
+				valStr = fmt.Sprintf("%d", v)
+			case uint32:
 				valStr = fmt.Sprintf("%d", v)
 			default:
 				valStr = fmt.Sprintf("%v", p.Value)
@@ -460,6 +469,8 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 			sb.WriteString("  " + string(p.Protocol) + " " + p.Field + " " + op + valStr + "\n")
 		}
 	}
+	renderPayloadBlock("IP / IP6 header:", ipExtras)
+	renderPayloadBlock("Transport (TCP/UDP):", transportExtras)
 
 	// meta iifname / oifname / iif / oif — dedicated lines, always shown.
 	dedicatedLine := func(key nft.MetaKey, label string, quote bool) {

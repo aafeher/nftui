@@ -186,6 +186,25 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 			},
 		},
 		{
+			name: "Transport",
+			fields: []FieldEditor{
+				// TCP / UDP / UDPLITE share sport+dport on the wire — TCP
+				// labels are used as the canonical name. The user's
+				// `meta l4proto` match tells which transport this rule sits in.
+				NewTcpSportField(rd),    // 0: slots 0,1
+				NewTcpDportField(rd),    // 1: slots 2,3
+				NewTcpFlagsField(rd),    // 2: slot 4 (MultiSelect)
+				NewTcpSequenceField(rd), // 3: slots 5,6
+				NewTcpAckseqField(rd),   // 4: slots 7,8
+				NewTcpWindowField(rd),   // 5: slots 9,10
+				NewTcpChecksumField(rd), // 6: slots 11,12
+				NewTcpUrgptrField(rd),   // 7: slots 13,14
+				NewTcpDoffField(rd),     // 8: slots 15,16
+				NewUdpLengthField(rd),   // 9: slots 17,18
+				NewUdpChecksumField(rd), // 10: slots 19,20
+			},
+		},
+		{
 			name: "Meta",
 			fields: []FieldEditor{
 				NewMetaIiftypeField(rd),   // 0: slots 0,1
@@ -610,12 +629,47 @@ func (r ruleEdit) renderIPTab() string {
 	return sb.String()
 }
 
+// renderTransportTab renders the Transport (TCP/UDP/UDPLITE header) tab.
+func (r ruleEdit) renderTransportTab() string {
+	// tabs[4].fields:
+	//   0=TcpSport, 1=TcpDport, 2=TcpFlags, 3=TcpSequence, 4=TcpAckseq,
+	//   5=TcpWindow, 6=TcpChecksum, 7=TcpUrgptr, 8=TcpDoff,
+	//   9=UdpLength, 10=UdpChecksum
+	f := r.tabs[4].fields
+	var sb strings.Builder
+
+	sb.WriteString(grayBoldStyle.Render("TCP"))
+	sb.WriteString("\n")
+	// Row: sport | dport
+	sb.WriteString(r.row2(f[0].View(), f[1].View()))
+	sb.WriteString("\n")
+	// Row: flags (full width — MultiSelect of 8 bits)
+	sb.WriteString(f[2].View())
+	// Row: sequence | ackseq
+	sb.WriteString(r.row2(f[3].View(), f[4].View()))
+	sb.WriteString("\n")
+	// Row: window | checksum | urgptr
+	sb.WriteString(r.row3(f[5].View(), f[6].View(), f[7].View()))
+	sb.WriteString("\n")
+	// Row: doff
+	sb.WriteString(r.row2(f[8].View(), ""))
+	sb.WriteString("\n")
+
+	sb.WriteString(grayBoldStyle.Render("UDP / UDPLITE"))
+	sb.WriteString("\n")
+	// Row: length | checksum
+	sb.WriteString(r.row2(f[9].View(), f[10].View()))
+	sb.WriteString("\n")
+
+	return sb.String()
+}
+
 // renderMetaTab renders the Meta tab content (16 fields).
 func (r ruleEdit) renderMetaTab() string {
-	// tabs[4].fields: 0=Iiftype, 1=Oiftype, 2=Nfproto, 3=L4proto, 4=Protocol,
+	// tabs[5].fields: 0=Iiftype, 1=Oiftype, 2=Nfproto, 3=L4proto, 4=Protocol,
 	//   5=Length, 6=Mark, 7=Priority, 8=Rtclassid, 9=Skuid, 10=Skgid,
 	//   11=Cgroup, 12=Cpu, 13=Iifgroup, 14=Oifgroup, 15=Pkttype
-	f := r.tabs[4].fields
+	f := r.tabs[5].fields
 	var sb strings.Builder
 
 	// Row 1: iiftype | oiftype | nfproto
@@ -660,8 +714,8 @@ func isMetaKeyHandledByEditor(k nft.MetaKey) bool {
 
 // renderLimitTab renders the Limit tab content.
 func (r ruleEdit) renderLimitTab() string {
-	// tabs[5].fields: 0=Over, 1=Rate, 2=Unit, 3=Burst, 4=Type
-	f := r.tabs[5].fields
+	// tabs[6].fields: 0=Over, 1=Rate, 2=Unit, 3=Burst, 4=Type
+	f := r.tabs[6].fields
 	var sb strings.Builder
 
 	// Row 1: Over | Rate | Unit
@@ -710,8 +764,10 @@ func (r ruleEdit) View() string {
 	case 3:
 		content.WriteString(r.renderIPTab())
 	case 4:
-		content.WriteString(r.renderMetaTab())
+		content.WriteString(r.renderTransportTab())
 	case 5:
+		content.WriteString(r.renderMetaTab())
+	case 6:
 		content.WriteString(r.renderLimitTab())
 	}
 
