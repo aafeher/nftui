@@ -254,11 +254,13 @@ func loadTableTreeCmd() tea.Cmd {
 			}
 			rulesOfTable, _ := nft.ListRulesOfTable(t)
 			setsOfTable, _ := nft.GetSets(t)
+			objsOfTable, _ := nft.ListNamedObjects(t)
 			nodes = append(nodes, &tableNode{
-				Table:  *t,
-				Chains: chainNodes,
-				Rules:  rulesOfTable,
-				Sets:   setsOfTable,
+				Table:   *t,
+				Chains:  chainNodes,
+				Rules:   rulesOfTable,
+				Sets:    setsOfTable,
+				Objects: objsOfTable,
 			})
 		}
 		return tableTreeRefreshedMsg{nodes: nodes}

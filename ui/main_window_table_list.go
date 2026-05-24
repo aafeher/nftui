@@ -15,6 +15,7 @@ type tableNode struct {
 	Chains   []*chainNode
 	Rules    []*nftables.Rule
 	Sets     []*nftables.Set
+	Objects  []nft.NamedObject // counters, quotas, ct helpers, ...
 	Expanded bool
 }
 
@@ -45,14 +46,18 @@ type flatItem struct {
 	tableName   string
 	chainsCount int
 	setsCount   int
+	objsCount   int
 	chainName   string
 	setName     string
+	objName     string
 	rulesCount  int
 	isRoot      bool
 	isSet       bool
+	isObj       bool
 	table       *tableNode
 	chain       *nftables.Chain
 	set         *nftables.Set
+	obj         *nft.NamedObject
 }
 
 func initialTableTreeModel() tableTreeModel {
@@ -84,9 +89,10 @@ func initialTableTreeModel() tableTreeModel {
 			panic(err)
 		}
 
-		// Sets are best-effort — failure to enumerate sets (e.g. unsupported
-		// kernel features) shouldn't crash the whole tree.
+		// Sets and named objects are best-effort — failure to enumerate them
+		// (e.g. unsupported kernel features) shouldn't crash the whole tree.
 		setsOfTable, _ := nft.GetSets(table)
+		objsOfTable, _ := nft.ListNamedObjects(table)
 
 		tableNodes[t] = &tableNode{
 			Table:    *table,
@@ -94,6 +100,7 @@ func initialTableTreeModel() tableTreeModel {
 			Chains:   chains,
 			Rules:    rulesOfTable,
 			Sets:     setsOfTable,
+			Objects:  objsOfTable,
 		}
 	}
 
@@ -115,6 +122,7 @@ func (tm tableTreeModel) getFlattenedItems() []flatItem {
 			tableName:   table.Table.Name,
 			chainsCount: len(table.Chains),
 			setsCount:   len(table.Sets),
+			objsCount:   len(table.Objects),
 			rulesCount:  len(table.Rules),
 			isRoot:      true,
 			table:       table,
@@ -136,6 +144,16 @@ func (tm tableTreeModel) getFlattenedItems() []flatItem {
 					isSet:   true,
 					table:   table,
 					set:     set,
+				})
+			}
+			for i := range table.Objects {
+				o := &table.Objects[i]
+				items = append(items, flatItem{
+					objName: o.Name,
+					isRoot:  false,
+					isObj:   true,
+					table:   table,
+					obj:     o,
 				})
 			}
 		}
@@ -346,9 +364,13 @@ func (tm tableTreeModel) View() string {
 			if item.setsCount > 1 {
 				setsLabel = "sets"
 			}
-			chainsCountLabel := fmt.Sprintf("[%d %s, %d %s, %d %s]",
+			objsLabel := "obj"
+			if item.objsCount > 1 {
+				objsLabel = "objs"
+			}
+			chainsCountLabel := fmt.Sprintf("[%d %s, %d %s, %d %s, %d %s]",
 				item.chainsCount, chainsLabel, item.rulesCount, rulesLabel,
-				item.setsCount, setsLabel)
+				item.setsCount, setsLabel, item.objsCount, objsLabel)
 
 			var tableFamilyStyled, tableNameStyled, chainsCountStyled, space1, space2 string
 			if isActive {
@@ -367,7 +389,7 @@ func (tm tableTreeModel) View() string {
 
 			label := fmt.Sprintf("%s%s%s%s%s", tableFamilyStyled, space1, tableNameStyled, space2, chainsCountStyled)
 			line := ""
-			if len(item.table.Chains) > 0 || len(item.table.Sets) > 0 {
+			if len(item.table.Chains) > 0 || len(item.table.Sets) > 0 || len(item.table.Objects) > 0 {
 				cursorStyled := cursor
 				expandIconStyled := expandIcon
 				space3 := " "
@@ -455,6 +477,68 @@ func (tm tableTreeModel) View() string {
 				}
 			}
 
+			b.WriteString(line)
+			b.WriteString("\n")
+		} else if item.isObj {
+			// Named object row:
+			//   counter   → `  # <name> (counter: P pkts, B bytes)`
+			//   quota     → `  % <name> (quota: C / B bytes)`
+			//   cthelper  → `  & <name> (cthelper: ftp l3=2 l4=6)`
+			//   other     → `  * <name> (<type>)`
+			obj := item.obj
+			detail := obj.TypeStr
+			icon := "*"
+			switch obj.Type {
+			case nftables.ObjTypeCounter:
+				icon = "#"
+				detail = fmt.Sprintf("counter: %d pkts, %d bytes", obj.Packets, obj.Bytes)
+			case nftables.ObjTypeQuota:
+				icon = "%"
+				detail = fmt.Sprintf("quota: %d / %d bytes", obj.Consumed, obj.QuotaBytes)
+			case nftables.ObjTypeCtHelper:
+				icon = "&"
+				detail = fmt.Sprintf("cthelper: %s l3=%d l4=%d",
+					obj.HelperName, obj.L3Proto, obj.L4Proto)
+			}
+
+			var objNameStyled, detailStyled, parenOpen, parenClose, space1, space2 string
+			if isActive {
+				objNameStyled = blueBackgroundStyle.Inherit(yellowStyle).Render(obj.Name)
+				detailStyled = blueBackgroundStyle.Inherit(grayStyle).Render(detail)
+				parenOpen = blueBackgroundStyle.Render("(")
+				parenClose = blueBackgroundStyle.Render(")")
+				space1 = blueBackgroundStyle.Render(" ")
+				space2 = blueBackgroundStyle.Render(" ")
+			} else {
+				objNameStyled = yellowStyle.Render(obj.Name)
+				detailStyled = grayStyle.Render(detail)
+				parenOpen = "("
+				parenClose = ")"
+				space1 = " "
+				space2 = " "
+			}
+
+			label := fmt.Sprintf("%s%s%s%s%s%s", objNameStyled, space1, parenOpen, detailStyled, parenClose, space2)
+
+			var cursorStyled, iconStyled, spaces string
+			if isActive {
+				cursorStyled = blueBackgroundStyle.Render(cursor)
+				iconStyled = blueBackgroundStyle.Render(icon)
+				spaces = blueBackgroundStyle.Render("   ")
+			} else {
+				cursorStyled = cursor
+				iconStyled = icon
+				spaces = "   "
+			}
+
+			line := fmt.Sprintf("%s%s%s%s%s", cursorStyled, spaces, iconStyled, space1, label)
+			if isActive {
+				visibleLength := lipgloss.Width(line)
+				padding := terminalWidth - visibleLength
+				if padding > 0 {
+					line += blueBackgroundStyle.Render(strings.Repeat(" ", padding))
+				}
+			}
 			b.WriteString(line)
 			b.WriteString("\n")
 		} else {
