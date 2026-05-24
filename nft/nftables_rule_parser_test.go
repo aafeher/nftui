@@ -1108,6 +1108,64 @@ func TestNftablesToRuleDefinition_IPHeaderSmoke(t *testing.T) {
 	}
 }
 
+func TestNftablesToRuleDefinition_IP6Dscp(t *testing.T) {
+	// Captured from `nft --debug=netlink` for `ip6 dscp cs2` (DSCP=16):
+	//   payload load 2b @ network header + 0 → reg 1
+	//   bitwise reg 1 = (reg 1 & 0x0000c00f) ^ 0
+	//   cmp eq reg 1 0x00000004
+	// Wire-bytes:
+	//   mask  = [0x0f, 0xc0]
+	//   data  = [0x04, 0x00]
+	rule := makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 0, Len: 2, DestRegister: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 2,
+			Mask: []byte{0x0f, 0xc0}, Xor: []byte{0, 0}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x04, 0x00}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	)
+	rule.Table = &nftables.Table{Family: nftables.TableFamilyIPv6}
+	rd, err := NftablesToRuleDefinition(rule)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Payload.Protocol != PayloadProtoIP6 || c.Payload.Field != "dscp" {
+		t.Errorf("got %q/%q, want ip6/dscp", c.Payload.Protocol, c.Payload.Field)
+	}
+	if v, ok := c.Payload.Value.(uint8); !ok || v != 16 {
+		t.Errorf("Value = %v (%T), want uint8(16)", c.Payload.Value, c.Payload.Value)
+	}
+}
+
+func TestNftablesToRuleDefinition_IP6Flowlabel(t *testing.T) {
+	// Captured from `nft --debug=netlink` for `ip6 flowlabel 0x12345`:
+	//   payload load 3b @ network header + 1 → reg 1
+	//   bitwise reg 1 = (reg 1 & 0x00ffff0f) ^ 0
+	//   cmp eq reg 1 0x00452301
+	// Wire-bytes:
+	//   mask  = [0x0f, 0xff, 0xff]
+	//   data  = [0x01, 0x23, 0x45]
+	rule := makeRule(
+		&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 1, Len: 3, DestRegister: 1},
+		&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 3,
+			Mask: []byte{0x0f, 0xff, 0xff}, Xor: []byte{0, 0, 0}},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x01, 0x23, 0x45}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	)
+	rule.Table = &nftables.Table{Family: nftables.TableFamilyIPv6}
+	rd, err := NftablesToRuleDefinition(rule)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	c := rd.Conditions[0]
+	if c.Payload.Protocol != PayloadProtoIP6 || c.Payload.Field != "flowlabel" {
+		t.Errorf("got %q/%q, want ip6/flowlabel", c.Payload.Protocol, c.Payload.Field)
+	}
+	if v, ok := c.Payload.Value.(uint32); !ok || v != 0x12345 {
+		t.Errorf("Value = %v (%T), want uint32(0x12345)", c.Payload.Value, c.Payload.Value)
+	}
+}
+
 func TestNftablesToRuleDefinition_IP6Saddr(t *testing.T) {
 	addr := net.ParseIP("fe80::1").To16()
 	rule := makeRule(

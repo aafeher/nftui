@@ -177,12 +177,14 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 				NewIPFragOffField(rd),   // 7
 				NewIPChecksumField(rd),  // 8
 				// IPv6 header fields
-				NewIP6SaddrField(rd),    // 9
-				NewIP6DaddrField(rd),    // 10
-				NewIP6LengthField(rd),   // 11
-				NewIP6NexthdrField(rd),  // 12
-				NewIP6HoplimitField(rd), // 13
-				NewIP6VersionField(rd),  // 14
+				NewIP6SaddrField(rd),     // 9
+				NewIP6DaddrField(rd),     // 10
+				NewIP6LengthField(rd),    // 11
+				NewIP6NexthdrField(rd),   // 12
+				NewIP6HoplimitField(rd),  // 13
+				NewIP6VersionField(rd),   // 14
+				NewIP6DscpField(rd),      // 15
+				NewIP6FlowlabelField(rd), // 16
 			},
 		},
 		{
@@ -604,7 +606,8 @@ func (r ruleEdit) renderIPTab() string {
 	// tabs[3].fields:
 	//   IPv4: 0=Protocol, 1=Ttl, 2=Length, 3=Dscp, 4=Version, 5=Hdrlength,
 	//         6=Id, 7=FragOff, 8=Checksum
-	//   IPv6: 9=Saddr, 10=Daddr, 11=Length, 12=Nexthdr, 13=Hoplimit, 14=Version
+	//   IPv6: 9=Saddr, 10=Daddr, 11=Length, 12=Nexthdr, 13=Hoplimit,
+	//         14=Version, 15=Dscp, 16=Flowlabel
 	f := r.tabs[3].fields
 	var sb strings.Builder
 
@@ -623,7 +626,7 @@ func (r ruleEdit) renderIPTab() string {
 	sb.WriteString(f[10].View())
 	sb.WriteString(r.row3(f[11].View(), f[12].View(), f[13].View()))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[14].View(), ""))
+	sb.WriteString(r.row3(f[14].View(), f[15].View(), f[16].View()))
 	sb.WriteString("\n")
 
 	return sb.String()

@@ -47,8 +47,8 @@
 - [x] `hdrlength`: IP header length
 
 #### IP6
-- [ ] `dscp`: Differentiated Services Code Point (deferred — multi-byte Bitwise)
-- [ ] `flowlabel`: Flow label (deferred — 20-bit cross-byte)
+- [x] `dscp`: Differentiated Services Code Point
+- [x] `flowlabel`: Flow label
 - [x] `length`: Payload length
 - [x] `nexthdr`: Next header type
 - [x] `hoplimit`: Hop limit

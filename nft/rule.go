@@ -895,6 +895,40 @@ func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Cond
 			Payload: &PayloadCondition{Protocol: protocol, Field: "version", Value: uint8(cmp.data[0] >> 4)},
 		}, nil
 	}
+	// IPv6 dscp: Payload{offset=0, len=2} + Bitwise{mask=[0x0f, 0xc0]} + Cmp.
+	// The 6-bit DSCP is split across byte 0 (low nibble) and byte 1 (high 2 bits):
+	//   byte 0 = (dscp >> 2) & 0x0f
+	//   byte 1 = (dscp & 0x03) << 6
+	// Identified by mask shape — works regardless of family hint, since the
+	// pattern is unique on the IPv6 header (IPv4 has no [0x0f, 0xc0] Bitwise
+	// at offset 0 len 2).
+	if regVal.hasBitwise &&
+		regVal.payloadBase == unix.NFT_PAYLOAD_NETWORK_HEADER &&
+		regVal.payloadOff == 0 && regVal.payloadLen == 2 &&
+		len(cmp.data) == 2 && len(regVal.bitwiseMask) == 2 &&
+		regVal.bitwiseMask[0] == 0x0f && regVal.bitwiseMask[1] == 0xc0 {
+		dscp := uint8(((cmp.data[0] & 0x0f) << 2) | ((cmp.data[1] & 0xc0) >> 6))
+		return Condition{
+			Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
+			Payload: &PayloadCondition{Protocol: PayloadProtoIP6, Field: "dscp", Value: dscp},
+		}, nil
+	}
+	// IPv6 flowlabel: Payload{offset=1, len=3} + Bitwise{mask=[0x0f, 0xff, 0xff]} + Cmp.
+	// The 20-bit flow label spans the low 4 bits of byte 1 plus all of bytes 2 and 3:
+	//   byte 1 = (fl >> 16) & 0x0f
+	//   byte 2 = (fl >> 8) & 0xff
+	//   byte 3 = fl & 0xff
+	if regVal.hasBitwise &&
+		regVal.payloadBase == unix.NFT_PAYLOAD_NETWORK_HEADER &&
+		regVal.payloadOff == 1 && regVal.payloadLen == 3 &&
+		len(cmp.data) == 3 && len(regVal.bitwiseMask) == 3 &&
+		regVal.bitwiseMask[0] == 0x0f && regVal.bitwiseMask[1] == 0xff && regVal.bitwiseMask[2] == 0xff {
+		fl := (uint32(cmp.data[0]&0x0f) << 16) | (uint32(cmp.data[1]) << 8) | uint32(cmp.data[2])
+		return Condition{
+			Type: ConditionTypePayload, Operation: cmpOpToCompareOp(cmp.op),
+			Payload: &PayloadCondition{Protocol: PayloadProtoIP6, Field: "flowlabel", Value: fl},
+		}, nil
+	}
 	// TCP doff (transport, offset 12 len 1, mask 0xf0; raw value = data>>4).
 	if regVal.hasBitwise && regVal.payloadBase == unix.NFT_PAYLOAD_TRANSPORT_HEADER &&
 		regVal.payloadOff == 12 && regVal.payloadLen == 1 &&
