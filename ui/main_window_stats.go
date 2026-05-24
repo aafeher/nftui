@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/nftables"
+	"github.com/google/nftables/expr"
 )
 
 type ruleDeletedMsg struct{}
@@ -202,9 +203,9 @@ func deleteChainCmd(chain *nftables.Chain) tea.Cmd {
 	}
 }
 
-func addSetElementCmd(set *nftables.Set, key, keyEnd, val []byte) tea.Cmd {
+func addSetElementCmd(set *nftables.Set, key, keyEnd, val []byte, verdict *expr.Verdict) tea.Cmd {
 	return func() tea.Msg {
-		if err := nft.AddSetElement(set, key, keyEnd, val); err != nil {
+		if err := nft.AddSetElement(set, key, keyEnd, val, verdict); err != nil {
 			return setOpErrMsg{err: err}
 		}
 		return setElementAddedMsg{}

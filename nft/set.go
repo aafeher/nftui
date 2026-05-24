@@ -9,6 +9,9 @@ import (
 	"strings"
 
 	"github.com/google/nftables"
+	"github.com/google/nftables/expr"
+	"github.com/mdlayher/netlink"
+	"golang.org/x/sys/unix"
 )
 
 type Set struct {
@@ -43,7 +46,46 @@ func GetSetElements(set *nftables.Set) []nftables.SetElement {
 		log.Fatal(err)
 	}
 
+	// google/nftables (v0.3.1) doesn't populate SetElement.VerdictData on
+	// reads for vmap elements — the verdict bytes land in Val instead.
+	// Decode them ourselves so renderers can rely on VerdictData.
+	if set.IsMap && set.DataType.Name == nftables.TypeVerdict.Name {
+		for i := range elements {
+			if elements[i].VerdictData == nil && len(elements[i].Val) > 0 {
+				if v, ok := decodeVerdictBytes(elements[i].Val); ok {
+					elements[i].VerdictData = v
+					elements[i].Val = nil
+				}
+			}
+		}
+	}
 	return elements
+}
+
+// decodeVerdictBytes parses the inner netlink-attribute payload of a
+// vmap data field. Layout: NFTA_VERDICT_CODE (int32 BE) and optionally
+// NFTA_VERDICT_CHAIN (NUL-terminated string).
+func decodeVerdictBytes(b []byte) (*expr.Verdict, bool) {
+	ad, err := netlink.NewAttributeDecoder(b)
+	if err != nil {
+		return nil, false
+	}
+	ad.ByteOrder = binary.BigEndian
+	v := &expr.Verdict{}
+	saw := false
+	for ad.Next() {
+		switch ad.Type() {
+		case unix.NFTA_VERDICT_CODE:
+			v.Kind = expr.VerdictKind(int32(ad.Uint32()))
+			saw = true
+		case unix.NFTA_VERDICT_CHAIN:
+			v.Chain = ad.String()
+		}
+	}
+	if ad.Err() != nil || !saw {
+		return nil, false
+	}
+	return v, true
 }
 
 // ParseSetElementKey converts a human-readable element string into raw bytes
@@ -269,6 +311,7 @@ func dashRangeToBytes(in string, parse func(string) ([]byte, error)) ([]byte, []
 
 // KeyTypeFromString maps a label produced by KeyTypeToString back to its
 // nftables.SetDatatype constant. Returns ok=false on an unrecognized name.
+// Recognizes `verdict` too (only valid as a map's DataType).
 func KeyTypeFromString(name string) (nftables.SetDatatype, bool) {
 	switch name {
 	case "ipv4_addr":
@@ -285,6 +328,8 @@ func KeyTypeFromString(name string) (nftables.SetDatatype, bool) {
 		return nftables.TypeMark, true
 	case "integer":
 		return nftables.TypeInteger, true
+	case "verdict":
+		return nftables.TypeVerdict, true
 	}
 	return nftables.SetDatatype{}, false
 }
@@ -301,6 +346,70 @@ func SupportedSetKeyTypes() []string {
 		"mark",
 		"integer",
 	}
+}
+
+// SupportedMapDataTypes is the key-type list plus `verdict` — the latter
+// is map-only (vmap pattern: `port → jump <chain>`).
+func SupportedMapDataTypes() []string {
+	return append(SupportedSetKeyTypes(), "verdict")
+}
+
+// ParseVerdict parses a CLI-form verdict string into an *expr.Verdict.
+// Accepts the form `accept|drop|return|continue|queue|jump <chain>|
+// goto <chain>`. Chain names are passed through verbatim — the kernel
+// will reject unknown ones with EINVAL.
+func ParseVerdict(input string) (*expr.Verdict, error) {
+	fields := strings.Fields(strings.TrimSpace(input))
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("empty verdict")
+	}
+	switch fields[0] {
+	case "accept":
+		return &expr.Verdict{Kind: expr.VerdictAccept}, nil
+	case "drop":
+		return &expr.Verdict{Kind: expr.VerdictDrop}, nil
+	case "return":
+		return &expr.Verdict{Kind: expr.VerdictReturn}, nil
+	case "continue":
+		return &expr.Verdict{Kind: expr.VerdictContinue}, nil
+	case "queue":
+		return &expr.Verdict{Kind: expr.VerdictQueue}, nil
+	case "jump", "goto":
+		if len(fields) < 2 {
+			return nil, fmt.Errorf("%s requires a chain name", fields[0])
+		}
+		kind := expr.VerdictJump
+		if fields[0] == "goto" {
+			kind = expr.VerdictGoto
+		}
+		return &expr.Verdict{Kind: kind, Chain: fields[1]}, nil
+	}
+	return nil, fmt.Errorf("unknown verdict %q (accept/drop/return/continue/queue/jump <c>/goto <c>)", fields[0])
+}
+
+// FormatVerdict renders an *expr.Verdict in the form nft uses
+// (`accept`, `jump foo`, etc.).
+func FormatVerdict(v *expr.Verdict) string {
+	if v == nil {
+		return "?"
+	}
+	switch v.Kind {
+	case expr.VerdictAccept:
+		return "accept"
+	case expr.VerdictDrop:
+		return "drop"
+	case expr.VerdictReturn:
+		return "return"
+	case expr.VerdictContinue:
+		return "continue"
+	case expr.VerdictQueue:
+		return "queue"
+	case expr.VerdictJump:
+		return "jump " + v.Chain
+	case expr.VerdictGoto:
+		return "goto " + v.Chain
+	}
+	return fmt.Sprintf("verdict(%d)", v.Kind)
 }
 
 // CreateSetSpec carries the form values for CreateSet. Splitting it from
@@ -383,15 +492,15 @@ func ParseSetElementVal(set *nftables.Set, input string) ([]byte, error) {
 
 // AddSetElement adds a single element to the named set.
 //
-// For map-type sets `val` carries the value bytes; for plain sets pass nil.
-// For interval sets `keyEnd` is the inclusive end of the range; nil for
-// single-host elements.
+// For map-type sets pass either `val` (data-type bytes) OR `verdict`
+// (vmap target). For plain sets pass nil for both. For interval sets
+// `keyEnd` is the inclusive end of the range; nil for single-host.
 //
 // Intervals use the classic two-element wire encoding (start with
 // IntervalEnd=false, exclusive end with IntervalEnd=true). The modern
 // `KeyEnd` attribute path needs auto-merge / concat support that older
 // kernels reject with EINVAL, so we stay on the broadly-compatible form.
-func AddSetElement(set *nftables.Set, key, keyEnd, val []byte) error {
+func AddSetElement(set *nftables.Set, key, keyEnd, val []byte, verdict *expr.Verdict) error {
 	conn, err := nftables.New()
 	if err != nil {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
@@ -416,7 +525,10 @@ func AddSetElement(set *nftables.Set, key, keyEnd, val []byte) error {
 		}
 	default:
 		el := nftables.SetElement{Key: key}
-		if val != nil {
+		switch {
+		case verdict != nil:
+			el.VerdictData = verdict
+		case val != nil:
 			el.Val = val
 		}
 		elements = []nftables.SetElement{el}

@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
+	"github.com/google/nftables/expr"
 	"nftui/nft"
 )
 
@@ -142,13 +143,18 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 					return sv, nil
 				}
 				var valBytes []byte
+				var verdict *expr.Verdict
 				if sv.set.IsMap {
 					valStr := strings.TrimSpace(sv.addValInput.Value())
 					if valStr == "" {
 						sv.addErr = "value required"
 						return sv, nil
 					}
-					valBytes, err = nft.ParseSetElementVal(sv.set, valStr)
+					if sv.set.DataType.Name == nftables.TypeVerdict.Name {
+						verdict, err = nft.ParseVerdict(valStr)
+					} else {
+						valBytes, err = nft.ParseSetElementVal(sv.set, valStr)
+					}
 					if err != nil {
 						sv.addErr = err.Error()
 						return sv, nil
@@ -156,7 +162,7 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 				}
 				sv.showAddPrompt = false
 				sv.addErr = ""
-				return sv, addSetElementCmd(sv.set, keyBytes, keyEnd, valBytes)
+				return sv, addSetElementCmd(sv.set, keyBytes, keyEnd, valBytes, verdict)
 			}
 			var cmd tea.Cmd
 			if sv.set.IsMap && sv.addFocusVal {
@@ -241,7 +247,11 @@ func (sv *setView) RefreshElements() {
 type setViewBackMsg struct{}
 
 // setDataTypeHint mirrors setKeyTypeHint but uses the map's DataType.
+// Verdict maps get a CLI-form hint (`accept | jump <chain>`).
 func setDataTypeHint(s *nftables.Set) string {
+	if s.DataType.Name == nftables.TypeVerdict.Name {
+		return "accept | drop | jump <chain> | goto <chain>"
+	}
 	tmp := *s
 	tmp.KeyType = s.DataType
 	return setKeyTypeHint(&tmp)
@@ -396,8 +406,13 @@ func (sv setView) View() string {
 				cursor = "> "
 			}
 			line := cursor + formatSetElementKey(sv.set, el.Key)
-			if sv.set.IsMap && len(el.Val) > 0 {
-				line += grayStyle.Render(" → ") + formatSetElementVal(sv.set, el.Val)
+			if sv.set.IsMap {
+				switch {
+				case el.VerdictData != nil:
+					line += grayStyle.Render(" → ") + whiteStyle.Render(nft.FormatVerdict(el.VerdictData))
+				case len(el.Val) > 0:
+					line += grayStyle.Render(" → ") + formatSetElementVal(sv.set, el.Val)
+				}
 			}
 			if i == sv.cursor {
 				line = blueBackgroundStyle.Render(line)

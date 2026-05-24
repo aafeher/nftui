@@ -72,8 +72,10 @@ func newSetCreate(table *nftables.Table) setCreate {
 	kt.Selected = 0
 
 	im := NewSelect(setOnOffOptions)
-	dt := NewSelect(nft.SupportedSetKeyTypes())
-	dt.Selected = indexOf(nft.SupportedSetKeyTypes(), "mark")
+	// Data type Select for maps — includes `verdict` (vmap target),
+	// which is map-only and not valid as a key type.
+	dt := NewSelect(nft.SupportedMapDataTypes())
+	dt.Selected = indexOf(nft.SupportedMapDataTypes(), "mark")
 	if dt.Selected < 0 {
 		dt.Selected = 0
 	}

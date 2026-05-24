@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/nftables"
+	"github.com/google/nftables/expr"
 )
 
 // Helper: build a Set with the given KeyType + interval flag.
@@ -82,6 +83,79 @@ func TestParseSetElementKey_PortRange_Interval(t *testing.T) {
 	wantEnd := []byte{0x08, 0x00}   // 2048 BE
 	if !bytes.Equal(key, wantStart) || !bytes.Equal(end, wantEnd) {
 		t.Errorf("range = %v..%v, want %v..%v", key, end, wantStart, wantEnd)
+	}
+}
+
+func TestParseVerdict_Simple(t *testing.T) {
+	cases := []struct {
+		in   string
+		kind expr.VerdictKind
+	}{
+		{"accept", expr.VerdictAccept},
+		{"drop", expr.VerdictDrop},
+		{"return", expr.VerdictReturn},
+		{"continue", expr.VerdictContinue},
+		{"queue", expr.VerdictQueue},
+	}
+	for _, c := range cases {
+		v, err := ParseVerdict(c.in)
+		if err != nil {
+			t.Errorf("%q: %v", c.in, err)
+			continue
+		}
+		if v.Kind != c.kind {
+			t.Errorf("%q kind = %v, want %v", c.in, v.Kind, c.kind)
+		}
+		if v.Chain != "" {
+			t.Errorf("%q chain = %q, want empty", c.in, v.Chain)
+		}
+	}
+}
+
+func TestParseVerdict_JumpGoto(t *testing.T) {
+	v, err := ParseVerdict("jump my_chain")
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if v.Kind != expr.VerdictJump || v.Chain != "my_chain" {
+		t.Errorf("got {Kind:%v Chain:%q}, want {Jump my_chain}", v.Kind, v.Chain)
+	}
+	v, err = ParseVerdict("goto fallback")
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if v.Kind != expr.VerdictGoto || v.Chain != "fallback" {
+		t.Errorf("got {Kind:%v Chain:%q}, want {Goto fallback}", v.Kind, v.Chain)
+	}
+}
+
+func TestParseVerdict_Errors(t *testing.T) {
+	if _, err := ParseVerdict(""); err == nil {
+		t.Error("empty must fail")
+	}
+	if _, err := ParseVerdict("jump"); err == nil {
+		t.Error("jump without chain must fail")
+	}
+	if _, err := ParseVerdict("foobar"); err == nil {
+		t.Error("unknown verdict must fail")
+	}
+}
+
+func TestFormatVerdict(t *testing.T) {
+	cases := []struct {
+		v    *expr.Verdict
+		want string
+	}{
+		{&expr.Verdict{Kind: expr.VerdictAccept}, "accept"},
+		{&expr.Verdict{Kind: expr.VerdictDrop}, "drop"},
+		{&expr.Verdict{Kind: expr.VerdictJump, Chain: "c1"}, "jump c1"},
+		{&expr.Verdict{Kind: expr.VerdictGoto, Chain: "c2"}, "goto c2"},
+		{nil, "?"},
+	}
+	for _, c := range cases {
+		if got := FormatVerdict(c.v); got != c.want {
+			t.Errorf("FormatVerdict(%+v) = %q, want %q", c.v, got, c.want)
+		}
 	}
 }
 
