@@ -537,7 +537,6 @@ type SetAction struct {
 	SetName   string
 	MapName   string
 	Elements  []SetElement
-	Update    bool   // add vagy update
 	Operation string // "add" / "update" / "delete" (NFT_DYNSET_OP_*)
 	KeyField  string // resolved from SrcRegKey via regMap (e.g. "ip saddr")
 	Timeout   time.Duration
@@ -1693,13 +1692,11 @@ func dynsetToAction(d *expr.Dynset, regMap map[uint32]*registerValue) Action {
 		keyField = regValueFieldLabel(regVal)
 	}
 
-	op := dynsetOpToString(d.Operation)
 	return Action{
 		Type: ActionTypeSet,
 		Set: &SetAction{
 			SetName:   d.SetName,
-			Operation: op,
-			Update:    op == "update",
+			Operation: dynsetOpToString(d.Operation),
 			KeyField:  keyField,
 			Timeout:   d.Timeout,
 			Invert:    d.Invert,
