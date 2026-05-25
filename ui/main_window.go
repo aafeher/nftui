@@ -606,7 +606,18 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		if m.setView != nil {
-			m.setView.statusMsg = msg.err.Error()
+			// While the add prompt is open (bulk-add loop), surface the
+			// kernel rejection inside the prompt — the user is operating
+			// there, and an error means the previous "added X" hint is
+			// no longer the truth. Wipe the hint to keep the overlay
+			// honest. Outside the prompt the error goes to the regular
+			// status line below the element list.
+			if m.setView.showAddPrompt {
+				m.setView.addErr = msg.err.Error()
+				m.setView.addLastHint = ""
+			} else {
+				m.setView.statusMsg = msg.err.Error()
+			}
 		}
 		return m, nil
 

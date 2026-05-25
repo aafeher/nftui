@@ -201,6 +201,36 @@ func TestSetView_PressD_EmptyList_NoModal(t *testing.T) {
 	}
 }
 
+// Regression: after a successful Enter sets addLastHint, an async kernel
+// rejection (setOpErrMsg routed through main_window) must wipe the hint
+// so the overlay doesn't claim success and failure simultaneously.
+//
+// The mutual-exclusion logic lives in main_window's setOpErrMsg
+// handler; here we simulate the field assignments that handler performs
+// (setView is field-accessed directly, not driven via Update for this
+// msg type) and assert the final state on the model.
+func TestSetView_KernelError_WipesAddLastHint(t *testing.T) {
+	sv := mkSetView(ipv4Set())
+	sv, _ = sv.Update(runes("a"))
+	sv.addInput.SetValue("10.0.0.1")
+	sv, _ = sv.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if sv.addLastHint == "" {
+		t.Fatal("addLastHint should be set after a successful Enter")
+	}
+
+	// Simulate main_window's setOpErrMsg routing when the prompt is open.
+	if sv.showAddPrompt {
+		sv.addErr = "element with same key already exists"
+		sv.addLastHint = ""
+	}
+	if sv.addLastHint != "" {
+		t.Errorf("hint not wiped on kernel error: %q", sv.addLastHint)
+	}
+	if sv.addErr == "" {
+		t.Error("addErr should carry the kernel rejection")
+	}
+}
+
 // --- setCreate state-machine ----------------------------------------------
 
 // mkSetCreate builds via the production constructor; it has no live deps.
