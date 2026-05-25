@@ -259,6 +259,93 @@ func TestBuildSetElements_IntervalSingleHostAutoCloses(t *testing.T) {
 
 // --- incrementBytes (used by interval encoding) --------------------------
 
+// --- pairIntervalElements / decrementBytes (interval read shaping) ------
+
+func TestDecrementBytes(t *testing.T) {
+	cases := []struct {
+		in, want []byte
+	}{
+		{[]byte{1}, []byte{0}},
+		{[]byte{10, 0, 1, 0}, []byte{10, 0, 0, 255}},
+		{[]byte{0, 0}, []byte{0xff, 0xff}}, // underflow
+	}
+	for _, c := range cases {
+		got := decrementBytes(c.in)
+		if !bytes.Equal(got, c.want) {
+			t.Errorf("decrementBytes(%v) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
+func TestPairIntervalElements_Range(t *testing.T) {
+	// Wire form for `10.0.0.0/24`: start=10.0.0.0, close=10.0.1.0 (+1 of last).
+	in := []nftables.SetElement{
+		{Key: []byte{10, 0, 0, 0}},
+		{Key: []byte{10, 0, 1, 0}, IntervalEnd: true},
+	}
+	got := pairIntervalElements(in)
+	if len(got) != 1 {
+		t.Fatalf("len = %d, want 1 logical entry", len(got))
+	}
+	if !bytes.Equal(got[0].Key, []byte{10, 0, 0, 0}) {
+		t.Errorf("start = %v", got[0].Key)
+	}
+	if !bytes.Equal(got[0].KeyEnd, []byte{10, 0, 0, 255}) {
+		t.Errorf("end = %v, want 10.0.0.255 (inclusive)", got[0].KeyEnd)
+	}
+}
+
+func TestPairIntervalElements_SingleHost(t *testing.T) {
+	// Single host 10.0.0.1 stored as start=10.0.0.1, close=10.0.0.2.
+	in := []nftables.SetElement{
+		{Key: []byte{10, 0, 0, 1}},
+		{Key: []byte{10, 0, 0, 2}, IntervalEnd: true},
+	}
+	got := pairIntervalElements(in)
+	if len(got) != 1 {
+		t.Fatalf("len = %d, want 1", len(got))
+	}
+	if !bytes.Equal(got[0].Key, got[0].KeyEnd) {
+		t.Errorf("single-host pair should fold to Key==KeyEnd, got %v/%v",
+			got[0].Key, got[0].KeyEnd)
+	}
+}
+
+func TestPairIntervalElements_MultipleEntriesAndSorting(t *testing.T) {
+	// Unsorted input — pairing must sort first before walking.
+	in := []nftables.SetElement{
+		{Key: []byte{192, 168, 1, 11}, IntervalEnd: true},
+		{Key: []byte{10, 0, 0, 0}},
+		{Key: []byte{192, 168, 1, 10}},
+		{Key: []byte{10, 0, 1, 0}, IntervalEnd: true},
+	}
+	got := pairIntervalElements(in)
+	if len(got) != 2 {
+		t.Fatalf("len = %d, want 2 entries", len(got))
+	}
+	if !bytes.Equal(got[0].Key, []byte{10, 0, 0, 0}) ||
+		!bytes.Equal(got[0].KeyEnd, []byte{10, 0, 0, 255}) {
+		t.Errorf("first entry = {%v..%v}", got[0].Key, got[0].KeyEnd)
+	}
+	if !bytes.Equal(got[1].Key, []byte{192, 168, 1, 10}) ||
+		!bytes.Equal(got[1].KeyEnd, []byte{192, 168, 1, 10}) {
+		t.Errorf("second entry = {%v..%v}", got[1].Key, got[1].KeyEnd)
+	}
+}
+
+func TestPairIntervalElements_OrphanMarkerDropped(t *testing.T) {
+	// A stray IntervalEnd without a preceding start (residue from a
+	// pre-fix delete) should be silently dropped, not surfaced as a
+	// half-element.
+	in := []nftables.SetElement{
+		{Key: []byte{10, 0, 1, 0}, IntervalEnd: true},
+	}
+	got := pairIntervalElements(in)
+	if len(got) != 0 {
+		t.Errorf("orphan marker must be dropped, got %d entries", len(got))
+	}
+}
+
 func TestIncrementBytes(t *testing.T) {
 	cases := []struct {
 		in, want []byte

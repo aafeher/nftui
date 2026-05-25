@@ -1,10 +1,12 @@
 package nft
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -59,7 +61,58 @@ func GetSetElements(set *nftables.Set) []nftables.SetElement {
 			}
 		}
 	}
+
+	// Interval sets are stored on the wire as two physical elements per
+	// logical entry: {Key=start} and {Key=end+1, IntervalEnd=true}. The
+	// lib doesn't fold them back, so the bare list looks like every
+	// other entry has a stray "marker" sibling. Pair them up so the UI
+	// renders one row per range and Delete knows both halves to remove.
+	if set.Interval {
+		elements = pairIntervalElements(elements)
+	}
 	return elements
+}
+
+// pairIntervalElements walks the sorted physical element list and folds
+// each `IntervalEnd=true` close-marker into the preceding start
+// element's KeyEnd (inclusive end = marker_key - 1). Single-host
+// entries collapse to KeyEnd == Key. Markers without a preceding start
+// (orphans from a previous version's delete path) are dropped.
+func pairIntervalElements(els []nftables.SetElement) []nftables.SetElement {
+	if len(els) == 0 {
+		return els
+	}
+	sorted := make([]nftables.SetElement, len(els))
+	copy(sorted, els)
+	sort.Slice(sorted, func(i, j int) bool {
+		return bytes.Compare(sorted[i].Key, sorted[j].Key) < 0
+	})
+	out := make([]nftables.SetElement, 0, len(sorted))
+	for _, el := range sorted {
+		if el.IntervalEnd {
+			if n := len(out); n > 0 && out[n-1].KeyEnd == nil {
+				out[n-1].KeyEnd = decrementBytes(el.Key)
+			}
+			continue
+		}
+		out = append(out, el)
+	}
+	return out
+}
+
+// decrementBytes returns a copy of b decremented by one as a BigEndian
+// integer. Wraps to all-0xff on underflow. Inverse of incrementBytes.
+func decrementBytes(b []byte) []byte {
+	out := make([]byte, len(b))
+	copy(out, b)
+	for i := len(out) - 1; i >= 0; i-- {
+		if out[i] != 0 {
+			out[i]--
+			return out
+		}
+		out[i] = 0xff
+	}
+	return out
 }
 
 // decodeVerdictBytes parses the inner netlink-attribute payload of a
@@ -601,12 +654,32 @@ func incrementBytes(b []byte) []byte {
 }
 
 // DeleteSetElement removes a single element identified by its raw key bytes.
-func DeleteSetElement(set *nftables.Set, key []byte) error {
+//
+// For interval sets `keyEnd` is the inclusive end of the range (the same
+// value `GetSetElements` populates on returned elements). The kernel
+// stored the range as start + `IntervalEnd=true` close marker at
+// `end+1`; both must be removed together, otherwise the close marker
+// stays behind and shows up as an orphan in the next read.
+func DeleteSetElement(set *nftables.Set, key, keyEnd []byte) error {
 	conn, err := nftables.New()
 	if err != nil {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
 	}
-	if err := conn.SetDeleteElements(set, []nftables.SetElement{{Key: key}}); err != nil {
+	elements := []nftables.SetElement{{Key: key}}
+	if set.Interval {
+		// Single-host elements on an interval set are also stored as
+		// 2 physical elements (Add uses key+1 as the close marker), so
+		// the delete must mirror that even when keyEnd is unset.
+		end := keyEnd
+		if end == nil {
+			end = key
+		}
+		elements = append(elements, nftables.SetElement{
+			Key:         incrementBytes(end),
+			IntervalEnd: true,
+		})
+	}
+	if err := conn.SetDeleteElements(set, elements); err != nil {
 		return fmt.Errorf("failed to stage delete: %v", err)
 	}
 	if err := conn.Flush(); err != nil {

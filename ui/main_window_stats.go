@@ -212,9 +212,9 @@ func addSetElementCmd(set *nftables.Set, key, keyEnd, val []byte, verdict *expr.
 	}
 }
 
-func deleteSetElementCmd(set *nftables.Set, key []byte) tea.Cmd {
+func deleteSetElementCmd(set *nftables.Set, key, keyEnd []byte) tea.Cmd {
 	return func() tea.Msg {
-		if err := nft.DeleteSetElement(set, key); err != nil {
+		if err := nft.DeleteSetElement(set, key, keyEnd); err != nil {
 			return setOpErrMsg{err: err}
 		}
 		return setElementDeletedMsg{}

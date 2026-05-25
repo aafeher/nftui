@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"strings"
@@ -197,7 +198,7 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 				sv.showDelete = false
 				if sv.cursor >= 0 && sv.cursor < len(sv.elements) {
 					el := sv.elements[sv.cursor]
-					return sv, deleteSetElementCmd(sv.set, el.Key)
+					return sv, deleteSetElementCmd(sv.set, el.Key, el.KeyEnd)
 				}
 				return sv, nil
 			case "n", "N", "esc":
@@ -442,7 +443,14 @@ func (sv setView) View() string {
 			if i == sv.cursor {
 				cursor = "> "
 			}
-			line := cursor + formatSetElementKey(sv.set, el.Key)
+			keyStr := formatSetElementKey(sv.set, el.Key)
+			// Interval entries return with KeyEnd populated (see
+			// nft.GetSetElements). Hide single-host pairs (KeyEnd == Key);
+			// render true ranges as `start-end`.
+			if len(el.KeyEnd) > 0 && !bytes.Equal(el.Key, el.KeyEnd) {
+				keyStr += "-" + formatSetElementKey(sv.set, el.KeyEnd)
+			}
+			line := cursor + keyStr
 			if sv.set.IsMap {
 				switch {
 				case el.VerdictData != nil:
