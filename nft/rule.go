@@ -535,18 +535,10 @@ const (
 // in Operation so renderers don't import the unix package.
 type SetAction struct {
 	SetName   string
-	MapName   string
-	Elements  []SetElement
 	Operation string // "add" / "update" / "delete" (NFT_DYNSET_OP_*)
 	KeyField  string // resolved from SrcRegKey via regMap (e.g. "ip saddr")
 	Timeout   time.Duration
 	Invert    bool
-}
-
-// SetElement represents a single element in a set with a key and an optional associated value.
-type SetElement struct {
-	Key   interface{}
-	Value interface{} // for map
 }
 
 // RedirectAction represents an action that performs redirection, optionally specifying a range of destination ports.
