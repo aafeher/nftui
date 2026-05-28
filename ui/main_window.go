@@ -596,7 +596,10 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 
 	case namedObjectOpErrMsg:
-		m.err = msg.err
+		// Reset/Delete failures share the tree's yellow status line with the
+		// no-op hint ("no resettable object under cursor") — one channel per
+		// action result, instead of the global red tablesBox replacement.
+		m.tableTree.statusMsg = msg.err.Error()
 		return m, nil
 
 	case setOpErrMsg:
