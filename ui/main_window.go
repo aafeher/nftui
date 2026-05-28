@@ -595,12 +595,17 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd(),
 		)
 
+	case statusFadeMsg:
+		if msg.gen == m.tableTree.statusGen {
+			m.tableTree.statusMsg = ""
+		}
+		return m, nil
+
 	case namedObjectOpErrMsg:
 		// Reset/Delete failures share the tree's yellow status line with the
 		// no-op hint ("no resettable object under cursor") — one channel per
 		// action result, instead of the global red tablesBox replacement.
-		m.tableTree.statusMsg = msg.err.Error()
-		return m, nil
+		return m, m.tableTree.setStatus(msg.err.Error())
 
 	case setOpErrMsg:
 		if m.setCreate != nil {

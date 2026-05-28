@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"nftui/nft"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -32,9 +33,31 @@ type tableTreeModel struct {
 	width             int
 	showDeleteConfirm bool
 	// statusMsg is a transient hint (e.g. "no resettable object under
-	// cursor"). Cleared on the next key press so old messages never
-	// linger past the action they're about.
+	// cursor"). It auto-fades ~2s after it's set (see setStatus) rather
+	// than clearing on the next key press, so an accidental cursor move
+	// doesn't swallow it before the user reads it.
 	statusMsg string
+	// statusGen tags each statusMsg so a stale fade timer (from an earlier
+	// message that was already replaced) can't clear a newer one.
+	statusGen int
+}
+
+const statusFadeDelay = 2 * time.Second
+
+// statusFadeMsg is delivered by the setStatus timer; the handler clears
+// statusMsg only when gen still matches the current statusGen.
+type statusFadeMsg struct{ gen int }
+
+// setStatus records a transient hint and returns a tea.Cmd that fades it
+// after statusFadeDelay. Bumping statusGen invalidates any in-flight timer
+// from a previous message.
+func (tm *tableTreeModel) setStatus(msg string) tea.Cmd {
+	tm.statusMsg = msg
+	tm.statusGen++
+	gen := tm.statusGen
+	return tea.Tick(statusFadeDelay, func(time.Time) tea.Msg {
+		return statusFadeMsg{gen: gen}
+	})
 }
 
 // IsModal reports whether the tree is currently showing a modal dialog (e.g.
@@ -168,10 +191,6 @@ func (tm tableTreeModel) getFlattenedItems() []flatItem {
 func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// Any keypress clears the transient status hint from the previous
-		// action — the message is only meant to outlive a single beat.
-		tm.statusMsg = ""
-
 		if tm.showDeleteConfirm {
 			switch msg.String() {
 			case "y", "Y":
@@ -252,7 +271,7 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						selected.obj.Type == nftables.ObjTypeQuota) {
 					return tm, resetNamedObjectCmd(*selected.obj)
 				}
-				tm.statusMsg = "no resettable counter/quota under cursor"
+				return tm, tm.setStatus("no resettable counter/quota under cursor")
 			}
 		case "e":
 			items := tm.getFlattenedItems()

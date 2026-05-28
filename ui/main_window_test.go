@@ -24,3 +24,43 @@ func TestNamedObjectOpErr_RoutesToTreeStatus(t *testing.T) {
 		t.Errorf("tableTree.statusMsg = %q, want %q", mw.tableTree.statusMsg, wantErr.Error())
 	}
 }
+
+// setStatus records the hint, bumps the generation, and returns a fade timer.
+func TestTableTree_SetStatus_BumpsGenAndReturnsCmd(t *testing.T) {
+	var tm tableTreeModel
+	cmd := tm.setStatus("hint one")
+	if tm.statusMsg != "hint one" {
+		t.Errorf("statusMsg = %q, want 'hint one'", tm.statusMsg)
+	}
+	if tm.statusGen != 1 {
+		t.Errorf("statusGen = %d, want 1", tm.statusGen)
+	}
+	if cmd == nil {
+		t.Error("setStatus must return a fade-timer cmd")
+	}
+	tm.setStatus("hint two")
+	if tm.statusGen != 2 {
+		t.Errorf("statusGen = %d after second set, want 2", tm.statusGen)
+	}
+}
+
+// A stale fade timer (gen from a message that was already replaced) must not
+// clear the current hint; only the matching generation clears it.
+func TestStatusFade_OnlyMatchingGenClears(t *testing.T) {
+	var tm tableTreeModel
+	tm.setStatus("first")
+	tm.setStatus("second") // statusGen now 2, statusMsg "second"
+	m := MainWindow{tableTree: tm}
+
+	updated, _ := m.Update(statusFadeMsg{gen: 1}) // stale
+	mw := updated.(MainWindow)
+	if mw.tableTree.statusMsg != "second" {
+		t.Errorf("stale fade cleared current hint: %q", mw.tableTree.statusMsg)
+	}
+
+	updated, _ = mw.Update(statusFadeMsg{gen: 2}) // current
+	mw = updated.(MainWindow)
+	if mw.tableTree.statusMsg != "" {
+		t.Errorf("matching fade did not clear hint: %q", mw.tableTree.statusMsg)
+	}
+}
