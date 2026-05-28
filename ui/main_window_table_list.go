@@ -271,7 +271,8 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						selected.obj.Type == nftables.ObjTypeQuota) {
 					return tm, resetNamedObjectCmd(*selected.obj)
 				}
-				return tm, tm.setStatus("no resettable counter/quota under cursor")
+				cmd := tm.setStatus("no resettable counter/quota under cursor")
+				return tm, cmd
 			}
 		case "e":
 			items := tm.getFlattenedItems()
@@ -685,10 +686,11 @@ func (tm tableTreeModel) View() string {
 		}
 	}
 
-	if tm.statusMsg != "" {
-		// Yellow hint line under the tree — visible until the next key
-		// press clears it (see Update). Indented to align with table
-		// rows so it doesn't look like a separate widget.
+	if tm.statusMsg != "" && !tm.showDeleteConfirm {
+		// Yellow hint line under the tree — auto-fades ~2s after it's set
+		// (see setStatus). Hidden while the delete-confirm overlay is up so
+		// a still-fading hint doesn't sit above an unrelated modal. Indented
+		// to align with table rows so it doesn't look like a separate widget.
 		b.WriteString("\n")
 		b.WriteString(yellowStyle.Render("  ! " + tm.statusMsg))
 		b.WriteString("\n")

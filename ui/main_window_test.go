@@ -3,6 +3,9 @@ package ui
 import (
 	"errors"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/nftables"
 )
 
 // namedObjectOpErrMsg must surface on the tree's yellow status line, not the
@@ -41,6 +44,28 @@ func TestTableTree_SetStatus_BumpsGenAndReturnsCmd(t *testing.T) {
 	tm.setStatus("hint two")
 	if tm.statusGen != 2 {
 		t.Errorf("statusGen = %d after second set, want 2", tm.statusGen)
+	}
+}
+
+// Pressing R on a non-resettable row (here a table root) must record the
+// no-op hint on the returned model and return a fade-timer cmd. Guards the
+// setStatus call inside tableTreeModel.Update against return-value ordering.
+func TestTableTree_PressR_NonResettable_SetsStatus(t *testing.T) {
+	tm := tableTreeModel{
+		nodes: []*tableNode{
+			{Table: nftables.Table{Name: "t", Family: nftables.TableFamilyINet}},
+		},
+	}
+	updated, cmd := tm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("R")})
+	ttm := updated.(tableTreeModel)
+	if ttm.statusMsg != "no resettable counter/quota under cursor" {
+		t.Errorf("statusMsg = %q, want the no-op hint", ttm.statusMsg)
+	}
+	if ttm.statusGen == 0 {
+		t.Error("statusGen should have been bumped on the returned model")
+	}
+	if cmd == nil {
+		t.Error("expected a fade-timer cmd")
 	}
 }
 
