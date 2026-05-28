@@ -205,10 +205,8 @@ func TestSetView_PressD_EmptyList_NoModal(t *testing.T) {
 // rejection (setOpErrMsg routed through main_window) must wipe the hint
 // so the overlay doesn't claim success and failure simultaneously.
 //
-// The mutual-exclusion logic lives in main_window's setOpErrMsg
-// handler; here we simulate the field assignments that handler performs
-// (setView is field-accessed directly, not driven via Update for this
-// msg type) and assert the final state on the model.
+// main_window's setOpErrMsg handler calls setAddErr when the prompt is
+// open; this exercises that helper directly.
 func TestSetView_KernelError_WipesAddLastHint(t *testing.T) {
 	sv := mkSetView(ipv4Set())
 	sv, _ = sv.Update(runes("a"))
@@ -218,16 +216,34 @@ func TestSetView_KernelError_WipesAddLastHint(t *testing.T) {
 		t.Fatal("addLastHint should be set after a successful Enter")
 	}
 
-	// Simulate main_window's setOpErrMsg routing when the prompt is open.
-	if sv.showAddPrompt {
-		sv.addErr = "element with same key already exists"
-		sv.addLastHint = ""
-	}
+	sv.setAddErr("element with same key already exists")
 	if sv.addLastHint != "" {
 		t.Errorf("hint not wiped on kernel error: %q", sv.addLastHint)
 	}
 	if sv.addErr == "" {
 		t.Error("addErr should carry the kernel rejection")
+	}
+}
+
+// Regression: a local parse error on the next Enter (user typed bad input
+// after a prior success) must also clear the stale "added X" hint — same
+// mutual-exclusion invariant as the kernel path.
+func TestSetView_BadKeyAfterSuccess_WipesAddLastHint(t *testing.T) {
+	sv := mkSetView(ipv4Set())
+	sv, _ = sv.Update(runes("a"))
+	sv.addInput.SetValue("10.0.0.1")
+	sv, _ = sv.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if sv.addLastHint == "" {
+		t.Fatal("addLastHint should be set after the first successful Enter")
+	}
+
+	sv.addInput.SetValue("not-an-ip")
+	sv, _ = sv.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if sv.addLastHint != "" {
+		t.Errorf("stale hint survived a parse error: %q", sv.addLastHint)
+	}
+	if sv.addErr == "" {
+		t.Error("addErr should surface the parse error")
 	}
 }
 

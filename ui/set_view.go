@@ -107,6 +107,15 @@ func (sv setView) IsModal() bool {
 	return sv.showAddPrompt || sv.showDelete
 }
 
+// setAddErr records a bulk-add prompt failure and drops the previous
+// "added X" hint. The two are mutually exclusive: the last Enter either
+// succeeded (addLastHint) or failed (addErr), never both — so a stale green
+// hint never lingers next to a red error.
+func (sv *setView) setAddErr(msg string) {
+	sv.addErr = msg
+	sv.addLastHint = ""
+}
+
 func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -137,12 +146,12 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 			case "enter":
 				keyStr := strings.TrimSpace(sv.addInput.Value())
 				if keyStr == "" {
-					sv.addErr = "key required"
+					sv.setAddErr("key required")
 					return sv, nil
 				}
 				keyBytes, keyEnd, err := nft.ParseSetElementKey(sv.set, keyStr)
 				if err != nil {
-					sv.addErr = err.Error()
+					sv.setAddErr(err.Error())
 					return sv, nil
 				}
 				var valBytes []byte
@@ -151,7 +160,7 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 				if sv.set.IsMap {
 					valStr = strings.TrimSpace(sv.addValInput.Value())
 					if valStr == "" {
-						sv.addErr = "value required"
+						sv.setAddErr("value required")
 						return sv, nil
 					}
 					if sv.set.DataType.Name == nftables.TypeVerdict.Name {
@@ -160,7 +169,7 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 						valBytes, err = nft.ParseSetElementVal(sv.set, valStr)
 					}
 					if err != nil {
-						sv.addErr = err.Error()
+						sv.setAddErr(err.Error())
 						return sv, nil
 					}
 				}
@@ -497,7 +506,9 @@ func (sv setView) View() string {
 				sv.set.Name, nft.KeyTypeToString(sv.set.KeyType))
 			body = title + "\n\n" + sv.addInput.View()
 		}
-		if sv.addLastHint != "" && sv.addErr == "" {
+		// addErr and addLastHint are mutually exclusive by construction
+		// (see setAddErr), so the hint never shows next to an error.
+		if sv.addLastHint != "" {
 			body += "\n\n" + greenStyle.Render(sv.addLastHint)
 		}
 		if sv.addErr != "" {

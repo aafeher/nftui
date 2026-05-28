@@ -616,8 +616,7 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// honest. Outside the prompt the error goes to the regular
 			// status line below the element list.
 			if m.setView.showAddPrompt {
-				m.setView.addErr = msg.err.Error()
-				m.setView.addLastHint = ""
+				m.setView.setAddErr(msg.err.Error())
 			} else {
 				m.setView.statusMsg = msg.err.Error()
 			}
