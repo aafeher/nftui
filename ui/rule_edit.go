@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"nftui/nft"
+	"nftui/nft/nftserializer"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -12,6 +13,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 )
+
+// formatSaveError pairs the kernel's rejection reason with the nft CLI form
+// of the rule we tried to push, so the editor's error line shows both *which*
+// rule failed and *why*. The underlying error is wrapped (%w) so errors.Is
+// still works downstream.
+func formatSaveError(err error, rule *nftables.Rule) error {
+	return fmt.Errorf("save failed: %w\nrule: %s", err, nftserializer.SerializeRule(rule))
+}
 
 // ruleEditKeyMap defines key bindings for navigation and actions within the rule editing interface.
 type ruleEditKeyMap struct {
@@ -404,7 +413,7 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 			}
 			saveCmd := func() tea.Msg {
 				if err := nft.ApplyRuleChange(r.rule); err != nil {
-					return errMsg(fmt.Errorf("save error: %w", err))
+					return errMsg(formatSaveError(err, r.rule))
 				}
 				return nil
 			}

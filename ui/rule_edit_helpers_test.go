@@ -1,8 +1,11 @@
 package ui
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
+	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 )
 
@@ -234,5 +237,28 @@ func TestEncodeDecodeCommentRoundtrip(t *testing.T) {
 				t.Errorf("roundtrip: got %q, want %q", result, comment)
 			}
 		})
+	}
+}
+
+// formatSaveError must surface the kernel reason, mark the rule text, and
+// keep the underlying error wrapped for errors.Is. (SerializeRule itself
+// reads sets over netlink, so we don't assert its exact output here.)
+func TestFormatSaveError(t *testing.T) {
+	kernelErr := errors.New("Operation not permitted")
+	rule := &nftables.Rule{
+		Table: &nftables.Table{Name: "filter", Family: nftables.TableFamilyINet},
+		Chain: &nftables.Chain{Name: "input"},
+		Exprs: []expr.Any{&expr.Verdict{Kind: expr.VerdictAccept}},
+	}
+	got := formatSaveError(kernelErr, rule)
+	msg := got.Error()
+	if !strings.Contains(msg, "Operation not permitted") {
+		t.Errorf("kernel reason missing from %q", msg)
+	}
+	if !strings.Contains(msg, "rule:") {
+		t.Errorf("rule-text marker missing from %q", msg)
+	}
+	if !errors.Is(got, kernelErr) {
+		t.Error("underlying kernel error not wrapped (errors.Is failed)")
 	}
 }
