@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"nftui/nft"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -13,6 +14,28 @@ import (
 )
 
 type errMsg error
+
+// loadErrorView renders the tables-box content when an initial load fails.
+// A netlink permission error (no CAP_NET_ADMIN / not root) gets actionable
+// advice instead of the raw syscall text; any other error falls back to the
+// generic red error line.
+func loadErrorView(err error) string {
+	if !nft.IsPermissionError(err) {
+		return redBoldStyle.Render(fmt.Sprintf("Error: %v", err))
+	}
+	bin := os.Args[0]
+	var b strings.Builder
+	b.WriteString(redBoldStyle.Render("Permission denied - cannot read the nftables ruleset."))
+	b.WriteString("\n\n")
+	b.WriteString(whiteStyle.Render("nftui needs the CAP_NET_ADMIN capability. Either:"))
+	b.WriteString("\n\n")
+	b.WriteString(grayStyle.Render("  - run it with sudo:          "))
+	b.WriteString(whiteStyle.Render("sudo " + bin))
+	b.WriteString("\n")
+	b.WriteString(grayStyle.Render("  - or grant the capability:   "))
+	b.WriteString(whiteStyle.Render("sudo setcap cap_net_admin+ep " + bin))
+	return b.String()
+}
 
 type keyMap struct {
 	Up        key.Binding
@@ -902,7 +925,7 @@ func (m MainWindow) View() string {
 	if m.loading {
 		tablesBoxContent = "Loading..."
 	} else if m.err != nil {
-		tablesBoxContent = redBoldStyle.Render(fmt.Sprintf("Error: %v", m.err))
+		tablesBoxContent = loadErrorView(m.err)
 	} else {
 		tablesBoxContent = m.tableTree.View()
 	}

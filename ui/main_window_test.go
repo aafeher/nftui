@@ -2,6 +2,9 @@ package ui
 
 import (
 	"errors"
+	"fmt"
+	"strings"
+	"syscall"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -92,5 +95,28 @@ func TestStatusFade_OnlyMatchingGenClears(t *testing.T) {
 	mw = updated.(MainWindow)
 	if mw.tableTree.statusMsg != "" {
 		t.Errorf("matching fade did not clear hint: %q", mw.tableTree.statusMsg)
+	}
+}
+
+// A netlink permission error must render actionable CAP_NET_ADMIN advice,
+// not the raw syscall text; other errors fall back to the generic line.
+func TestLoadErrorView(t *testing.T) {
+	permErr := fmt.Errorf("list tables: %w", syscall.EPERM)
+	got := loadErrorView(permErr)
+	for _, want := range []string{"Permission denied", "CAP_NET_ADMIN", "sudo", "setcap cap_net_admin+ep"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("permission advice missing %q\ngot:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "list tables") {
+		t.Error("raw syscall text should be replaced, not shown")
+	}
+
+	other := loadErrorView(errors.New("malformed object"))
+	if !strings.Contains(other, "Error: malformed object") {
+		t.Errorf("generic error not rendered verbatim, got:\n%s", other)
+	}
+	if strings.Contains(other, "CAP_NET_ADMIN") {
+		t.Error("non-permission error must not show the capability advice")
 	}
 }
