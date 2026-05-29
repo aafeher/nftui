@@ -14,7 +14,7 @@ func TestNamedObjectOpErr_RoutesToTreeStatus(t *testing.T) {
 	m := MainWindow{} // zero value — the handler under test touches no netlink state
 	wantErr := errors.New("reset counter c1: operation not permitted")
 
-	updated, _ := m.Update(namedObjectOpErrMsg{err: wantErr})
+	updated, cmd := m.Update(namedObjectOpErrMsg{err: wantErr})
 	mw, ok := updated.(MainWindow)
 	if !ok {
 		t.Fatalf("Update returned %T, want MainWindow", updated)
@@ -25,6 +25,11 @@ func TestNamedObjectOpErr_RoutesToTreeStatus(t *testing.T) {
 	}
 	if mw.tableTree.statusMsg != wantErr.Error() {
 		t.Errorf("tableTree.statusMsg = %q, want %q", mw.tableTree.statusMsg, wantErr.Error())
+	}
+	// The error must also auto-fade like any tree hint, so the handler has
+	// to route through setStatus and return its fade timer — not return nil.
+	if cmd == nil {
+		t.Error("error path must return a fade-timer cmd (setStatus), got nil")
 	}
 }
 
