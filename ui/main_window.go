@@ -941,6 +941,11 @@ func (m MainWindow) View() string {
 	// disabled binding drops out of both ShortHelp and FullHelp output.
 	m.applyContextualKeys()
 	footer := m.help.View(m.keys)
+	if !m.loading && m.err == nil && m.tableTree.searchMode {
+		// In tree search mode the normal bindings don't apply — show the
+		// search controls instead (footer-completeness invariant).
+		footer = m.help.View(treeSearchKeys)
+	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		header,

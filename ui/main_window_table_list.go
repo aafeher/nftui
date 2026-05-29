@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
@@ -40,6 +41,38 @@ type tableTreeModel struct {
 	// statusGen tags each statusMsg so a stale fade timer (from an earlier
 	// message that was already replaced) can't clear a newer one.
 	statusGen int
+
+	// Incremental name search (entered with "/"). While searchMode is on,
+	// every keypress is routed here (see IsModal) so typed characters build
+	// the query instead of triggering tree actions. searchMatches holds the
+	// flattened-row indices that match searchQuery; searchActive points at
+	// the one the cursor is currently parked on.
+	searchMode    bool
+	searchQuery   string
+	searchMatches []int
+	searchActive  int
+}
+
+// treeSearchKeyMap is the footer shown while the tree is in search mode.
+type treeSearchKeyMap struct {
+	Filter key.Binding
+	Next   key.Binding
+	Prev   key.Binding
+	Exit   key.Binding
+}
+
+func (k treeSearchKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Filter, k.Next, k.Prev, k.Exit}
+}
+func (k treeSearchKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{k.Filter, k.Next, k.Prev, k.Exit}}
+}
+
+var treeSearchKeys = treeSearchKeyMap{
+	Filter: key.NewBinding(key.WithKeys("a-z"), key.WithHelp("type", "filter")),
+	Next:   key.NewBinding(key.WithKeys("enter", "down"), key.WithHelp("enter/↓", "next match")),
+	Prev:   key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "prev match")),
+	Exit:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "exit search")),
 }
 
 const statusFadeDelay = 2 * time.Second
@@ -65,7 +98,79 @@ func (tm *tableTreeModel) setStatus(msg string) tea.Cmd {
 // when modal, so that keys like "n" (no) don't escape to MainWindow's own
 // bindings (e.g. NewTable).
 func (tm tableTreeModel) IsModal() bool {
-	return tm.showDeleteConfirm
+	return tm.showDeleteConfirm || tm.searchMode
+}
+
+// searchName returns the row's user-visible name for search matching.
+func (it flatItem) searchName() string {
+	switch {
+	case it.isObj:
+		return it.objName
+	case it.isSet:
+		return it.setName
+	case it.chain != nil:
+		return it.chainName
+	case it.isRoot:
+		return it.tableName
+	}
+	return ""
+}
+
+// enterSearch begins an incremental search. All tables are expanded so every
+// chain / set / object row becomes a candidate (a match hidden inside a
+// collapsed table would be unreachable otherwise).
+func (tm *tableTreeModel) enterSearch() {
+	tm.searchMode = true
+	tm.searchQuery = ""
+	tm.searchMatches = nil
+	tm.searchActive = 0
+	for _, n := range tm.nodes {
+		n.Expanded = true
+	}
+}
+
+func (tm *tableTreeModel) exitSearch() {
+	tm.searchMode = false
+	tm.searchQuery = ""
+	tm.searchMatches = nil
+	tm.searchActive = 0
+}
+
+// recomputeSearchMatches rebuilds searchMatches for the current query (case-
+// insensitive substring on the row name) and resets the active match to the
+// first hit.
+func (tm *tableTreeModel) recomputeSearchMatches() {
+	tm.searchMatches = nil
+	tm.searchActive = 0
+	q := strings.ToLower(strings.TrimSpace(tm.searchQuery))
+	if q == "" {
+		return
+	}
+	for i, it := range tm.getFlattenedItems() {
+		if strings.Contains(strings.ToLower(it.searchName()), q) {
+			tm.searchMatches = append(tm.searchMatches, i)
+		}
+	}
+}
+
+// jumpToActiveMatch parks the cursor on the active match and scrolls it into
+// view. No-op when there are no matches.
+func (tm *tableTreeModel) jumpToActiveMatch() {
+	if len(tm.searchMatches) == 0 {
+		return
+	}
+	tm.searchActive = (tm.searchActive%len(tm.searchMatches) + len(tm.searchMatches)) % len(tm.searchMatches)
+	tm.cursor = tm.searchMatches[tm.searchActive]
+	tm.ensureCursorVisible()
+}
+
+func (tm *tableTreeModel) ensureCursorVisible() {
+	if tm.cursor < tm.scrollOffset {
+		tm.scrollOffset = tm.cursor
+	}
+	if tm.maxHeight > 0 && tm.cursor >= tm.scrollOffset+tm.maxHeight {
+		tm.scrollOffset = tm.cursor - tm.maxHeight + 1
+	}
 }
 
 type flatItem struct {
@@ -188,6 +293,41 @@ func (tm tableTreeModel) getFlattenedItems() []flatItem {
 	return items
 }
 
+// updateSearch handles keys while the tree is in incremental-search mode.
+// Printable runes extend the query (and re-jump to the first match); Enter /
+// Down advance through matches, Up steps back, Esc leaves search mode.
+func (tm tableTreeModel) updateSearch(msg tea.KeyMsg) (tableTreeModel, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		tm.exitSearch()
+	case "ctrl+c":
+		return tm, tea.Quit
+	case "enter", "down":
+		if len(tm.searchMatches) > 0 {
+			tm.searchActive++
+			tm.jumpToActiveMatch()
+		}
+	case "up":
+		if len(tm.searchMatches) > 0 {
+			tm.searchActive--
+			tm.jumpToActiveMatch()
+		}
+	case "backspace":
+		if tm.searchQuery != "" {
+			tm.searchQuery = tm.searchQuery[:len(tm.searchQuery)-1]
+			tm.recomputeSearchMatches()
+			tm.jumpToActiveMatch()
+		}
+	default:
+		if len(msg.Runes) == 1 {
+			tm.searchQuery += string(msg.Runes)
+			tm.recomputeSearchMatches()
+			tm.jumpToActiveMatch()
+		}
+	}
+	return tm, nil
+}
+
 func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -223,9 +363,16 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return tm, nil
 		}
 
+		if tm.searchMode {
+			return tm.updateSearch(msg)
+		}
+
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return tm, tea.Quit
+		case "/":
+			tm.enterSearch()
+			return tm, nil
 		case "up", "k":
 			if tm.cursor > 0 {
 				tm.cursor--
@@ -686,7 +833,25 @@ func (tm tableTreeModel) View() string {
 		}
 	}
 
-	if tm.statusMsg != "" && !tm.showDeleteConfirm {
+	if tm.searchMode {
+		// Incremental-search prompt under the tree. The trailing "_" stands in
+		// for the input cursor; the suffix reports match position / no-match.
+		b.WriteString("\n")
+		prompt := yellowBoldStyle.Render("  /" + tm.searchQuery + "_")
+		var suffix string
+		switch {
+		case tm.searchQuery == "":
+			suffix = grayStyle.Render("  type to filter by name")
+		case len(tm.searchMatches) == 0:
+			suffix = grayStyle.Render("  no match")
+		default:
+			suffix = grayStyle.Render(fmt.Sprintf("  match %d/%d", tm.searchActive+1, len(tm.searchMatches)))
+		}
+		b.WriteString(prompt + suffix)
+		b.WriteString("\n")
+	}
+
+	if tm.statusMsg != "" && !tm.showDeleteConfirm && !tm.searchMode {
 		// Yellow hint line under the tree — auto-fades ~2s after it's set
 		// (see setStatus). Hidden while the delete-confirm overlay is up so
 		// a still-fading hint doesn't sit above an unrelated modal. Indented

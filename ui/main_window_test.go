@@ -120,3 +120,100 @@ func TestLoadErrorView(t *testing.T) {
 		t.Error("non-permission error must not show the capability advice")
 	}
 }
+
+// searchTree builds a small two-table tree. Flattened (when expanded):
+// 0:filter 1:input 2:output 3:nat 4:prerouting
+func searchTree() tableTreeModel {
+	return tableTreeModel{
+		nodes: []*tableNode{
+			{Table: nftables.Table{Name: "filter", Family: nftables.TableFamilyINet},
+				Chains: []*chainNode{
+					{Chain: nftables.Chain{Name: "input"}},
+					{Chain: nftables.Chain{Name: "output"}},
+				}},
+			{Table: nftables.Table{Name: "nat", Family: nftables.TableFamilyIPv4},
+				Chains: []*chainNode{
+					{Chain: nftables.Chain{Name: "prerouting"}},
+				}},
+		},
+	}
+}
+
+func typeRunes(tm tableTreeModel, s string) tableTreeModel {
+	for _, r := range s {
+		got, _ := tm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		tm = got.(tableTreeModel)
+	}
+	return tm
+}
+
+// "/" enters search mode, makes the tree modal, and expands every table so
+// rows inside collapsed tables become searchable.
+func TestTreeSearch_SlashEntersModeAndExpands(t *testing.T) {
+	got, _ := searchTree().Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	tm := got.(tableTreeModel)
+	if !tm.searchMode || !tm.IsModal() {
+		t.Fatalf("searchMode=%v IsModal=%v, want both true", tm.searchMode, tm.IsModal())
+	}
+	for _, n := range tm.nodes {
+		if !n.Expanded {
+			t.Errorf("table %q not expanded on search entry", n.Table.Name)
+		}
+	}
+}
+
+// Typing filters incrementally and parks the cursor on the first match;
+// Enter cycles forward (wrapping), Up steps back.
+func TestTreeSearch_TypeAndCycle(t *testing.T) {
+	got, _ := searchTree().Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	tm := got.(tableTreeModel)
+	tm = typeRunes(tm, "out") // matches output(2), prerouting(4)
+
+	if len(tm.searchMatches) != 2 {
+		t.Fatalf("matches = %v, want 2 (output, prerouting)", tm.searchMatches)
+	}
+	if tm.cursor != 2 {
+		t.Errorf("cursor = %d, want 2 (first match: output)", tm.cursor)
+	}
+
+	got, _ = tm.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	tm = got.(tableTreeModel)
+	if tm.cursor != 4 {
+		t.Errorf("after Enter cursor = %d, want 4 (prerouting)", tm.cursor)
+	}
+
+	got, _ = tm.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	tm = got.(tableTreeModel)
+	if tm.cursor != 2 {
+		t.Errorf("after wrap cursor = %d, want 2 (back to output)", tm.cursor)
+	}
+
+	got, _ = tm.Update(tea.KeyMsg{Type: tea.KeyUp})
+	tm = got.(tableTreeModel)
+	if tm.cursor != 4 {
+		t.Errorf("after Up cursor = %d, want 4 (prev wraps to prerouting)", tm.cursor)
+	}
+}
+
+// Esc leaves search mode and clears the query.
+func TestTreeSearch_EscExits(t *testing.T) {
+	got, _ := searchTree().Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	tm := typeRunes(got.(tableTreeModel), "in")
+	got, _ = tm.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	tm = got.(tableTreeModel)
+	if tm.searchMode || tm.searchQuery != "" || tm.IsModal() {
+		t.Errorf("after Esc: searchMode=%v query=%q IsModal=%v, want cleared", tm.searchMode, tm.searchQuery, tm.IsModal())
+	}
+}
+
+// A query with no matches leaves the cursor where it was.
+func TestTreeSearch_NoMatchKeepsCursor(t *testing.T) {
+	got, _ := searchTree().Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	tm := typeRunes(got.(tableTreeModel), "zzz")
+	if len(tm.searchMatches) != 0 {
+		t.Errorf("matches = %v, want none", tm.searchMatches)
+	}
+	if tm.cursor != 0 {
+		t.Errorf("cursor moved to %d on no-match, want 0", tm.cursor)
+	}
+}
