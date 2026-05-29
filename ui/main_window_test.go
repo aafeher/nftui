@@ -206,6 +206,83 @@ func TestTreeSearch_EscExits(t *testing.T) {
 	}
 }
 
+// chainViewWithComments builds a minimal chainView with rules that carry the
+// given comments in UserData (TLV). RuleToHumanReadable hits netlink and
+// returns "Error getting sets:" in tests — fine as long as the queries we
+// use don't overlap that text.
+func chainViewWithComments(comments ...string) chainView {
+	tbl := &nftables.Table{Name: "filter", Family: nftables.TableFamilyINet}
+	chn := &nftables.Chain{Name: "input"}
+	var rules []*nftables.Rule
+	for _, c := range comments {
+		rules = append(rules, &nftables.Rule{
+			Table:    tbl,
+			Chain:    chn,
+			UserData: encodeCommentToUserData(c),
+		})
+	}
+	return chainView{rules: rules, table: &tableNode{Table: *tbl}, chain: chn}
+}
+
+func typeIntoChainFilter(cv chainView, s string) chainView {
+	for _, r := range s {
+		cv, _ = cv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	return cv
+}
+
+func TestChainView_SlashEntersFilter(t *testing.T) {
+	cv := chainViewWithComments("a", "b")
+	cv, _ = cv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	if !cv.filterMode || !cv.IsModal() {
+		t.Errorf("filterMode=%v IsModal=%v, want both true", cv.filterMode, cv.IsModal())
+	}
+	if cv.cursor != 0 || cv.scrollOffset != 0 {
+		t.Errorf("cursor/scrollOffset = %d/%d, want 0/0 on filter entry", cv.cursor, cv.scrollOffset)
+	}
+}
+
+func TestChainView_FilterNarrowsByComment(t *testing.T) {
+	cv := chainViewWithComments("allow ssh", "block telnet", "allow https")
+	cv, _ = cv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+
+	cv = typeIntoChainFilter(cv, "allow")
+	if got := len(cv.activeRules()); got != 2 {
+		t.Errorf("'allow' should match 2 rules, got %d", got)
+	}
+
+	// Replace query with 'ssh' (backspace 5 chars off, then type).
+	for i := 0; i < 5; i++ {
+		cv, _ = cv.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	}
+	cv = typeIntoChainFilter(cv, "ssh")
+	if got := len(cv.activeRules()); got != 1 {
+		t.Errorf("'ssh' should match 1 rule, got %d", got)
+	}
+}
+
+func TestChainView_EscClearsFilter(t *testing.T) {
+	cv := chainViewWithComments("alpha", "beta", "gamma")
+	cv, _ = cv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	cv = typeIntoChainFilter(cv, "alp")
+	cv, _ = cv.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if cv.filterMode || cv.filterQuery != "" {
+		t.Errorf("after Esc: filterMode=%v query=%q, want cleared", cv.filterMode, cv.filterQuery)
+	}
+	if got := len(cv.activeRules()); got != 3 {
+		t.Errorf("full list not restored after Esc, got %d rules", got)
+	}
+}
+
+func TestChainView_NoMatchEmptyActiveRules(t *testing.T) {
+	cv := chainViewWithComments("alpha", "beta")
+	cv, _ = cv.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	cv = typeIntoChainFilter(cv, "xyzqq")
+	if got := len(cv.activeRules()); got != 0 {
+		t.Errorf("no-match query should yield 0 rules, got %d", got)
+	}
+}
+
 // A query with no matches leaves the cursor where it was.
 func TestTreeSearch_NoMatchKeepsCursor(t *testing.T) {
 	got, _ := searchTree().Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})

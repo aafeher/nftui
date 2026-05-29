@@ -25,6 +25,13 @@ type chainView struct {
 	cursor            int
 	showDeleteConfirm bool
 	statusMsg         string // last error or status from an async chain operation
+
+	// Inline rule filter (entered with "/"). While filterMode is on the view
+	// is modal so printable keys build filterQuery instead of triggering rule
+	// actions; the list narrows to rules whose text/comment match. cursor and
+	// scrollOffset index the filtered slice (see activeRules).
+	filterMode  bool
+	filterQuery string
 }
 
 type chainViewKeyMap struct {
@@ -115,10 +122,141 @@ func newChainView(chain *nftables.Chain, table *tableNode) chainView {
 	}
 }
 
-// IsModal reports whether a confirmation dialog is currently shown.
-// Used by main_window to route all keys through Update when true.
+// IsModal reports whether a confirmation dialog or the inline filter is
+// active. Used by main_window to route all keys through Update when true so
+// that filter typing (and Esc) doesn't escape to the global bindings.
 func (c chainView) IsModal() bool {
-	return c.showDeleteConfirm
+	return c.showDeleteConfirm || c.filterMode
+}
+
+// activeRules is the rule slice the cursor and the rendered list operate on:
+// the full chain rules normally, or just the matches while filtering.
+func (c chainView) activeRules() []*nftables.Rule {
+	if !c.filterMode || strings.TrimSpace(c.filterQuery) == "" {
+		return c.rules
+	}
+	var out []*nftables.Rule
+	for _, r := range c.rules {
+		if c.ruleMatchesFilter(r) {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// ruleMatchesFilter reports whether rule matches the current filterQuery
+// (case-insensitive substring over the rendered rule text and its comment —
+// so verdict, condition keywords and comment text are all searchable).
+func (c chainView) ruleMatchesFilter(rule *nftables.Rule) bool {
+	q := strings.ToLower(strings.TrimSpace(c.filterQuery))
+	if q == "" {
+		return true
+	}
+	hay := strings.ToLower(nft.RuleToHumanReadable(rule) + " " + nft.ExtractComment(rule))
+	return strings.Contains(hay, q)
+}
+
+func (c *chainView) enterFilter() {
+	c.filterMode = true
+	c.filterQuery = ""
+	c.cursor = 0
+	c.scrollOffset = 0
+}
+
+func (c *chainView) exitFilter() {
+	c.filterMode = false
+	c.filterQuery = ""
+	c.cursor = 0
+	c.scrollOffset = 0
+}
+
+// ruleViewCmd / ruleEditCmd open the given rule (re-fetched fresh by handle)
+// in the read-only viewer / editor. Shared by the normal key handlers and the
+// filter handler so both open the rule under the cursor identically.
+func (c chainView) ruleViewCmd(rule *nftables.Rule, cursor int) tea.Cmd {
+	table, chain, handle := c.table, c.chain, rule.Handle
+	return func() tea.Msg {
+		return ruleViewSelectedMsg{rule: fetchFreshRule(table, chain, handle, cursor, rule)}
+	}
+}
+func (c chainView) ruleEditCmd(rule *nftables.Rule, cursor int) tea.Cmd {
+	table, chain, handle := c.table, c.chain, rule.Handle
+	return func() tea.Msg {
+		return ruleEditSelectedMsg{rule: fetchFreshRule(table, chain, handle, cursor, rule)}
+	}
+}
+
+// updateFilter handles keys while the inline rule filter is active. Printable
+// runes extend the query (narrowing the list); arrows navigate the filtered
+// rules; f3/Enter open the selected rule, f4 edits it; Esc clears the filter.
+func (c chainView) updateFilter(msg tea.KeyMsg) (chainView, tea.Cmd) {
+	rules := c.activeRules()
+	switch msg.String() {
+	case "esc":
+		c.exitFilter()
+	case "ctrl+c":
+		return c, tea.Quit
+	case "up":
+		if c.cursor > 0 {
+			c.cursor--
+			if c.cursor < c.scrollOffset {
+				c.scrollOffset = c.cursor
+			}
+		}
+	case "down":
+		if c.cursor < len(rules)-1 {
+			c.cursor++
+			maxHeight := c.height - 20
+			if maxHeight > 0 && c.cursor >= c.scrollOffset+maxHeight {
+				c.scrollOffset = c.cursor - maxHeight + 1
+			}
+		}
+	case "f3", "enter":
+		if c.cursor >= 0 && c.cursor < len(rules) {
+			return c, c.ruleViewCmd(rules[c.cursor], c.cursor)
+		}
+	case "f4":
+		if c.cursor >= 0 && c.cursor < len(rules) {
+			return c, c.ruleEditCmd(rules[c.cursor], c.cursor)
+		}
+	case "backspace":
+		if c.filterQuery != "" {
+			c.filterQuery = c.filterQuery[:len(c.filterQuery)-1]
+			c.cursor, c.scrollOffset = 0, 0
+		}
+	default:
+		if len(msg.Runes) == 1 {
+			c.filterQuery += string(msg.Runes)
+			c.cursor, c.scrollOffset = 0, 0
+		}
+	}
+	return c, nil
+}
+
+// chainFilterKeyMap is the footer shown while the rule filter is active.
+type chainFilterKeyMap struct {
+	Filter key.Binding
+	Next   key.Binding
+	Prev   key.Binding
+	Open   key.Binding
+	Edit   key.Binding
+	Exit   key.Binding
+}
+
+func (k chainFilterKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Filter, k.Next, k.Prev, k.Open, k.Edit, k.Exit}
+}
+func (k chainFilterKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{{k.Filter, k.Next, k.Prev}, {k.Open, k.Edit, k.Exit}}
+}
+
+var chainFilterKeys = chainFilterKeyMap{
+	Filter: key.NewBinding(key.WithKeys("a-z"), key.WithHelp("type", "filter")),
+	Next:   key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "next")),
+	Prev:   key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "prev")),
+	Open:   key.NewBinding(key.WithKeys("enter", "f3"), key.WithHelp("enter/f3", "view")),
+	Edit:   key.NewBinding(key.WithKeys("f4"), key.WithHelp("f4", "edit")),
+	Exit:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "clear filter")),
 }
 
 func (c chainView) Update(msg tea.Msg) (chainView, tea.Cmd) {
@@ -145,7 +283,14 @@ func (c chainView) Update(msg tea.Msg) (chainView, tea.Cmd) {
 			return c, nil
 		}
 
+		if c.filterMode {
+			return c.updateFilter(msg)
+		}
+
 		switch {
+		case msg.String() == "/":
+			c.enterFilter()
+			return c, nil
 		case key.Matches(msg, c.keys.Up):
 			if c.cursor > 0 {
 				c.cursor--
@@ -165,26 +310,12 @@ func (c chainView) Update(msg tea.Msg) (chainView, tea.Cmd) {
 
 		case key.Matches(msg, c.keys.OpenRuleView):
 			if c.cursor >= 0 && c.cursor < len(c.rules) {
-				table := c.table
-				chain := c.chain
-				handle := c.rules[c.cursor].Handle
-				cursor := c.cursor
-				fallback := c.rules[c.cursor]
-				return c, func() tea.Msg {
-					return ruleViewSelectedMsg{rule: fetchFreshRule(table, chain, handle, cursor, fallback)}
-				}
+				return c, c.ruleViewCmd(c.rules[c.cursor], c.cursor)
 			}
 
 		case key.Matches(msg, c.keys.OpenRuleEdit):
 			if c.cursor >= 0 && c.cursor < len(c.rules) {
-				table := c.table
-				chain := c.chain
-				handle := c.rules[c.cursor].Handle
-				cursor := c.cursor
-				fallback := c.rules[c.cursor]
-				return c, func() tea.Msg {
-					return ruleEditSelectedMsg{rule: fetchFreshRule(table, chain, handle, cursor, fallback)}
-				}
+				return c, c.ruleEditCmd(c.rules[c.cursor], c.cursor)
 			}
 
 		case key.Matches(msg, c.keys.Delete):
@@ -321,20 +452,37 @@ func (c chainView) View() string {
 	content.WriteString(fmt.Sprintf("  • DROP: %s\n", redStyle.Render(fmt.Sprintf("%d", dropCount))))
 	content.WriteString(fmt.Sprintf("  • etc: %s\n", whiteStyle.Render(fmt.Sprintf("%d", otherCount))))
 
-	if len(c.rules) > 0 {
+	if c.filterMode {
+		// Filter prompt line — trailing "_" stands in for the input cursor,
+		// suffix reports how many rules match the current query.
+		prompt := yellowBoldStyle.Render("  /" + c.filterQuery + "_")
+		var suffix string
+		switch {
+		case strings.TrimSpace(c.filterQuery) == "":
+			suffix = grayStyle.Render("  type to filter rules (verdict / condition / comment)")
+		case len(c.activeRules()) == 0:
+			suffix = grayStyle.Render("  no match")
+		default:
+			suffix = grayStyle.Render(fmt.Sprintf("  %d match", len(c.activeRules())))
+		}
+		content.WriteString(prompt + suffix + "\n\n")
+	}
+
+	rules := c.activeRules()
+	if len(rules) > 0 {
 		content.WriteString(defaultBoldStyle.Render("Rules:"))
 		content.WriteString("\n\n")
 
 		// Render list with cursor
 		maxHeight := c.height - 20
 		startIdx := c.scrollOffset
-		endIdx := len(c.rules)
+		endIdx := len(rules)
 		if maxHeight > 0 && endIdx > startIdx+maxHeight {
 			endIdx = startIdx + maxHeight
 		}
 
-		for i := startIdx; i < endIdx && i < len(c.rules); i++ {
-			rule := c.rules[i]
+		for i := startIdx; i < endIdx && i < len(rules); i++ {
+			rule := rules[i]
 			cursor := "  "
 			if i == c.cursor {
 				cursor = "> "
@@ -358,6 +506,10 @@ func (c chainView) View() string {
 		Render(content.String())
 
 	footer := c.help.View(c.keys)
+	if c.filterMode {
+		// Filter mode swaps in its own footer (footer-completeness invariant).
+		footer = c.help.View(chainFilterKeys)
+	}
 
 	parts := []string{header, divider, statBoxes, contentBox}
 	if c.statusMsg != "" {
