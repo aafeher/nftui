@@ -982,7 +982,7 @@ func (r ruleEdit) View() string {
 
 	footer := r.help.View(r.keys)
 	if r.errStr != "" {
-		footer = redBoldStyle.Render("⚠ "+r.errStr) + "\n" + footer
+		footer = redBoldStyle.Render("! "+r.errStr) + "\n" + footer
 	}
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left,
