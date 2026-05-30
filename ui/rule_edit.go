@@ -276,10 +276,11 @@ func newRuleEdit(rule *nftables.Rule, readOnly bool) ruleEdit {
 				NewSctpDportField(rd),    // 26
 				NewSctpVtagField(rd),     // 27
 				NewSctpChecksumField(rd), // 28
+				NewSctpChunkField(rd),    // 29 — chunk-type Select; sub-field write is v0.9.0
 				// DCCP
-				NewDccpSportField(rd), // 29
-				NewDccpDportField(rd), // 30
-				NewDccpTypeField(rd),  // 31
+				NewDccpSportField(rd), // 30
+				NewDccpDportField(rd), // 31
+				NewDccpTypeField(rd),  // 32
 				// AH
 				NewAhHdrlengthField(rd), // 32
 				NewAhReservedField(rd),  // 33
@@ -852,28 +853,30 @@ func (r ruleEdit) renderTransportTab() string {
 	sb.WriteString("\n")
 	sb.WriteString(r.row2(f[27].View(), f[28].View()))
 	sb.WriteString("\n")
+	sb.WriteString(f[29].View()) // SctpChunkField — chunk-type Select
+	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("DCCP"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[29].View(), f[30].View()))
+	sb.WriteString(r.row2(f[30].View(), f[31].View()))
 	sb.WriteString("\n")
-	sb.WriteString(f[31].View())
+	sb.WriteString(f[32].View())
 
 	sb.WriteString(grayBoldStyle.Render("AH"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[32].View(), f[33].View()))
+	sb.WriteString(r.row2(f[33].View(), f[34].View()))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[34].View(), f[35].View()))
+	sb.WriteString(r.row2(f[35].View(), f[36].View()))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("ESP"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[36].View(), f[37].View()))
+	sb.WriteString(r.row2(f[37].View(), f[38].View()))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("COMP"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row3(f[38].View(), f[39].View(), f[40].View()))
+	sb.WriteString(r.row3(f[39].View(), f[40].View(), f[41].View()))
 	sb.WriteString("\n")
 
 	return sb.String()

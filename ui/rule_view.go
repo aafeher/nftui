@@ -597,6 +597,40 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		}
 	}
 
+	// SCTP chunk matches — separate block; same shape as IPv6 exthdrs at
+	// the netlink layer but the CLI form (`sctp chunk <type> [<field> <val>]`)
+	// reads completely differently. Bare-presence matches render as just
+	// `sctp chunk <type>`; field matches add `<field> [op] <value>`.
+	var sctpConds []nft.Condition
+	for _, condition := range rd.Conditions {
+		if condition.SctpChunk != nil {
+			sctpConds = append(sctpConds, condition)
+		}
+	}
+	if len(sctpConds) > 0 {
+		sb.WriteString("\n")
+		sb.WriteString(grayBoldStyle.Render("SCTP chunks:"))
+		sb.WriteString("\n")
+		for _, condition := range sctpConds {
+			s := condition.SctpChunk
+			name := nftexpr.ChunkTypeName(s.ChunkType)
+			if name == "" {
+				name = fmt.Sprintf("0x%02X", uint8(s.ChunkType))
+			}
+			if s.Field == "" {
+				sb.WriteString(fmt.Sprintf("  sctp chunk %s\n", name))
+				continue
+			}
+			op := string(condition.Operation)
+			if op == "==" {
+				op = ""
+			} else {
+				op += " "
+			}
+			sb.WriteString(fmt.Sprintf("  sctp chunk %s %s %s%v\n", name, s.Field, op, s.Value))
+		}
+	}
+
 	// meta iifname / oifname / iif / oif — dedicated lines, always shown.
 	dedicatedLine := func(key nft.MetaKey, label string, quote bool) {
 		found := false

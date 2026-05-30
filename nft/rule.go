@@ -37,10 +37,22 @@ type Condition struct {
 	Payload   *PayloadCondition
 	CT        *CTCondition
 	Exthdr    *ExthdrCondition
+	SctpChunk *SctpChunkCondition
 	SetLookup *SetLookupCondition
 	Limit     *expr.Limit
 	Connlimit *expr.Connlimit
 	Custom    *CustomCondition
+}
+
+// SctpChunkCondition represents an `sctp chunk <type> [<field> <value>]`
+// match. ChunkType names the chunk (data / init / sack / …). When Field is
+// non-empty the match is "sub-field <Field> equals Value"; when empty the
+// match is bare presence ("any chunk of this type is in the packet"), set
+// from an `Exthdr` carrying `NFT_EXTHDR_F_PRESENT`.
+type SctpChunkCondition struct {
+	ChunkType nftexpr.ChunkType // resolve name via nftexpr.ChunkTypeName(ChunkType)
+	Field     string            // empty for bare presence
+	Value     any               // decoded sub-field value when Field != ""
 }
 
 // ExthdrCondition represents an IPv6 extension-header match. Proto names
@@ -112,6 +124,7 @@ const (
 	ConditionTypePayload   ConditionType = "payload"
 	ConditionTypeCT        ConditionType = "ct"
 	ConditionTypeExthdr    ConditionType = "exthdr"
+	ConditionTypeSctpChunk ConditionType = "sctp_chunk"
 	ConditionTypeSetLookup ConditionType = "set_lookup"
 	ConditionTypeLimit     ConditionType = "limit"
 	ConditionTypeConnlimit ConditionType = "connlimit"
@@ -794,10 +807,12 @@ func NftablesToRuleDefinition(rule *nftables.Rule) (*Rule, error) {
 			i++
 		case *expr.Exthdr:
 			regMap[v.DestRegister] = &registerValue{
-				valueType:  regTypeExthdr,
-				exthdrType: v.Type,
-				exthdrOff:  v.Offset,
-				exthdrLen:  v.Len,
+				valueType:   regTypeExthdr,
+				exthdrOp:    uint32(v.Op),
+				exthdrType:  v.Type,
+				exthdrOff:   v.Offset,
+				exthdrLen:   v.Len,
+				exthdrFlags: v.Flags,
 			}
 			i++
 		case *expr.Lookup:
@@ -959,12 +974,17 @@ type registerValue struct {
 	// Immediate
 	immediateData []byte
 
-	// Exthdr (IPv6 extension header) — populated when an *expr.Exthdr is
-	// loaded into the register. Type names the extension header protocol
-	// (frag=44, hbh=0, dst=60, rt=43, mh=135); off+len pin the field within.
-	exthdrType uint8
-	exthdrOff  uint32
-	exthdrLen  uint32
+	// Exthdr — populated when an *expr.Exthdr is loaded into the register.
+	// For IPv6 extension headers (Op=0): Type names the extension header
+	// protocol (frag=44, hbh=0, dst=60, rt=43, mh=135). For SCTP chunk
+	// matches (Op=nftexpr.SctpExthdrOp): Type is the chunk-type number.
+	// off+len pin the field within; flags carries NFT_EXTHDR_F_PRESENT for
+	// bare-presence matches.
+	exthdrOp    uint32
+	exthdrType  uint8
+	exthdrOff   uint32
+	exthdrLen   uint32
+	exthdrFlags uint32
 
 	// Bitwise
 	hasBitwise  bool
@@ -991,6 +1011,13 @@ func compareToCondition(cmp *compareContext) (Condition, error) {
 	case regTypeCT:
 		return ctCompareToCondition(regVal, cmp)
 	case regTypeExthdr:
+		// Two distinct match families share regTypeExthdr — IPv6 extension
+		// headers (Op=0, NFT_EXTHDR_OP_IPV6) and SCTP chunk matches (Op=3,
+		// nftexpr.SctpExthdrOp). Dispatch on Op so the renderer surfaces
+		// the right CLI form.
+		if regVal.exthdrOp == nftexpr.SctpExthdrOp {
+			return sctpChunkCompareToCondition(regVal, cmp)
+		}
 		return exthdrCompareToCondition(regVal, cmp)
 	default:
 		return Condition{
@@ -1017,6 +1044,41 @@ func exthdrCompareToCondition(regVal *registerValue, cmp *compareContext) (Condi
 			Field: field,
 			Value: value,
 		},
+	}, nil
+}
+
+// sctpChunkCompareToCondition converts an SCTP-chunk comparison context into
+// a SctpChunkCondition. Two shapes feed in:
+//
+//	bare presence:  Exthdr{Op=SCTP, Type=N, Offset=0, Len=0, Flags=F_PRESENT}
+//	                Cmp{Op=Eq, Data=[0x01]}  → "sctp chunk <type>"
+//	field match:    Exthdr{Op=SCTP, Type=N, Offset=O, Len=L}
+//	                Cmp{Op=Eq, Data=<value>} → "sctp chunk <type> <field> <value>"
+//
+// Unknown (Type, Offset, Len) tuples fall through to the field name being
+// rendered as `<offset>+<len>` so the user still sees something useful.
+func sctpChunkCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition, error) {
+	ct := nftexpr.ChunkType(regVal.exthdrType)
+	if regVal.exthdrFlags&nftexpr.SctpExthdrFlagPresent != 0 {
+		// Bare presence — Field stays empty; the renderer prints just
+		// `sctp chunk <type>`. cmp.data is the F_PRESENT result byte; we
+		// don't surface it as a Value.
+		return Condition{
+			Type:      ConditionTypeSctpChunk,
+			Operation: cmpOpToCompareOp(cmp.op),
+			SctpChunk: &SctpChunkCondition{ChunkType: ct},
+		}, nil
+	}
+	field, ok := nftexpr.LookupChunkField(ct, regVal.exthdrOff, regVal.exthdrLen)
+	fieldName := field.Name
+	if !ok {
+		fieldName = fmt.Sprintf("@%d+%d", regVal.exthdrOff, regVal.exthdrLen)
+	}
+	value := decodeExthdrValue(regVal.exthdrLen, cmp.data)
+	return Condition{
+		Type:      ConditionTypeSctpChunk,
+		Operation: cmpOpToCompareOp(cmp.op),
+		SctpChunk: &SctpChunkCondition{ChunkType: ct, Field: fieldName, Value: value},
 	}, nil
 }
 

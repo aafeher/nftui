@@ -35,6 +35,7 @@ framework. Talks to the kernel over netlink via the
 | **IPv6 header** | saddr, daddr (CIDR), length, nexthdr, hoplimit, version, dscp (6-bit), flowlabel (20-bit) |
 | **TCP** | sport, dport, sequence, ackseq, flags (MultiSelect), window, checksum, urgptr, doff |
 | **UDP / UDPLITE** | sport, dport, length, checksum |
+| **SCTP** | sport, dport, vtag, checksum, **chunk** (RFC 4960 chunk-type match: data / init / init-ack / sack / heartbeat / heartbeat-ack / abort / shutdown / shutdown-ack / error / cookie-echo / cookie-ack / ecne / cwr / shutdown-complete / auth / asconf-ack / i-data / forward-tsn / asconf / i-forward-tsn — bare presence and per-type sub-field constraints both supported: chunk-type Select drives a sub-field Select (`tsn` / `stream` / `ssn` / `ppid` for DATA; `init-tag` / `a-rwnd` / `os` / `mis` / `init-tsn` for INIT; `cum-tsn-ack` / `a-rwnd` / `num-gap-ack-blocks` / `num-dup-tsns` for SACK; etc.) plus a value input that BE-encodes into the matching 1 / 2 / 4 byte width) |
 | **Meta (interface)** | iifname, oifname, iif, oif, iiftype, oiftype, iifgroup, oifgroup |
 | **Meta (proto / socket / packet)** | length, protocol (EtherType), nfproto, l4proto, mark, priority, skuid, skgid, cgroup, rtclassid, pkttype, cpu |
 
