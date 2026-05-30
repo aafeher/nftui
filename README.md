@@ -14,6 +14,11 @@ framework. Talks to the kernel over netlink via the
 ### Ruleset browsing & management
 
 - Tree view of all tables and chains with live data fetched from the kernel.
+  The skeleton (tables, chains, sets, named objects) renders immediately on
+  startup; per-chain rule counts fill in asynchronously, so a ruleset with
+  many chains stays interactive while the rule lists arrive in the
+  background (each chain row briefly shows `[loading rules...]` until its
+  fetch lands).
 - Per-chain rule listing with human-readable rendering of every parsed
   expression.
 - Per-rule detail view organised into tabs by condition category.

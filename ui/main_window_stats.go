@@ -257,7 +257,11 @@ func deleteNamedObjectCmd(obj nft.NamedObject) tea.Cmd {
 	}
 }
 
-// loadTableTreeCmd rebuilds the tableTreeModel from the kernel without panicking.
+// loadTableTreeCmd rebuilds the tableTreeModel skeleton from the kernel —
+// tables, chain *names*, sets, and named objects. Per-chain rule lists are
+// NOT fetched here; they arrive separately via chainRulesLoadedMsg dispatched
+// by the tableTreeRefreshedMsg handler. This keeps startup snappy on
+// rulesets with many chains.
 func loadTableTreeCmd() tea.Cmd {
 	return func() tea.Msg {
 		tables, err := nft.ListTables()
@@ -272,8 +276,8 @@ func loadTableTreeCmd() tea.Cmd {
 			}
 			chainNodes := make([]*chainNode, 0, len(chains))
 			for _, c := range chains {
-				rules, _ := nft.ListRulesOfChain(t, c)
-				chainNodes = append(chainNodes, &chainNode{Chain: *c, Rules: rules})
+				// Skeleton — Loaded=false; rules fill in asynchronously.
+				chainNodes = append(chainNodes, &chainNode{Chain: *c})
 			}
 			rulesOfTable, _ := nft.ListRulesOfTable(t)
 			setsOfTable, _ := nft.GetSets(t)
@@ -287,5 +291,36 @@ func loadTableTreeCmd() tea.Cmd {
 			})
 		}
 		return tableTreeRefreshedMsg{nodes: nodes}
+	}
+}
+
+// chainRulesLoadedMsg carries the result of a single per-chain rule fetch.
+// The handler matches by family + table-name + chain-name (stable across
+// refreshes), so a message from a stale batch lands harmlessly on the
+// matching current chain — or is a no-op if the chain was deleted.
+type chainRulesLoadedMsg struct {
+	tableFamily nftables.TableFamily
+	tableName   string
+	chainName   string
+	rules       []*nftables.Rule
+}
+
+// loadRulesOfChainCmd fetches the rule list of one chain. Errors are
+// swallowed (Loaded becomes true with an empty slice) — a per-chain
+// failure shouldn't gate the rest of the tree, and surfacing it would
+// require a separate error channel per chain. The kernel error would
+// otherwise come through on the next action that actually needs the
+// rules.
+func loadRulesOfChainCmd(table *nftables.Table, chain *nftables.Chain) tea.Cmd {
+	t := *table // capture by value — the caller's slice may be replaced before this runs
+	c := *chain
+	return func() tea.Msg {
+		rules, _ := nft.ListRulesOfChain(&t, &c)
+		return chainRulesLoadedMsg{
+			tableFamily: t.Family,
+			tableName:   t.Name,
+			chainName:   c.Name,
+			rules:       rules,
+		}
 	}
 }

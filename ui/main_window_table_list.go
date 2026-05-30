@@ -24,6 +24,13 @@ type tableNode struct {
 type chainNode struct {
 	Chain nftables.Chain
 	Rules []*nftables.Rule
+	// Loaded reports whether the per-chain rule list has been fetched yet.
+	// Initial-load and refresh paths produce skeleton chainNodes with
+	// Loaded=false; the rule list comes in later via chainRulesLoadedMsg.
+	// An empty chain with Loaded=true is distinct from an unfetched chain
+	// with Loaded=false — both have len(Rules)==0 but the UI shows
+	// "loading" only for the latter.
+	Loaded bool
 }
 type tableTreeModel struct {
 	nodes             []*tableNode
@@ -210,13 +217,17 @@ type flatItem struct {
 	setName     string
 	objName     string
 	rulesCount  int
-	isRoot      bool
-	isSet       bool
-	isObj       bool
-	table       *tableNode
-	chain       *nftables.Chain
-	set         *nftables.Set
-	obj         *nft.NamedObject
+	// rulesLoading is true for chain rows whose per-chain rule list hasn't
+	// been fetched yet (skeleton state after a refresh / initial load).
+	// Render shows "loading" in place of the rule count.
+	rulesLoading bool
+	isRoot       bool
+	isSet        bool
+	isObj        bool
+	table        *tableNode
+	chain        *nftables.Chain
+	set          *nftables.Set
+	obj          *nft.NamedObject
 }
 
 func initialTableTreeModel(filter string, readOnly bool) tableTreeModel {
@@ -242,13 +253,12 @@ func initialTableTreeModel(filter string, readOnly bool) tableTreeModel {
 		}
 		chains := make([]*chainNode, len(chainsOfTable))
 		for c, chain := range chainsOfTable {
-			rules, err := nft.ListRulesOfChain(table, chain)
-			if err != nil {
-				panic(err)
-			}
+			// Skeleton only — per-chain rules load asynchronously after
+			// the tree renders (see Init / loadRulesOfChainCmd). Loaded
+			// stays false until the corresponding chainRulesLoadedMsg
+			// arrives.
 			chains[c] = &chainNode{
 				Chain: *chain,
-				Rules: rules,
 			}
 		}
 
@@ -300,11 +310,12 @@ func (tm tableTreeModel) getFlattenedItems() []flatItem {
 		if table.Expanded {
 			for _, chain := range table.Chains {
 				items = append(items, flatItem{
-					chainName:  chain.Chain.Name,
-					isRoot:     false,
-					table:      table,
-					chain:      &chain.Chain,
-					rulesCount: len(chain.Rules),
+					chainName:    chain.Chain.Name,
+					isRoot:       false,
+					table:        table,
+					chain:        &chain.Chain,
+					rulesCount:   len(chain.Rules),
+					rulesLoading: !chain.Loaded,
 				})
 			}
 			for _, set := range table.Sets {
@@ -826,6 +837,9 @@ func (tm tableTreeModel) View() string {
 				}
 			}
 			rulesCountLabel := fmt.Sprintf("[%d rules]", item.rulesCount)
+			if item.rulesLoading {
+				rulesCountLabel = "[loading rules...]"
+			}
 
 			var chainNameStyled, typeStyled, rulesCountStyled, parenOpen, parenClose, space1, space2 string
 			if isActive {

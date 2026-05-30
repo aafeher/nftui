@@ -237,7 +237,21 @@ func InitialMainWindow(opts Options) MainWindow {
 }
 
 func (m MainWindow) Init() tea.Cmd {
-	return tea.Batch(loadTablesCmd(), loadChainsCmd(), loadRulesAcceptCmd(), loadRulesDropCmd())
+	cmds := []tea.Cmd{
+		loadTablesCmd(),
+		loadChainsCmd(),
+		loadRulesAcceptCmd(),
+		loadRulesDropCmd(),
+	}
+	// Tree skeleton is already in m.tableTree (initialTableTreeModel built
+	// it without per-chain rules); fan out one per-chain fetch per chain so
+	// the rule counts fill in asynchronously while the TUI is interactive.
+	for _, tn := range m.tableTree.nodes {
+		for _, cn := range tn.Chains {
+			cmds = append(cmds, loadRulesOfChainCmd(&tn.Table, &cn.Chain))
+		}
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -365,6 +379,35 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Preserve the --table filter across refreshes — without this, every
 		// reload would re-expose hidden tables.
 		m.tableTree.nodes = filterTables(msg.nodes, m.tableTree.tableFilter)
+		// Skeleton just arrived; dispatch one per-chain rule fetch per
+		// chain so the rule counts fill in asynchronously.
+		cmds := make([]tea.Cmd, 0)
+		for _, tn := range m.tableTree.nodes {
+			for _, cn := range tn.Chains {
+				cmds = append(cmds, loadRulesOfChainCmd(&tn.Table, &cn.Chain))
+			}
+		}
+		if len(cmds) == 0 {
+			return m, nil
+		}
+		return m, tea.Batch(cmds...)
+
+	case chainRulesLoadedMsg:
+		// Match by (family, table-name, chain-name) — stable across refreshes,
+		// so a stale message from a previous batch lands on the current chain
+		// or is a no-op when the chain has been deleted.
+		for _, tn := range m.tableTree.nodes {
+			if tn.Table.Family != msg.tableFamily || tn.Table.Name != msg.tableName {
+				continue
+			}
+			for _, cn := range tn.Chains {
+				if cn.Chain.Name == msg.chainName {
+					cn.Rules = msg.rules
+					cn.Loaded = true
+					return m, nil
+				}
+			}
+		}
 		return m, nil
 
 	case tableOpErrMsg:

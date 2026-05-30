@@ -316,6 +316,96 @@ func TestTreeReadOnly_BlocksWriteKeys(t *testing.T) {
 	}
 }
 
+// chainRulesLoadedMsg lands on the chain matching (family, table-name,
+// chain-name) and flips Loaded=true. Messages for an unknown chain are
+// ignored — that's the "chain was deleted between dispatch and reply"
+// case (no-op) and the "stale batch after a refresh" case (still
+// targets the right chain after refresh because the key is stable).
+func TestChainRulesLoadedMsg_RoutesByFamilyTableChain(t *testing.T) {
+	mw := MainWindow{
+		tableTree: tableTreeModel{
+			nodes: []*tableNode{
+				{Table: nftables.Table{Name: "filter", Family: nftables.TableFamilyINet},
+					Chains: []*chainNode{
+						{Chain: nftables.Chain{Name: "input"}},  // unloaded
+						{Chain: nftables.Chain{Name: "output"}}, // unloaded
+					}},
+				{Table: nftables.Table{Name: "nat", Family: nftables.TableFamilyIPv4},
+					Chains: []*chainNode{
+						{Chain: nftables.Chain{Name: "prerouting"}}, // unloaded
+					}},
+			},
+		},
+	}
+
+	rules := []*nftables.Rule{{Handle: 7}}
+	updated, _ := mw.Update(chainRulesLoadedMsg{
+		tableFamily: nftables.TableFamilyINet,
+		tableName:   "filter",
+		chainName:   "input",
+		rules:       rules,
+	})
+	mw = updated.(MainWindow)
+
+	if !mw.tableTree.nodes[0].Chains[0].Loaded {
+		t.Error("input chain not marked Loaded after its message")
+	}
+	if len(mw.tableTree.nodes[0].Chains[0].Rules) != 1 {
+		t.Errorf("input.Rules = %v, want 1 rule", mw.tableTree.nodes[0].Chains[0].Rules)
+	}
+	if mw.tableTree.nodes[0].Chains[1].Loaded {
+		t.Error("output chain incorrectly marked Loaded")
+	}
+	if mw.tableTree.nodes[1].Chains[0].Loaded {
+		t.Error("nat/prerouting incorrectly marked Loaded")
+	}
+
+	// A stale / deleted-chain message is a no-op.
+	updated, _ = mw.Update(chainRulesLoadedMsg{
+		tableFamily: nftables.TableFamilyINet,
+		tableName:   "filter",
+		chainName:   "missing",
+		rules:       []*nftables.Rule{{Handle: 99}},
+	})
+	mw2 := updated.(MainWindow)
+	for ti, tn := range mw2.tableTree.nodes {
+		for ci, cn := range tn.Chains {
+			want := mw.tableTree.nodes[ti].Chains[ci].Loaded
+			if cn.Loaded != want {
+				t.Errorf("unknown-chain msg changed %s/%s Loaded from %v to %v",
+					tn.Table.Name, cn.Chain.Name, want, cn.Loaded)
+			}
+		}
+	}
+}
+
+// Family mismatch (same table name, different family) must NOT cross-route.
+func TestChainRulesLoadedMsg_FamilyMismatchIsNoOp(t *testing.T) {
+	mw := MainWindow{
+		tableTree: tableTreeModel{
+			nodes: []*tableNode{
+				{Table: nftables.Table{Name: "filter", Family: nftables.TableFamilyINet},
+					Chains: []*chainNode{{Chain: nftables.Chain{Name: "input"}}}},
+				{Table: nftables.Table{Name: "filter", Family: nftables.TableFamilyIPv4},
+					Chains: []*chainNode{{Chain: nftables.Chain{Name: "input"}}}},
+			},
+		},
+	}
+	updated, _ := mw.Update(chainRulesLoadedMsg{
+		tableFamily: nftables.TableFamilyIPv4,
+		tableName:   "filter",
+		chainName:   "input",
+		rules:       []*nftables.Rule{{Handle: 1}},
+	})
+	mw = updated.(MainWindow)
+	if mw.tableTree.nodes[0].Chains[0].Loaded {
+		t.Error("inet/filter/input incorrectly flipped by an ip-family message")
+	}
+	if !mw.tableTree.nodes[1].Chains[0].Loaded {
+		t.Error("ip/filter/input not flipped despite being the actual target")
+	}
+}
+
 // passes everything through unchanged. Family is intentionally ignored
 // (tables can share names across families).
 func TestFilterTables(t *testing.T) {
