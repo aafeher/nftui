@@ -196,6 +196,7 @@ ui/                            Bubble Tea TUI
   field_*.go                   one file per FieldEditor
 examples/example-nftables-01.conf  manual-test fixture
 ROADMAP.md                     versioned milestone plan
+CHANGELOG.md                   per-version release notes (Keep a Changelog format)
 ```
 
 ## Testing
@@ -205,17 +206,32 @@ go test ./...                            # unit tests (no kernel required)
 sudo nft -c -f examples/example-nftables-01.conf   # validate the fixture
 ```
 
-## Roadmap
+## Roadmap & changelog
 
-The full plan lives in [ROADMAP.md](ROADMAP.md). Highlights for releases
-after v0.1.0:
+- [ROADMAP.md](ROADMAP.md) — versioned milestone plan with the planning
+  notes and post-tag audit follow-ups behind each release.
+- [CHANGELOG.md](CHANGELOG.md) — what actually shipped per version, in
+  [Keep a Changelog](https://keepachangelog.com/) format.
 
-- **v0.2.0** — NAT statements (`snat`, `dnat`, `masquerade`), `queue`,
-  `quota`.
-- **v0.3.0** — extended protocol matches (ICMP / ICMPv6 fields, SCTP, DCCP,
+Major milestones to date:
+
+- **v0.1.0** (2026-05-24) — first publishable release: full CT / meta / IP / port
+  matches, every verdict action, full ruleset CRUD.
+- **v0.2.0** (2026-05-24) — NAT statements (`snat`, `dnat`, `masquerade`), `queue`, `quota`.
+- **v0.3.0** (2026-05-24) — extended protocol matches (ICMP / ICMPv6, SCTP, DCCP,
   AH, ESP, COMP, Ethernet, VLAN, ARP, IPv6 extension headers).
-- **v0.4.0** — sets, maps and named objects.
-- **v1.0.0** — CLI flags, integration test harness, packaging.
+- **v0.4.0** (2026-05-24) — sets, maps and named objects.
+- **v0.5.0** (2026-05-25) — sets / maps / named objects polish & hardening
+  (interval-set delete fix, dynset flag, CIDR support, verdict maps).
+- **v0.6.0** (2026-05-29) — feedback-channel consistency and transient-hint
+  UX: auto-fading tree hints, unified Reset / Delete error routing.
+- **v0.7.0** (2026-05-29) — error messaging (`CAP_NET_ADMIN` advice, rejected-rule
+  display) and navigation (`/` search in the tree, `/` filter in `chainView`).
+- **v0.8.0** (in progress) — CLI flags (`--table`, `--config`, `--read-only`,
+  `--help`), release polish (CHANGELOG, man page), `sctp chunk` editor, async
+  incremental loading.
+- **v1.0.0** — integration test harness, CI, virtualized rule list, goreleaser,
+  packaging.
 
 ## License
 
