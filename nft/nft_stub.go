@@ -32,6 +32,10 @@ func DeleteTable(_ *nftables.Table) error {
 	return fmt.Errorf("nftables is only available on Linux.")
 }
 
+func LoadConfig(_ string) error {
+	return fmt.Errorf("nftables is only available on Linux.")
+}
+
 func UpdateChain(_ *nftables.Chain, _ *nftables.Chain) error {
 	return fmt.Errorf("nftables is only available on Linux.")
 }

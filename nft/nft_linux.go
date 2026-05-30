@@ -24,6 +24,20 @@ func LoadExamples() error {
 	return nil
 }
 
+// LoadConfig applies the nftables ruleset in path by shelling out to
+// `nft -f <path>`. Returns an error containing the combined output of the
+// nft binary on failure so the user sees the kernel's reason. No success
+// message is printed — the TUI starting with the new state is feedback
+// enough, and pre-TUI stdout noise would clutter the terminal.
+func LoadConfig(path string) error {
+	cmd := exec.Command("nft", "-f", path)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("nft -f %s: %w\n%s", path, err, string(output))
+	}
+	return nil
+}
+
 func FlushRules() error {
 	cmd := exec.Command("nft", "flush", "ruleset")
 

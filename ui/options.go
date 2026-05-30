@@ -12,4 +12,11 @@ type Options struct {
 	// matches this value. Family is ignored — a name match in any family
 	// passes (a few tables share names across `ip` / `ip6` / `inet`).
 	TableFilter string
+
+	// ConfigFile, when non-empty, is the path to an nftables ruleset that
+	// gets applied via `nft -f <path>` before the TUI starts. This MUTATES
+	// the running ruleset (the file may contain `flush ruleset`); main.go
+	// resolves it before TableFilter validation so the post-load state is
+	// what gets checked.
+	ConfigFile string
 }
