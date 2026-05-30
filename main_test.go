@@ -1,11 +1,64 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// docFor must return the summary registered in flagDocs and panic on misses
+// (a silent miss would strip the description from --help and the man page).
+func TestDocFor(t *testing.T) {
+	if got := docFor("table"); !strings.Contains(got, "restrict the tree") {
+		t.Errorf("docFor(table) = %q, missing expected description", got)
+	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("docFor must panic for an unregistered flag, got no panic")
+		}
+	}()
+	_ = docFor("not-a-real-flag")
+}
+
+// writeUsage must render every registered flag (with its placeholder) and
+// the synthetic --help entry, plus the usage block. We assert structural
+// landmarks rather than exact byte-for-byte text so cosmetic tweaks don't
+// break the test.
+func TestWriteUsage(t *testing.T) {
+	var buf bytes.Buffer
+	writeUsage(&buf, "nftui")
+	out := buf.String()
+
+	for _, want := range []string{
+		"Usage:",
+		"Flags:",
+		"--help",                       // synthetic entry must show up
+		"sudo setcap cap_net_admin=ep", // capability hint always present
+		"Examples:",
+		"nftui [flags]", // the bin name was substituted in
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("writeUsage output missing %q\n--- output ---\n%s", want, out)
+		}
+	}
+
+	// Every flag in flagDocs must appear with both its placeholder (if any)
+	// and its summary — guards against the kind of drift the registry was
+	// built to prevent.
+	for _, f := range flagDocs {
+		if !strings.Contains(out, "--"+f.name) {
+			t.Errorf("flag %q missing from usage", f.name)
+		}
+		if f.arg != "" && !strings.Contains(out, f.arg) {
+			t.Errorf("flag %q placeholder %q missing from usage", f.name, f.arg)
+		}
+		if !strings.Contains(out, f.summary) {
+			t.Errorf("flag %q summary missing from usage", f.name)
+		}
+	}
+}
 
 // loadConfigFromFlag must reject a nonexistent path before touching nft, so
 // the user gets a clear file-level error instead of a confusing nft binary

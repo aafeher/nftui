@@ -6,14 +6,29 @@ import (
 	"nftui/nft"
 	"nftui/ui"
 	"os"
+	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
-	tableFilter := flag.String("table", "", "restrict the tree to a single table (matched by name across all families)")
-	configFile := flag.String("config", "", "apply the given nftables ruleset via `nft -f <file>` before starting (mutates the running ruleset)")
-	readOnly := flag.Bool("read-only", false, "disable every write path: no rule/chain/table/set add/insert/move/delete/edit/save (footer dims the blocked keys)")
+	bin := filepath.Base(os.Args[0])
+
+	// Explicit --help exits 0 to stdout (so users can pipe to less). Go's
+	// flag package treats unknown -h/--help as an error and exits 2 to
+	// stderr — that's the right behavior for *invalid* invocations but not
+	// for an intentional help request. Pre-scan so the two paths split.
+	for _, a := range os.Args[1:] {
+		if a == "-h" || a == "--help" || a == "-help" {
+			writeUsage(os.Stdout, bin)
+			return
+		}
+	}
+
+	tableFilter := flag.String("table", "", docFor("table"))
+	configFile := flag.String("config", "", docFor("config"))
+	readOnly := flag.Bool("read-only", false, docFor("read-only"))
+	flag.Usage = func() { writeUsage(os.Stderr, bin) }
 	flag.Parse()
 
 	opts := ui.Options{

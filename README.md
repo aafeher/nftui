@@ -99,6 +99,7 @@ sudo setcap cap_net_admin=ep ./nftui
 | `--table <name>` | Restrict the tree to a single table — its chains, sets, and named objects. The match is by name across every family, so `--table filter` will include both `inet filter` and `ip filter` if both exist. Unknown names exit before the TUI starts with the list of available tables. |
 | `--config <file>` | Apply the given nftables ruleset via `nft -f <file>` **before** the TUI starts. **This mutates the running ruleset** — the file may contain `flush ruleset`. Use to bring up a known state for testing. Resolved before `--table` so the post-load kernel state is what `--table` validates against. |
 | `--read-only` | Disable every write path: no rule add / insert / move / delete / edit / save, no chain / table / set create / delete, no counter reset. Blocked keys dim out of the footer (per the footer-completeness invariant) and a `[READ-ONLY MODE]` marker rides next to the title in every main view. Useful for safe browsing, auditing, or pairing with `--config` to inspect a fixture without risk of accidental edits. |
+| `--help` (also `-h`) | Print the full flag list with one-line descriptions and usage examples, then exit. Goes to stdout (so you can pipe to `less`); explicit `--help` exits 0. Invalid flags emit the same usage to stderr and exit 2. |
 
 Examples:
 
@@ -110,9 +111,7 @@ sudo ./nftui --read-only                                 # safe browsing — eve
 sudo ./nftui --config new.conf --table filter            # apply new.conf, then restrict the view to its 'filter' table
 ```
 
-Without `--config`, the running ruleset is left untouched. Without `--table`, every table is shown. Without `--read-only`, every CRUD action is available.
-
-> The remaining v0.8.0 flag (`--help`) lands later in the milestone — see [ROADMAP.md](ROADMAP.md).
+Without `--config`, the running ruleset is left untouched. Without `--table`, every table is shown. Without `--read-only`, every CRUD action is available. The CLI surface is now complete for v0.8.0 — see [ROADMAP.md](ROADMAP.md) for what comes next (release docs, sctp chunk editor, async incremental loading).
 
 ## Key bindings
 
