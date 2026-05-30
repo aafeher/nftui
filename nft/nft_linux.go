@@ -17,10 +17,10 @@ func LoadExamples() error {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("nftables konfiguráció betöltése sikertelen: %v\nKimenet: %s", err, string(output))
+		return fmt.Errorf("failed to load nftables configuration: %v\nOutput: %s", err, string(output))
 	}
 
-	fmt.Printf("Nftables konfiguráció sikeresen betöltve: example-nftables-01.conf\n")
+	fmt.Printf("nftables configuration loaded successfully: example-nftables-01.conf\n")
 	return nil
 }
 
@@ -43,10 +43,10 @@ func FlushRules() error {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("nftables konfiguráció ürítése sikertelen: %v\nKimenet: %s", err, string(output))
+		return fmt.Errorf("failed to flush nftables configuration: %v\nOutput: %s", err, string(output))
 	}
 
-	fmt.Printf("Nftables konfiguráció sikeresen ürítve\n")
+	fmt.Printf("nftables configuration flushed successfully\n")
 	return nil
 }
 

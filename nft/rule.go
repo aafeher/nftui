@@ -2140,7 +2140,7 @@ func decodeMetaValue(key expr.MetaKey, data []byte) interface{} {
 			if iface, err := net.InterfaceByIndex(int(ifIndex)); err == nil {
 				return iface.Name
 			}
-			// Ha nem sikerült a konverzió, visszaadjuk az indexet
+			// conversion failed — fall back to the raw index
 			return ifIndex
 		}
 	}
@@ -2154,7 +2154,7 @@ func decodeMetaValue(key expr.MetaKey, data []byte) interface{} {
 		return strings.TrimRight(string(data), "\x00")
 	}
 
-	// Egyszerűsített dekódolás
+	// simplified decoding
 	if len(data) == 4 {
 		return binary.BigEndian.Uint32(data)
 	}
@@ -2280,7 +2280,7 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 			i += skip
 
 		case *expr.Range:
-			// Range ellenőrzés
+			// range check
 			regContent := regMap[v.Register]
 			if regContent == "" {
 				regContent = fmt.Sprintf("register_%d", v.Register)
@@ -2292,7 +2292,7 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 			//fmt.Printf("Range parts: %v\n", parts)
 
 		case *expr.Meta:
-			// Meta kifejezés - valami meta információt tölt be egy regiszterbe
+			// Meta expression — loads a meta value into a register
 			metaName := nftexpr.MetaKeyToString(v.Key)
 			regMap[v.Register] = metaName
 			i++
@@ -2301,7 +2301,7 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 
 		case *expr.Cmp:
 			//fmt.Printf("e cmp: %+v\n", e)
-			// Összehasonlítás - nézzük meg, mit hasonlítunk össze
+			// Cmp — look up what's being compared against the register
 			regContent := regMap[v.Register]
 			if regContent == "" {
 				regContent = fmt.Sprintf("register_%d", v.Register)
@@ -2328,7 +2328,7 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 			} else if regContent == "l4proto" && nftexpr.CmpOpToString(v.Op) == "==" && value == "udp" {
 				parts = append(parts, value)
 				//} else if regContent == "direction" {
-				//	// Speciális CT Direction kezelés
+				//	// special handling for CT Direction
 				//	dirVal := nftexpr.DecodeCTValue(expr.CtKeyDIRECTION, v.Data)
 				//	parts = append(parts, fmt.Sprintf("ct direction %s %v", nftexpr.CmpOpToString(v.Op), dirVal))
 			} else if regContent == string(nftexpr.CtKeyState) {
@@ -2354,7 +2354,7 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 			i++
 
 		case *expr.Payload:
-			// Payload - csomag tartalmából tölt be adatot
+			// Payload — loads data from the packet body
 			payloadDesc := payloadToHumanReadable(v)
 			if payloadDesc == "saddr" || payloadDesc == "daddr" {
 				ipProto := "ip"
@@ -2414,14 +2414,14 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 			//fmt.Printf("Lookup parts: %v\n", parts)
 
 		case *expr.Immediate:
-			// Immediate - közvetlen érték betöltése regiszterbe
+			// Immediate — loads a constant value into a register
 			regMap[v.Register] = fmt.Sprintf("0x%x", v.Data)
 			i++
 			//fmt.Printf("Immediate regMap: %v\n", regMap)
 			//fmt.Printf("Immediate parts: %v\n", parts)
 
 		case *expr.Bitwise:
-			// Bitwise művelet
+			// Bitwise operation
 			parts = append(parts, nftexpr.BitwiseToHumanReadable(v, regMap))
 			i++
 			//fmt.Printf("Bitwise regMap: %v\n", regMap)
@@ -2534,11 +2534,11 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 			i++
 		}
 
-		// Ha van következő elem és az is Cmp, akkor valószínűleg && kapcsolat van
+		// if the next element is also a Cmp, that's most likely an && chain
 		if i < len(rule.Exprs)-1 {
 			if _, nextIsCmp := rule.Exprs[i+1].(*expr.Cmp); nextIsCmp {
 				if _, currentIsCmp := e.(*expr.Cmp); currentIsCmp {
-					// Ne tegyünk semmit, majd a következő iterációban kezeljük
+					// no-op here — the next iteration handles it
 				}
 			}
 		}
@@ -2607,7 +2607,7 @@ func verdictToHumanReadable(v *expr.Verdict) string {
 // If no comment is found, an empty string is returned.
 // Null terminators within the comment are removed before returning the result.
 func ExtractComment(rule *nftables.Rule) string {
-	// A UserData TLV formátumban van
+	// UserData is encoded as TLV
 	// Type=0, Length=N, Value=comment
 	if len(rule.UserData) < 2 {
 		return ""
@@ -2625,7 +2625,7 @@ func ExtractComment(rule *nftables.Rule) string {
 		// UDATA_TYPE_COMMENT = 0
 		if tlvType == 0 {
 			comment := rule.UserData[offset+2 : offset+2+tlvLen]
-			// Null terminátor eltávolítása
+			// strip null terminator
 			for i, b := range comment {
 				if b == 0 {
 					return string(comment[:i])
@@ -2648,11 +2648,11 @@ func ApplyRuleChange(rule *nftables.Rule) error {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
 	}
 
-	// A szabály frissítése. Az nftables-ben ha meg van adva a Handle,
-	// az AddRule felülírja/frissíti a létező szabályt.
+	// Update the rule. In nftables, when Handle is set, AddRule
+	// overwrites / updates the existing rule.
 	conn.AddRule(rule)
 
-	// A módosítások véglegesítése a kernelben
+	// commit the changes to the kernel
 	if err := conn.Flush(); err != nil {
 		return fmt.Errorf("failed to apply changes to kernel: %v", err)
 	}

@@ -9,19 +9,19 @@ import (
 )
 
 func ListTables() ([]*nftables.Table, error) {
-	return nil, fmt.Errorf("Az nftables csak Linux rendszeren érhető el.")
+	return nil, fmt.Errorf("nftables is only available on Linux.")
 }
 
 func ListChains() ([]*nftables.Chain, error) {
-	return nil, fmt.Errorf("Az nftables csak Linux rendszeren érhető el.")
+	return nil, fmt.Errorf("nftables is only available on Linux.")
 }
 
 func getAllRules() ([]*nftables.Rule, error) {
-	return nil, fmt.Errorf("Az nftables csak Linux rendszeren érhető el.")
+	return nil, fmt.Errorf("nftables is only available on Linux.")
 }
 
 func RenameTable(_ *nftables.Table, _ string) error {
-	return fmt.Errorf("Az nftables csak Linux rendszeren érhető el.")
+	return fmt.Errorf("nftables is only available on Linux.")
 }
 
 func CreateTable(_ nftables.TableFamily, _ string) error {

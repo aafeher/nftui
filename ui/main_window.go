@@ -261,7 +261,7 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.ready = true
 		m.tableTree.maxHeight = m.height - 9
 		m.tableTree.width = m.width - 4
-		// Popup méret beállítása
+		// propagate the new size to any popup sub-view
 		if m.chainView != nil {
 			m.chainView.width = m.width
 			m.chainView.height = m.height
@@ -269,7 +269,7 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case chainSelectedMsg:
-		// Chain kiválasztva - váltunk chainView-ra
+		// chain selected — switch to chainView
 		cv := newChainView(msg.chain, msg.table, m.readOnly)
 		cv.width = m.width
 		cv.height = m.height
@@ -291,7 +291,7 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case ruleViewSelectedMsg:
-		// Rule kiválasztva - váltunk ruleView-ra
+		// rule selected — switch to ruleView
 		rv := newRuleView(msg.rule)
 		rv.width = m.width
 		rv.height = m.height
@@ -300,7 +300,7 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case ruleEditSelectedMsg:
-		// Rule kiválasztva - váltunk ruleEdit-re
+		// rule selected for editing — switch to ruleEdit
 		rv := newRuleEdit(msg.rule, m.readOnly)
 		rv.width = m.width
 		rv.height = m.height
@@ -617,7 +617,7 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.loading && m.err == nil {
 			var cmd tea.Cmd
 			updatedTableTree, cmd := m.tableTree.Update(msg)
-			// Type assertion hozzáadása
+			// type assertion back to the concrete tree model
 			if ttm, ok := updatedTableTree.(tableTreeModel); ok {
 				m.tableTree = ttm
 			}
@@ -800,7 +800,7 @@ func (m MainWindow) View() string {
 				Padding(1, 2).
 				Width(40).
 				Align(lipgloss.Center).
-				Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
 			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
 			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, teContent+"\n"+overlay)
 		}
@@ -816,7 +816,7 @@ func (m MainWindow) View() string {
 				Padding(1, 2).
 				Width(40).
 				Align(lipgloss.Center).
-				Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
 			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
 			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, tcContent+"\n"+overlay)
 		}
@@ -832,7 +832,7 @@ func (m MainWindow) View() string {
 				Padding(1, 2).
 				Width(40).
 				Align(lipgloss.Center).
-				Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
 			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
 			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, ceContent+"\n"+overlay)
 		}
@@ -848,7 +848,7 @@ func (m MainWindow) View() string {
 				Padding(1, 2).
 				Width(40).
 				Align(lipgloss.Center).
-				Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
 			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
 			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, ccContent+"\n"+overlay)
 		}
@@ -864,7 +864,7 @@ func (m MainWindow) View() string {
 				Padding(1, 2).
 				Width(40).
 				Align(lipgloss.Center).
-				Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
 			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
 			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, scContent+"\n"+overlay)
 		}
@@ -881,7 +881,7 @@ func (m MainWindow) View() string {
 				Padding(1, 2).
 				Width(40).
 				Align(lipgloss.Center).
-				Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
 
 			overlay := lipgloss.Place(m.width, m.height,
 				lipgloss.Center, lipgloss.Center,
@@ -908,7 +908,7 @@ func (m MainWindow) View() string {
 				Padding(1, 2).
 				Width(40).
 				Align(lipgloss.Center).
-				Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
 
 			overlay := lipgloss.Place(m.width, m.height,
 				lipgloss.Center, lipgloss.Center,
@@ -931,7 +931,7 @@ func (m MainWindow) View() string {
 				Padding(1, 2).
 				Width(40).
 				Align(lipgloss.Center).
-				Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
 
 			overlay := lipgloss.Place(m.width, m.height,
 				lipgloss.Center, lipgloss.Center,
@@ -1036,7 +1036,7 @@ func (m MainWindow) View() string {
 			Padding(1, 2).
 			Width(40).
 			Align(lipgloss.Center).
-			Render("Valóban ki szeretnél lépni?\n\n[Y]es / [N]o")
+			Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
 
 		overlay := lipgloss.Place(m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
@@ -1046,6 +1046,6 @@ func (m MainWindow) View() string {
 		return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, baseView+"\n"+overlay)
 	}
 
-	// Ha nincsenek látható rétegek, akkor csak a baseView-t adjuk vissza
+	// no overlay layers visible — return the base view as-is
 	return baseView
 }
