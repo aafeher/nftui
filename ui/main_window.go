@@ -141,8 +141,8 @@ type ruleEditSelectedMsg struct {
 	rule *nftables.Rule
 }
 
-func InitialMainWindow() MainWindow {
-	ttm := initialTableTreeModel()
+func InitialMainWindow(opts Options) MainWindow {
+	ttm := initialTableTreeModel(opts.TableFilter)
 
 	km := keyMap{
 		Up: key.NewBinding(
@@ -335,7 +335,9 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 
 	case tableTreeRefreshedMsg:
-		m.tableTree.nodes = msg.nodes
+		// Preserve the --table filter across refreshes — without this, every
+		// reload would re-expose hidden tables.
+		m.tableTree.nodes = filterTables(msg.nodes, m.tableTree.tableFilter)
 		return m, nil
 
 	case tableOpErrMsg:

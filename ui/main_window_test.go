@@ -290,6 +290,40 @@ func TestChainView_NoMatchEmptyActiveRules(t *testing.T) {
 	}
 }
 
+// filterTables narrows a node slice to the named table; an empty name
+// passes everything through unchanged. Family is intentionally ignored
+// (tables can share names across families).
+func TestFilterTables(t *testing.T) {
+	nodes := []*tableNode{
+		{Table: nftables.Table{Name: "filter", Family: nftables.TableFamilyINet}},
+		{Table: nftables.Table{Name: "nat", Family: nftables.TableFamilyIPv4}},
+		{Table: nftables.Table{Name: "filter", Family: nftables.TableFamilyIPv4}},
+	}
+	cases := []struct {
+		name        string
+		filterName  string
+		wantLen     int
+		wantFamily0 nftables.TableFamily
+	}{
+		{"empty filter passes all", "", 3, nftables.TableFamilyINet},
+		{"name match across families", "filter", 2, nftables.TableFamilyINet},
+		{"unique name", "nat", 1, nftables.TableFamilyIPv4},
+		{"no match", "missing", 0, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := filterTables(nodes, c.filterName)
+			if len(got) != c.wantLen {
+				t.Errorf("len = %d, want %d", len(got), c.wantLen)
+				return
+			}
+			if c.wantLen > 0 && got[0].Table.Family != c.wantFamily0 {
+				t.Errorf("first family = %v, want %v", got[0].Table.Family, c.wantFamily0)
+			}
+		})
+	}
+}
+
 // A query with no matches leaves the cursor where it was.
 func TestTreeSearch_NoMatchKeepsCursor(t *testing.T) {
 	got, _ := searchTree().Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})

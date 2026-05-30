@@ -51,6 +51,27 @@ type tableTreeModel struct {
 	searchQuery   string
 	searchMatches []int
 	searchActive  int
+
+	// tableFilter (Options.TableFilter) restricts the tree to tables whose
+	// Name matches this value. Empty = no filter. Applied at both initial
+	// load and refresh, so the user's --table choice survives every reload.
+	tableFilter string
+}
+
+// filterTables returns the subset of nodes whose Table.Name matches name.
+// Empty name returns nodes unchanged. Family is intentionally ignored —
+// tables can share names across families and we want all of them.
+func filterTables(nodes []*tableNode, name string) []*tableNode {
+	if name == "" {
+		return nodes
+	}
+	out := make([]*tableNode, 0, len(nodes))
+	for _, n := range nodes {
+		if n.Table.Name == name {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // treeSearchKeyMap is the footer shown while the tree is in search mode.
@@ -192,10 +213,19 @@ type flatItem struct {
 	obj         *nft.NamedObject
 }
 
-func initialTableTreeModel() tableTreeModel {
+func initialTableTreeModel(filter string) tableTreeModel {
 	tables, err := nft.ListTables()
 	if err != nil {
 		panic(err)
+	}
+	if filter != "" {
+		kept := tables[:0]
+		for _, t := range tables {
+			if t.Name == filter {
+				kept = append(kept, t)
+			}
+		}
+		tables = kept
 	}
 
 	tableNodes := make([]*tableNode, len(tables))
@@ -237,8 +267,9 @@ func initialTableTreeModel() tableTreeModel {
 	}
 
 	return tableTreeModel{
-		nodes:  tableNodes,
-		cursor: 0,
+		nodes:       tableNodes,
+		cursor:      0,
+		tableFilter: filter,
 	}
 }
 

@@ -92,6 +92,23 @@ sudo setcap cap_net_admin=ep ./nftui
 ./nftui
 ```
 
+## Command-line flags
+
+| Flag | Description |
+|------|-------------|
+| `--table <name>` | Restrict the tree to a single table — its chains, sets, and named objects. The match is by name across every family, so `--table filter` will include both `inet filter` and `ip filter` if both exist. Unknown names exit before the TUI starts with the list of available tables. |
+
+Examples:
+
+```bash
+sudo ./nftui --table filter        # show only table(s) named 'filter'
+sudo ./nftui --table missing       # exits: "table 'missing' not found. Available tables: …"
+```
+
+Without `--table`, every table from the running ruleset is shown (current default).
+
+> More flags (`--config`, `--read-only`, `--help`) land later in the v0.8.0 milestone — see [ROADMAP.md](ROADMAP.md).
+
 ## Key bindings
 
 ### Main tree view (tables + chains)
