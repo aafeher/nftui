@@ -54,7 +54,7 @@ type keyMap struct {
 }
 
 func (k keyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Expand, k.Edit, k.Delete, k.NewTable, k.NewChain, k.NewSet, k.Reset, k.OpenChain, k.Refresh, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Expand, k.Edit, k.Delete, k.NewTable, k.NewChain, k.NewSet, k.Reset, k.OpenChain, k.Filter, k.Refresh, k.Quit}
 }
 
 func (k keyMap) FullHelp() [][]key.Binding {

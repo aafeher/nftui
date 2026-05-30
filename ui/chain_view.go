@@ -44,19 +44,20 @@ type chainViewKeyMap struct {
 	MoveDown     key.Binding
 	NewRule      key.Binding
 	InsertRule   key.Binding
+	Filter       key.Binding
 	Back         key.Binding
 	Quit         key.Binding
 }
 
 func (k chainViewKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.OpenRuleView, k.OpenRuleEdit, k.Delete, k.MoveUp, k.MoveDown, k.NewRule, k.InsertRule, k.Back, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.OpenRuleView, k.OpenRuleEdit, k.Delete, k.MoveUp, k.MoveDown, k.NewRule, k.InsertRule, k.Filter, k.Back, k.Quit}
 }
 
 func (k chainViewKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.OpenRuleView, k.OpenRuleEdit},
 		{k.Delete, k.MoveUp, k.MoveDown, k.NewRule, k.InsertRule},
-		{k.Back, k.Quit},
+		{k.Filter, k.Back, k.Quit},
 	}
 }
 
@@ -102,6 +103,10 @@ func newChainView(chain *nftables.Chain, table *tableNode) chainView {
 		InsertRule: key.NewBinding(
 			key.WithKeys("i"),
 			key.WithHelp("i", "insert rule"),
+		),
+		Filter: key.NewBinding(
+			key.WithKeys("/"),
+			key.WithHelp("/", "filter rules"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc"),
@@ -288,7 +293,7 @@ func (c chainView) Update(msg tea.Msg) (chainView, tea.Cmd) {
 		}
 
 		switch {
-		case msg.String() == "/":
+		case key.Matches(msg, c.keys.Filter):
 			c.enterFilter()
 			return c, nil
 		case key.Matches(msg, c.keys.Up):
@@ -550,10 +555,22 @@ func (c chainView) getRulesForChain() []*nftables.Rule {
 
 // RefreshRules re-fetches the chain's rules from the kernel.
 // Call this after a rule has been saved to ensure fresh data on next open.
+// Cursor and scroll offset are clamped to the new (possibly filtered) list
+// so they don't dangle past the end after a rule was added or removed.
 func (c *chainView) RefreshRules() {
 	rules, err := nft.ListRulesOfChain(&c.table.Table, c.chain)
 	if err == nil {
 		c.rules = rules
+	}
+	n := len(c.activeRules())
+	if c.cursor >= n {
+		c.cursor = n - 1
+	}
+	if c.cursor < 0 {
+		c.cursor = 0
+	}
+	if c.scrollOffset > c.cursor {
+		c.scrollOffset = c.cursor
 	}
 }
 

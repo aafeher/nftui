@@ -7,6 +7,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/nftables"
 )
@@ -221,7 +222,13 @@ func chainViewWithComments(comments ...string) chainView {
 			UserData: encodeCommentToUserData(c),
 		})
 	}
-	return chainView{rules: rules, table: &tableNode{Table: *tbl}, chain: chn}
+	return chainView{
+		rules: rules,
+		table: &tableNode{Table: *tbl},
+		chain: chn,
+		// Only Filter is exercised by the tests; other bindings stay zero-value.
+		keys: chainViewKeyMap{Filter: key.NewBinding(key.WithKeys("/"))},
+	}
 }
 
 func typeIntoChainFilter(cv chainView, s string) chainView {
