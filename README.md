@@ -123,8 +123,13 @@ sudo setcap cap_net_admin=ep ./nftui
 | `K` (Shift+k) | move selected rule up |
 | `J` (Shift+j) | move selected rule down |
 | `d` | delete rule |
+| `/` | filter rules by substring (verdict, condition keyword, comment) |
 | `Esc` | back |
 | `q` | quit |
+
+While the filter is active, `↑` / `↓` navigate the filtered list, `Enter` /
+`F3` open the selected rule for viewing, `F4` opens the editor, and `Esc`
+clears the filter.
 
 ### Rule editor
 
