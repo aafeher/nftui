@@ -43,6 +43,10 @@ type setView struct {
 	addErr        string
 	addLastHint   string // "added <key>[ → <val>]" from the previous Enter
 	showDelete    bool
+
+	// readOnly mirrors Options.ReadOnly. Add / Delete bindings are
+	// SetEnabled(false) when set; key.Matches won't fire on them either.
+	readOnly bool
 }
 
 type setViewKeyMap struct {
@@ -61,7 +65,7 @@ func (k setViewKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{k.Up, k.Down, k.Add, k.Delete}, {k.Back, k.Quit}}
 }
 
-func newSetView(set *nftables.Set, table *tableNode) setView {
+func newSetView(set *nftables.Set, table *tableNode, readOnly bool) setView {
 	// Best-effort fetch — the kernel returns nothing for anonymous sets if
 	// they're unreferenced, which we tolerate as an empty list.
 	elements := nft.GetSetElements(set)
@@ -92,12 +96,18 @@ func newSetView(set *nftables.Set, table *tableNode) setView {
 			key.WithHelp("q", "quit"),
 		),
 	}
+	if readOnly {
+		km.Add.SetEnabled(false)
+		km.Delete.SetEnabled(false)
+	}
+
 	return setView{
 		set:      set,
 		table:    table,
 		elements: elements,
 		help:     newHelpModel(),
 		keys:     km,
+		readOnly: readOnly,
 	}
 }
 

@@ -63,6 +63,11 @@ type ruleEdit struct {
 	keys         ruleEditKeyMap
 	help         help.Model
 	errStr       string // last save/validation error, cleared on the next Save attempt
+
+	// readOnly mirrors Options.ReadOnly. F2 (Save) is disabled in the
+	// keymap when set — the editor still opens (read for inspection) but
+	// cannot push to the kernel.
+	readOnly bool
 }
 
 // editTabTotalSlots returns the total number of focus slots in a tab.
@@ -92,7 +97,7 @@ func (r ruleEdit) fieldAtTabSlot(tabIdx, slot int) (FieldEditor, int) {
 }
 
 // newRuleEdit initializes and returns a ruleEdit structure for editing nftables rules.
-func newRuleEdit(rule *nftables.Rule) ruleEdit {
+func newRuleEdit(rule *nftables.Rule, readOnly bool) ruleEdit {
 	km := ruleEditKeyMap{
 		PrevTab: key.NewBinding(
 			key.WithKeys("f5"),
@@ -327,6 +332,12 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		tabs[0].fields[0].Focus(0)
 	}
 
+	if readOnly {
+		// Disable F2 save. Tab nav, focus, and read-only field viewing
+		// stay on so the editor remains useful for inspection.
+		km.Save.SetEnabled(false)
+	}
+
 	return ruleEdit{
 		rule:         rule,
 		tabs:         tabs,
@@ -334,6 +345,7 @@ func newRuleEdit(rule *nftables.Rule) ruleEdit {
 		tabFocusSlot: make([]int, len(tabs)),
 		keys:         km,
 		help:         newHelpModel(),
+		readOnly:     readOnly,
 	}
 }
 
@@ -934,7 +946,7 @@ func (r ruleEdit) renderLimitTab() string {
 
 // View renders the rule editor view.
 func (r ruleEdit) View() string {
-	header := blueBoldStyle.Render("nftui nftables manager")
+	header := blueBoldStyle.Render("nftui nftables manager") + readOnlyBanner(r.readOnly)
 
 	divider := grayStyle.
 		Width(r.width).

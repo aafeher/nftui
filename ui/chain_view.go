@@ -32,6 +32,11 @@ type chainView struct {
 	// scrollOffset index the filtered slice (see activeRules).
 	filterMode  bool
 	filterQuery string
+
+	// readOnly mirrors Options.ReadOnly. Disabled write bindings dim out
+	// of the footer; key.Matches won't match a disabled binding either, so
+	// the handlers below never fire on a write key when set.
+	readOnly bool
 }
 
 type chainViewKeyMap struct {
@@ -61,7 +66,7 @@ func (k chainViewKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
-func newChainView(chain *nftables.Chain, table *tableNode) chainView {
+func newChainView(chain *nftables.Chain, table *tableNode, readOnly bool) chainView {
 	rules, err := nft.ListRulesOfChain(&table.Table, chain)
 	if err != nil {
 		panic(err)
@@ -118,12 +123,24 @@ func newChainView(chain *nftables.Chain, table *tableNode) chainView {
 		),
 	}
 
+	if readOnly {
+		// Footer dims; key.Matches on a disabled binding returns false too,
+		// so the handlers in Update never fire on these keys.
+		km.Delete.SetEnabled(false)
+		km.MoveUp.SetEnabled(false)
+		km.MoveDown.SetEnabled(false)
+		km.NewRule.SetEnabled(false)
+		km.InsertRule.SetEnabled(false)
+		km.OpenRuleEdit.SetEnabled(false)
+	}
+
 	return chainView{
-		chain: chain,
-		table: table,
-		rules: rules,
-		help:  newHelpModel(),
-		keys:  km,
+		chain:    chain,
+		table:    table,
+		rules:    rules,
+		help:     newHelpModel(),
+		keys:     km,
+		readOnly: readOnly,
 	}
 }
 
@@ -221,6 +238,9 @@ func (c chainView) updateFilter(msg tea.KeyMsg) (chainView, tea.Cmd) {
 			return c, c.ruleViewCmd(rules[c.cursor], c.cursor)
 		}
 	case "f4":
+		if c.readOnly {
+			return c, nil
+		}
 		if c.cursor >= 0 && c.cursor < len(rules) {
 			return c, c.ruleEditCmd(rules[c.cursor], c.cursor)
 		}
@@ -358,7 +378,7 @@ func (c chainView) View() string {
 	}
 
 	// Header
-	header := blueBoldStyle.Render("nftui nftables manager")
+	header := blueBoldStyle.Render("nftui nftables manager") + readOnlyBanner(c.readOnly)
 
 	divider := grayStyle.
 		Width(c.width).

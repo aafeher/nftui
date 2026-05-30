@@ -56,6 +56,12 @@ type tableTreeModel struct {
 	// Name matches this value. Empty = no filter. Applied at both initial
 	// load and refresh, so the user's --table choice survives every reload.
 	tableFilter string
+
+	// readOnly mirrors Options.ReadOnly. The tree handles d/e/c/s/R via
+	// string-match (not key.Matches), so the MainWindow keymap's
+	// SetEnabled doesn't block them — these handlers guard explicitly on
+	// this field instead.
+	readOnly bool
 }
 
 // filterTables returns the subset of nodes whose Table.Name matches name.
@@ -213,7 +219,7 @@ type flatItem struct {
 	obj         *nft.NamedObject
 }
 
-func initialTableTreeModel(filter string) tableTreeModel {
+func initialTableTreeModel(filter string, readOnly bool) tableTreeModel {
 	tables, err := nft.ListTables()
 	if err != nil {
 		panic(err)
@@ -270,6 +276,7 @@ func initialTableTreeModel(filter string) tableTreeModel {
 		nodes:       tableNodes,
 		cursor:      0,
 		tableFilter: filter,
+		readOnly:    readOnly,
 	}
 }
 
@@ -420,6 +427,9 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "d":
+			if tm.readOnly {
+				return tm, nil
+			}
 			items := tm.getFlattenedItems()
 			if tm.cursor < len(items) {
 				selected := items[tm.cursor]
@@ -430,6 +440,9 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "s":
+			if tm.readOnly {
+				return tm, nil
+			}
 			items := tm.getFlattenedItems()
 			if tm.cursor < len(items) {
 				selected := items[tm.cursor]
@@ -441,6 +454,9 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "R":
+			if tm.readOnly {
+				return tm, nil
+			}
 			items := tm.getFlattenedItems()
 			if tm.cursor < len(items) {
 				selected := items[tm.cursor]
@@ -453,6 +469,9 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return tm, cmd
 			}
 		case "e":
+			if tm.readOnly {
+				return tm, nil
+			}
 			items := tm.getFlattenedItems()
 			if tm.cursor < len(items) {
 				selected := items[tm.cursor]
@@ -470,6 +489,9 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case "c":
+			if tm.readOnly {
+				return tm, nil
+			}
 			items := tm.getFlattenedItems()
 			if tm.cursor < len(items) {
 				selected := items[tm.cursor]

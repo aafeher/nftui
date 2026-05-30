@@ -97,6 +97,12 @@ type MainWindow struct {
 	ready                 bool
 	keys                  keyMap
 	showQuitConfirm       bool
+
+	// readOnly mirrors Options.ReadOnly. When true, every write key binding
+	// is SetEnabled(false) at startup (footer dims them) and the tree's
+	// string-match write handlers are guarded. A "[READ-ONLY MODE]" marker
+	// rides in the title area of every main view.
+	readOnly bool
 }
 
 // applyContextualKeys toggles the Enabled state on cursor-sensitive
@@ -108,6 +114,13 @@ type MainWindow struct {
 // Called from View just before help.View(m.keys); the help component
 // reads the current Enabled flag at render time.
 func (m *MainWindow) applyContextualKeys() {
+	// Read-only locks every write binding off — context-aware toggling is
+	// suppressed so NewSet / Reset never re-enable.
+	if m.readOnly {
+		m.keys.NewSet.SetEnabled(false)
+		m.keys.Reset.SetEnabled(false)
+		return
+	}
 	m.keys.NewSet.SetEnabled(len(m.tableTree.nodes) > 0)
 
 	resettable := false
@@ -142,7 +155,7 @@ type ruleEditSelectedMsg struct {
 }
 
 func InitialMainWindow(opts Options) MainWindow {
-	ttm := initialTableTreeModel(opts.TableFilter)
+	ttm := initialTableTreeModel(opts.TableFilter, opts.ReadOnly)
 
 	km := keyMap{
 		Up: key.NewBinding(
@@ -199,6 +212,19 @@ func InitialMainWindow(opts Options) MainWindow {
 		),
 	}
 
+	if opts.ReadOnly {
+		// Dim every write binding in the footer. The actual block lives
+		// either in key.Matches (for bindings MainWindow itself dispatches
+		// on, e.g. NewTable) or in tableTreeModel's string-match guards
+		// (for keys handled inside the tree, e.g. d/e/c/s/R).
+		km.NewTable.SetEnabled(false)
+		km.NewChain.SetEnabled(false)
+		km.NewSet.SetEnabled(false)
+		km.Edit.SetEnabled(false)
+		km.Delete.SetEnabled(false)
+		km.Reset.SetEnabled(false)
+	}
+
 	return MainWindow{
 		loading:         true,
 		tableTree:       ttm,
@@ -206,6 +232,7 @@ func InitialMainWindow(opts Options) MainWindow {
 		help:            newHelpModel(),
 		keys:            km,
 		showQuitConfirm: false,
+		readOnly:        opts.ReadOnly,
 	}
 }
 
@@ -229,7 +256,7 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case chainSelectedMsg:
 		// Chain kiválasztva - váltunk chainView-ra
-		cv := newChainView(msg.chain, msg.table)
+		cv := newChainView(msg.chain, msg.table, m.readOnly)
 		cv.width = m.width
 		cv.height = m.height
 		m.chainView = &cv
@@ -237,7 +264,7 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case setSelectedMsg:
-		sv := newSetView(msg.set, msg.table)
+		sv := newSetView(msg.set, msg.table, m.readOnly)
 		sv.width = m.width
 		sv.height = m.height
 		m.setView = &sv
@@ -260,7 +287,7 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ruleEditSelectedMsg:
 		// Rule kiválasztva - váltunk ruleEdit-re
-		rv := newRuleEdit(msg.rule)
+		rv := newRuleEdit(msg.rule, m.readOnly)
 		rv.width = m.width
 		rv.height = m.height
 		m.ruleEdit = &rv
@@ -674,7 +701,7 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case newRuleCreatedMsg:
-		rv := newRuleEdit(msg.rule)
+		rv := newRuleEdit(msg.rule, m.readOnly)
 		rv.width = m.width
 		rv.height = m.height
 		m.ruleEdit = &rv
@@ -874,7 +901,7 @@ func (m MainWindow) View() string {
 		return ruleEditContent
 	}
 
-	header := blueBoldStyle.Render("nftui nftables manager")
+	header := blueBoldStyle.Render("nftui nftables manager") + readOnlyBanner(m.readOnly)
 
 	divider := grayStyle.
 		Width(m.width).

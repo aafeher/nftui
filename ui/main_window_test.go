@@ -290,7 +290,32 @@ func TestChainView_NoMatchEmptyActiveRules(t *testing.T) {
 	}
 }
 
-// filterTables narrows a node slice to the named table; an empty name
+// In read-only mode, the tree's string-match write handlers (d, e, c, s, R)
+// no-op without opening any modal or dispatching any cmd. These keys bypass
+// key.Matches (the tree handles them via msg.String() switch), so the
+// MainWindow keymap's SetEnabled doesn't help — the in-tree guard is what
+// actually blocks the mutation.
+func TestTreeReadOnly_BlocksWriteKeys(t *testing.T) {
+	tm := tableTreeModel{
+		readOnly: true,
+		nodes: []*tableNode{
+			{Table: nftables.Table{Name: "t", Family: nftables.TableFamilyINet}},
+		},
+	}
+	for _, k := range []string{"d", "e", "c", "s", "R"} {
+		t.Run(k, func(t *testing.T) {
+			updated, cmd := tm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)})
+			ttm := updated.(tableTreeModel)
+			if ttm.showDeleteConfirm {
+				t.Errorf("%q opened delete-confirm in read-only mode", k)
+			}
+			if cmd != nil {
+				t.Errorf("%q returned a non-nil cmd in read-only mode", k)
+			}
+		})
+	}
+}
+
 // passes everything through unchanged. Family is intentionally ignored
 // (tables can share names across families).
 func TestFilterTables(t *testing.T) {

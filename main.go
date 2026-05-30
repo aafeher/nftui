@@ -13,11 +13,13 @@ import (
 func main() {
 	tableFilter := flag.String("table", "", "restrict the tree to a single table (matched by name across all families)")
 	configFile := flag.String("config", "", "apply the given nftables ruleset via `nft -f <file>` before starting (mutates the running ruleset)")
+	readOnly := flag.Bool("read-only", false, "disable every write path: no rule/chain/table/set add/insert/move/delete/edit/save (footer dims the blocked keys)")
 	flag.Parse()
 
 	opts := ui.Options{
 		TableFilter: *tableFilter,
 		ConfigFile:  *configFile,
+		ReadOnly:    *readOnly,
 	}
 
 	// Resolve startup options BEFORE the TUI starts: bad inputs deserve a
