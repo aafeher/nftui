@@ -90,5 +90,5 @@ func writeUsage(w io.Writer, bin string) {
 
 	fmt.Fprintf(w, "\nRequires CAP_NET_ADMIN. Run with sudo, or grant the capability once:\n")
 	fmt.Fprintf(w, "  sudo setcap cap_net_admin=ep %s\n", bin)
-	fmt.Fprintf(w, "\nSee README.md and ROADMAP.md for full documentation.\n")
+	fmt.Fprintf(w, "\nSee README.md and nftui(1) for full documentation.\n")
 }

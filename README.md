@@ -92,6 +92,20 @@ sudo setcap cap_net_admin=ep ./nftui
 ./nftui
 ```
 
+### Installing the man page (optional)
+
+```bash
+sudo install -m 0644 man/nftui.1 /usr/share/man/man1/
+sudo mandb        # if your system uses man-db (Debian / Ubuntu / Fedora …)
+man nftui         # then it's available everywhere
+```
+
+Preview it from the source tree without installing:
+
+```bash
+man -l man/nftui.1
+```
+
 ## Command-line flags
 
 | Flag | Description |
@@ -111,7 +125,7 @@ sudo ./nftui --read-only                                 # safe browsing — eve
 sudo ./nftui --config new.conf --table filter            # apply new.conf, then restrict the view to its 'filter' table
 ```
 
-Without `--config`, the running ruleset is left untouched. Without `--table`, every table is shown. Without `--read-only`, every CRUD action is available. The CLI surface is now complete for v0.8.0 — see [ROADMAP.md](ROADMAP.md) for what comes next (release docs, sctp chunk editor, async incremental loading).
+Without `--config`, the running ruleset is left untouched. Without `--table`, every table is shown. Without `--read-only`, every CRUD action is available.
 
 ## Key bindings
 
@@ -195,7 +209,7 @@ ui/                            Bubble Tea TUI
   rule_edit.go                 rule editor with tabbed FieldEditors
   field_*.go                   one file per FieldEditor
 examples/example-nftables-01.conf  manual-test fixture
-ROADMAP.md                     versioned milestone plan
+man/nftui.1                    man page (groff/mandoc; see "Installation")
 CHANGELOG.md                   per-version release notes (Keep a Changelog format)
 ```
 
@@ -206,14 +220,11 @@ go test ./...                            # unit tests (no kernel required)
 sudo nft -c -f examples/example-nftables-01.conf   # validate the fixture
 ```
 
-## Roadmap & changelog
+## Release history
 
-- [ROADMAP.md](ROADMAP.md) — versioned milestone plan with the planning
-  notes and post-tag audit follow-ups behind each release.
-- [CHANGELOG.md](CHANGELOG.md) — what actually shipped per version, in
-  [Keep a Changelog](https://keepachangelog.com/) format.
-
-Major milestones to date:
+Per-version release notes live in [CHANGELOG.md](CHANGELOG.md) in
+[Keep a Changelog](https://keepachangelog.com/) format. Major milestones
+to date:
 
 - **v0.1.0** (2026-05-24) — first publishable release: full CT / meta / IP / port
   matches, every verdict action, full ruleset CRUD.

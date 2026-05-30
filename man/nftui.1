@@ -1,0 +1,250 @@
+.\" nftui(1) man page
+.\" Hand-written using groff `man' macros so the page renders on every
+.\" Linux distro (mdoc would need BSD-style mandoc).
+.\"
+.\" The OPTIONS section mirrors the flagDocs registry in flags.go; keep
+.\" the wording in sync when adding or renaming a flag.
+.\"
+.\" Verify with: mandoc -Tlint man/nftui.1
+.\" Preview  with: man -l man/nftui.1
+.\"
+.TH NFTUI 1 "May 30, 2026" "nftui 0.8.0" "User Commands"
+.SH NAME
+nftui \- Terminal User Interface for Linux nftables
+.SH SYNOPSIS
+.B nftui
+[\fB\-\-table\fR \fIname\fR]
+[\fB\-\-config\fR \fIfile\fR]
+[\fB\-\-read\-only\fR]
+[\fB\-\-help\fR]
+.SH DESCRIPTION
+.B nftui
+is an interactive terminal UI for browsing and editing the Linux
+kernel's nftables firewall ruleset. It talks to the kernel directly
+over netlink (no
+.BR nft (8)
+round-trip on the read or edit path), so changes apply atomically with
+the same semantics as
+.B nft
+commands. The
+.BR nft (8)
+binary is used only for the
+.B \-\-config
+flag's startup ruleset apply and for a few targeted table operations
+where round-tripping through the CLI is safer than reconstructing
+kernel state.
+.PP
+.B nftui
+requires the
+.B CAP_NET_ADMIN
+capability at runtime. Run with
+.BR sudo ,
+or grant the capability once with
+.B "setcap cap_net_admin=ep ./nftui"
+\&.
+.SH OPTIONS
+.TP
+.BR \-\-table " " \fIname\fR
+Restrict the tree to a single table (matched by name across all
+families). Unknown names exit before the TUI starts with the list of
+available tables. A name that exists in multiple families
+(e.g.\&
+.B filter
+in both
+.B ip
+and
+.BR inet )
+returns every match.
+.TP
+.BR \-\-config " " \fIfile\fR
+Apply the given nftables ruleset via
+.BI "nft \-f " file
+before the TUI starts. This
+.B mutates
+the running ruleset \(em the file may contain
+.BR "flush ruleset" .
+Resolved before
+.B \-\-table
+so the post-load kernel state is what
+.B \-\-table
+validates against.
+.TP
+.B \-\-read\-only
+Disable every write path: no rule
+.RB ( add / insert / move / delete / edit / save ),
+no chain or table or set
+.RB ( create / delete ),
+no counter reset. Blocked keys dim out of the footer and a red
+.B "[READ-ONLY MODE]"
+marker rides in every main view's title bar.
+.TP
+.BR \-\-help ", " \-h
+Print the full flag list with one-line descriptions and usage examples
+to standard output, then exit
+.BR 0 .
+Invalid flags emit the same usage to standard error and exit
+.BR 2 .
+.SH "KEY BINDINGS"
+.SS "Main tree view (tables, chains, sets, named objects)"
+.TP
+.BR \(ua " / " k
+move selection up
+.TP
+.BR \(da " / " j
+move selection down
+.TP
+.B "Enter / \(-> / \(<-"
+expand or collapse the selected table
+.TP
+.B F3
+open the selected chain in the rule list view
+.TP
+.B n
+create a new table
+.TP
+.B c
+create a new chain on the selected table
+.TP
+.B e
+edit the selected table or chain
+.TP
+.B s
+create a new set on the selected table
+.TP
+.B d
+delete the selected table, chain, set, or named object (with confirmation)
+.TP
+.B R
+reset the selected counter or quota to zero
+.TP
+.B /
+enter incremental name search. Type to filter; Enter or
+.B \(da
+cycle forward through matches,
+.B \(ua
+cycles back, Esc clears.
+.TP
+.B r
+refresh the tree from the kernel
+.TP
+.B "q / Esc / Ctrl+C"
+quit
+.SS "Chain view (rule list)"
+.TP
+.BR \(ua " / " k ", " \(da " / " j
+navigate rules
+.TP
+.B F3
+view the selected rule (read-only detail)
+.TP
+.B F4
+edit the selected rule
+.TP
+.B a
+append a new rule at the end of the chain
+.TP
+.B i
+insert a new rule before the selected rule
+.TP
+.B K
+move the selected rule up by one position
+.TP
+.B J
+move the selected rule down by one position
+.TP
+.B d
+delete the selected rule (with confirmation)
+.TP
+.B /
+enter inline filter. Type to narrow the visible rules by substring
+match on verdict, condition keyword, or comment. While filter is
+active,
+.BR \(ua / \(da
+navigate the filtered list, Enter or
+.B F3
+opens the selected rule,
+.B F4
+opens the editor, Esc clears the filter.
+.TP
+.B Esc
+return to the tree
+.TP
+.B q
+quit
+.SS "Rule editor"
+.TP
+.B "F5 / F6"
+previous / next tab
+.TP
+.B "Tab / Shift+Tab"
+next / previous field within the current tab
+.TP
+.B F2
+validate and apply changes through netlink
+.TP
+.B "Esc / F3"
+return without saving
+.TP
+.B "q / Ctrl+C"
+quit
+.SH EXAMPLES
+.TP
+.B sudo nftui
+browse the live ruleset.
+.TP
+.B sudo nftui \-\-table filter
+show only the table(s) named
+.IR filter .
+.TP
+.B sudo nftui \-\-config examples/example\-nftables\-01.conf
+load the manual-test fixture, then browse it.
+.TP
+.B sudo nftui \-\-read\-only
+safe browsing \(em every write key is dimmed and inert.
+.TP
+.B sudo nftui \-\-config new.conf \-\-read\-only
+safe browsing of a pre-loaded fixture.
+.SH ENVIRONMENT
+.TP
+.B PATH
+must include
+.BR nft (8)
+for the
+.B \-\-config
+flag to work; the runtime does not otherwise depend on the
+.B nft
+binary.
+.SH FILES
+.TP
+.I examples/example\-nftables\-01.conf
+The canonical manual-test fixture in the source distribution. Every
+documented feature has a corresponding section in this file; the
+fixture is verified with
+.B "nft \-c \-f examples/example\-nftables\-01.conf"
+on every release.
+.SH "EXIT STATUS"
+.TP
+.B 0
+normal exit (also for explicit
+.BR \-\-help )
+.TP
+.B 1
+runtime error inside the TUI (e.g.\& netlink connection failure
+mid-session, or an
+.B nft
+binary failure during
+.BR \-\-config )
+.TP
+.B 2
+invalid command-line usage (unknown flag, missing required value, or
+unknown
+.B \-\-table
+target)
+.SH "SEE ALSO"
+.BR nft (8)
+.PP
+Project documentation in the source distribution: README.md (install
+and feature overview) and CHANGELOG.md (per-version release notes in
+Keep a Changelog format).
+.SH AUTHORS
+Written by \('Akos Feh\('er.

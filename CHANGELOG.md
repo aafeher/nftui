@@ -5,10 +5,6 @@ All notable changes to nftui are documented in this file.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-Each released version corresponds to a milestone section in
-[ROADMAP.md](ROADMAP.md); cross-reference there for the planning notes and
-audit follow-ups that drove the work.
-
 ## [Unreleased]
 
 Work in progress on v0.8.0 — CLI surface, release polish, deep feature & async load.
@@ -28,7 +24,7 @@ Work in progress on v0.8.0 — CLI surface, release polish, deep feature & async
 - Rule save failure now surfaces both the rendered rule text (via `nftserializer.SerializeRule`) and the kernel error on `ruleEdit.errStr`, so the user sees *which* rule failed and *why*. The underlying error is wrapped with `%w` so `errors.Is` still works downstream. New `formatSaveError` helper makes the error-shaping testable without netlink.
 - `/` opens incremental name search in the main tree (`tableTreeModel`): case-insensitive substring match on table / chain / set / object names; `Enter` / `↓` cycle to the next match (wrapping), `↑` to the previous, `Esc` exits. Entering search auto-expands every table so rows inside collapsed tables are reachable; the tree is modal during search so keys don't leak to the global bindings.
 - `/` opens inline rule filter in `chainView`: substring match on `nft.RuleToHumanReadable(rule) + nft.ExtractComment(rule)` (covers verdict, condition keywords, comment text); `↑` / `↓` navigate the filtered list; `f3` / `Enter` open the selected match in the rule viewer, `f4` opens the editor; `Esc` clears the filter.
-- "Navigation: search & filter" section in [AGENTS.md](AGENTS.md) documents the shared invariants: modal capture (`IsModal()` true while the mode is active so typed letters build the query instead of triggering rule actions), footer-completeness via mode-swap keymaps (`treeSearchKeys`, `chainFilterKeys`), and the `chainView.RefreshRules` cursor-clamp for the round-trip through the rule editor.
+- Shared search / filter invariants documented in the agent guide: modal capture (`IsModal()` true while the mode is active so typed letters build the query instead of triggering rule actions), footer-completeness via mode-swap keymaps (`treeSearchKeys`, `chainFilterKeys`), and the `chainView.RefreshRules` cursor-clamp for the round-trip through the rule editor.
 
 ### Fixed
 
@@ -42,13 +38,13 @@ Work in progress on v0.8.0 — CLI surface, release polish, deep feature & async
 ### Added
 
 - `setStatus` helper on `tableTreeModel` records a transient hint and returns a `tea.Tick`-based fade timer (auto-fade ~2s instead of the previous clear-on-keypress behavior). A `statusGen` counter is bumped on every set, so an in-flight tick from an earlier message can't clear a newer one.
-- "Status & feedback channels" section in [AGENTS.md](AGENTS.md) documents the four channels and their lifecycles: `tableTreeModel.statusMsg` (yellow, auto-fade hint), `setView` / `chainView.statusMsg` (red, acknowledge-on-keypress error), create/edit dialogs' `statusMsg` (red, persists until the next save attempt), `MainWindow.err` (red, replaces the whole tables box for fatal / load-time failures).
+- Four-channel status / feedback convention documented (in the project's agent guide): `tableTreeModel.statusMsg` (yellow, auto-fade hint), `setView` / `chainView.statusMsg` (red, acknowledge-on-keypress error), create/edit dialogs' `statusMsg` (red, persists until the next save attempt), `MainWindow.err` (red, replaces the whole tables box for fatal / load-time failures).
 
 ### Changed
 
 - Named-object Reset / Delete kernel errors are routed through `tableTreeModel.statusMsg` (yellow status line, same channel as the matching no-op hint) instead of the global `m.err` (full-box red replacement). One channel per action result, distinguishable by color.
 - `setView.addErr` and `addLastHint` are now mutually exclusive by construction. New `setAddErr` helper sets the red error and drops the green "added X" hint at the state level, so the bulk-add overlay never claims success and failure at once. The simplified render guard reads `if sv.addLastHint != ""` because the invariant makes the previous `&& sv.addErr == ""` guard redundant.
-- Audit conclusion on transient-hint sites: `setView` / `chainView.statusMsg` are *error* surfaces (red `Error:`) with a deliberately different lifecycle from the tree's informational hints. No shared abstraction was extracted — forcing one lifecycle across three semantically different surfaces would over-couple them. The two-lifecycle distinction is what landed in AGENTS.md.
+- Audit conclusion on transient-hint sites: `setView` / `chainView.statusMsg` are *error* surfaces (red `Error:`) with a deliberately different lifecycle from the tree's informational hints. No shared abstraction was extracted — forcing one lifecycle across three semantically different surfaces would over-couple them. The two-lifecycle distinction is what landed in the project's status-channel convention.
 
 ### Fixed
 
@@ -70,13 +66,13 @@ Work in progress on v0.8.0 — CLI surface, release polish, deep feature & async
 - Bulk-insert loop in `setView`'s `a` (Add element) prompt: Enter to add, prompt stays open with a "added X" hint, Esc to finish.
 - Unit tests for `setView` / `setCreate` dialog `Update` state-machines (modal open / close, Tab key↔value switch, retry on bad input, mutual exclusion of `addErr` and `addLastHint`).
 - Unit tests for `nft.{Create,Delete,Reset}Set*`, `AddSetElement`, `ListNamedObjects` — pure data-shaping helpers (`buildSetElements`, `pairIntervalElements`, `incrementBytes`/`decrementBytes`) extracted and tested without the live netlink dependency.
-- Tree count format documentation `[N chains, N rules, N sets, N objs]` and set / map / object icons in [AGENTS.md](AGENTS.md).
+- Tree count format documentation `[N chains, N rules, N sets, N objs]` and set / map / object icons codified in the project's agent guide.
 
 ### Changed
 
 - Single source of truth for set actions: `SetAction.Operation` string (`add` / `update` / `delete`) is the only state field; removed `SetAction.Update bool` (could drift from `Operation`), `SetAction.MapName`, and `SetAction.Elements []SetElement` (never written or read).
 - ASCII map icon (`=`) replaces the previous UTF-8 `≈` so column alignment stays predictable on minimal terminals.
-- ASCII-only-icons rule refined in [AGENTS.md](AGENTS.md): "single-char column-aligned icons must be ASCII; arrows used as text decoration inside labels (e.g. `keytype → datatype`) are exempt because they aren't column-aligned icons."
+- ASCII-only-icons rule refined to: "single-char column-aligned icons must be ASCII; arrows used as text decoration inside labels (e.g. `keytype → datatype`) are exempt because they aren't column-aligned icons."
 
 ### Fixed
 
@@ -121,10 +117,9 @@ Work in progress on v0.8.0 — CLI surface, release polish, deep feature & async
 ## [0.1.0] - 2026-05-24 — First Release
 
 The first publishable release. Everything below was reached through several
-pre-release milestones (Foundation, Ruleset CRUD, Table & Chain Management,
+pre-release milestones: Foundation, Ruleset CRUD, Table & Chain Management,
 Verdict & Core Action Statements, Remaining CT Fields, Meta Matches, IP &
-IP6 Matches, TCP & UDP Transport Matches) — see [ROADMAP.md](ROADMAP.md)
-for the historical breakdown.
+IP6 Matches, TCP & UDP Transport Matches.
 
 ### Added
 
