@@ -453,9 +453,9 @@ func (c chainView) View() string {
 
 	content.WriteString(grayStyle.Render("Rules by type" + ":"))
 	content.WriteString("\n")
-	content.WriteString(fmt.Sprintf("  • ACCEPT: %s\n", greenStyle.Render(fmt.Sprintf("%d", acceptCount))))
-	content.WriteString(fmt.Sprintf("  • DROP: %s\n", redStyle.Render(fmt.Sprintf("%d", dropCount))))
-	content.WriteString(fmt.Sprintf("  • etc: %s\n", whiteStyle.Render(fmt.Sprintf("%d", otherCount))))
+	content.WriteString(fmt.Sprintf("  - ACCEPT: %s\n", greenStyle.Render(fmt.Sprintf("%d", acceptCount))))
+	content.WriteString(fmt.Sprintf("  - DROP: %s\n", redStyle.Render(fmt.Sprintf("%d", dropCount))))
+	content.WriteString(fmt.Sprintf("  - etc: %s\n", whiteStyle.Render(fmt.Sprintf("%d", otherCount))))
 
 	if c.filterMode {
 		// Filter prompt line — trailing "_" stands in for the input cursor,

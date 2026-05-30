@@ -515,9 +515,9 @@ func (sv setView) View() string {
 			body += "\n\n" + redBoldStyle.Render(sv.addErr)
 		}
 		if sv.set.IsMap {
-			body += "\n\n" + grayStyle.Render("Tab: switch field  •  Enter: add (loop)  •  Esc: done")
+			body += "\n\n" + grayStyle.Render("Tab: switch field  |  Enter: add (loop)  |  Esc: done")
 		} else {
-			body += "\n\n" + grayStyle.Render("Enter: add (loop)  •  Esc: done")
+			body += "\n\n" + grayStyle.Render("Enter: add (loop)  |  Esc: done")
 		}
 		prompt := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
