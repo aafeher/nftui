@@ -276,7 +276,7 @@ func newRuleEdit(rule *nftables.Rule, readOnly bool) ruleEdit {
 				NewSctpDportField(rd),    // 26
 				NewSctpVtagField(rd),     // 27
 				NewSctpChecksumField(rd), // 28
-				NewSctpChunkField(rd),    // 29 — chunk-type Select; sub-field write is v0.9.0
+				NewSctpChunkField(rd),    // 29 — chunk-type + sub-field + value (3 slots)
 				// DCCP
 				NewDccpSportField(rd), // 30
 				NewDccpDportField(rd), // 31

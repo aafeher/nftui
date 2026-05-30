@@ -2984,3 +2984,156 @@ func TestNftablesToRuleDefinition_CTCount(t *testing.T) {
 
 // beUint32 helper for 4-byte big-endian values used in some test payloads
 var _ = binary.BigEndian // ensure import used
+
+// TestNftablesToRuleDefinition_SctpChunkBarePresence verifies the parser
+// path for `sctp chunk <type>` matches: an Exthdr{Op=SCTP, Type=N,
+// Flags=F_PRESENT} followed by a Cmp{Eq, [0x01]} decodes into a
+// SctpChunkCondition with the chunk type populated and Field empty.
+func TestNftablesToRuleDefinition_SctpChunkBarePresence(t *testing.T) {
+	cases := []struct {
+		name string
+		ct   nftexpr.ChunkType
+	}{
+		{"data", nftexpr.ChunkData},
+		{"init", nftexpr.ChunkInit},
+		{"sack", nftexpr.ChunkSack},
+		{"heartbeat", nftexpr.ChunkHeartbeat},
+		{"abort", nftexpr.ChunkAbort},
+		{"shutdown", nftexpr.ChunkShutdown},
+		{"shutdown-complete", nftexpr.ChunkShutdownComplete},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Exthdr{
+					DestRegister: 1,
+					Type:         uint8(c.ct),
+					Offset:       0,
+					Len:          1,
+					Flags:        nftexpr.SctpExthdrFlagPresent,
+					Op:           expr.ExthdrOp(nftexpr.SctpExthdrOp),
+				},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x01}},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(rd.Conditions) != 1 {
+				t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+			}
+			cond := rd.Conditions[0]
+			if cond.Type != ConditionTypeSctpChunk {
+				t.Errorf("Condition.Type = %q, want %q", cond.Type, ConditionTypeSctpChunk)
+			}
+			if cond.SctpChunk == nil {
+				t.Fatal("Condition.SctpChunk is nil")
+			}
+			if cond.SctpChunk.ChunkType != c.ct {
+				t.Errorf("ChunkType = 0x%02X, want 0x%02X", uint8(cond.SctpChunk.ChunkType), uint8(c.ct))
+			}
+			if cond.SctpChunk.Field != "" {
+				t.Errorf("Field = %q, want empty (bare presence)", cond.SctpChunk.Field)
+			}
+		})
+	}
+}
+
+// TestNftablesToRuleDefinition_SctpChunkSubField verifies the parser path
+// for `sctp chunk <type> <field> <value>` matches: an Exthdr{Op=SCTP,
+// Offset=O, Len=L} (no F_PRESENT) followed by a Cmp{Eq, BE-encoded value}
+// decodes into a SctpChunkCondition with the field name and decoded value.
+func TestNftablesToRuleDefinition_SctpChunkSubField(t *testing.T) {
+	cases := []struct {
+		name   string
+		ct     nftexpr.ChunkType
+		field  string
+		offset uint32
+		length uint32
+		data   []byte
+		want   any
+	}{
+		{"DATA tsn 1000", nftexpr.ChunkData, "tsn", 4, 4, []byte{0x00, 0x00, 0x03, 0xE8}, uint32(1000)},
+		{"INIT init-tag 0x12345678", nftexpr.ChunkInit, "init-tag", 4, 4, []byte{0x12, 0x34, 0x56, 0x78}, uint32(0x12345678)},
+		{"SACK cum-tsn-ack 999", nftexpr.ChunkSack, "cum-tsn-ack", 4, 4, []byte{0x00, 0x00, 0x03, 0xE7}, uint32(999)},
+		{"SHUTDOWN cum-tsn-ack 500", nftexpr.ChunkShutdown, "cum-tsn-ack", 4, 4, []byte{0x00, 0x00, 0x01, 0xF4}, uint32(500)},
+		{"ECNE lowest-tsn 42", nftexpr.ChunkEcne, "lowest-tsn", 4, 4, []byte{0x00, 0x00, 0x00, 0x2A}, uint32(42)},
+		{"AUTH hmac-id (2B)", nftexpr.ChunkAuth, "hmac-id", 6, 2, []byte{0x00, 0x01}, uint16(1)},
+		{"SACK num-gap-ack-blocks (2B)", nftexpr.ChunkSack, "num-gap-ack-blocks", 12, 2, []byte{0x04, 0x00}, uint16(1024)},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Exthdr{
+					DestRegister: 1,
+					Type:         uint8(c.ct),
+					Offset:       c.offset,
+					Len:          c.length,
+					Op:           expr.ExthdrOp(nftexpr.SctpExthdrOp),
+				},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(rd.Conditions) != 1 {
+				t.Fatalf("expected 1 condition, got %d", len(rd.Conditions))
+			}
+			cond := rd.Conditions[0]
+			if cond.SctpChunk == nil {
+				t.Fatal("Condition.SctpChunk is nil")
+			}
+			if cond.SctpChunk.ChunkType != c.ct {
+				t.Errorf("ChunkType = 0x%02X, want 0x%02X", uint8(cond.SctpChunk.ChunkType), uint8(c.ct))
+			}
+			if cond.SctpChunk.Field != c.field {
+				t.Errorf("Field = %q, want %q", cond.SctpChunk.Field, c.field)
+			}
+			if cond.SctpChunk.Value != c.want {
+				t.Errorf("Value = %v (%T), want %v (%T)", cond.SctpChunk.Value, cond.SctpChunk.Value, c.want, c.want)
+			}
+		})
+	}
+}
+
+// TestNftablesToRuleDefinition_SctpVsIPv6Exthdr verifies the parser
+// dispatches Exthdr by Op: Op=0 (IPv6 ext) → ExthdrCondition; Op=3 (SCTP)
+// → SctpChunkCondition. Mixed-up routing would surface here.
+func TestNftablesToRuleDefinition_SctpVsIPv6Exthdr(t *testing.T) {
+	// IPv6 Fragment header nexthdr field — Op=0, Type=44 (frag), Offset=0, Len=1.
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Exthdr{DestRegister: 1, Type: 44, Offset: 0, Len: 1, Op: 0},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{17}}, // UDP nexthdr
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rd.Conditions[0].SctpChunk != nil {
+		t.Error("IPv6 exthdr was misrouted into an SctpChunkCondition")
+	}
+	if rd.Conditions[0].Exthdr == nil {
+		t.Error("IPv6 exthdr produced no ExthdrCondition")
+	}
+
+	// SCTP DATA presence — Op=3, Type=0, F_PRESENT.
+	rd, err = NftablesToRuleDefinition(makeRule(
+		&expr.Exthdr{
+			DestRegister: 1, Type: 0, Offset: 0, Len: 1,
+			Flags: nftexpr.SctpExthdrFlagPresent,
+			Op:    expr.ExthdrOp(nftexpr.SctpExthdrOp),
+		},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x01}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rd.Conditions[0].Exthdr != nil {
+		t.Error("SCTP exthdr was misrouted into an ExthdrCondition")
+	}
+	if rd.Conditions[0].SctpChunk == nil {
+		t.Error("SCTP exthdr produced no SctpChunkCondition")
+	}
+}

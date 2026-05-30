@@ -3,6 +3,12 @@ package ui
 import (
 	"bytes"
 	"testing"
+
+	"nftui/nft"
+	nftexpr "nftui/nft/expr"
+
+	"github.com/google/nftables"
+	"github.com/google/nftables/expr"
 )
 
 // encodeSubFieldValue is the inverse of the parser's decodeExthdrValue —
@@ -80,5 +86,131 @@ func TestSubFieldOptionsFor(t *testing.T) {
 		if opts[i] != want {
 			t.Errorf("DATA opts[%d] = %q, want %q", i, opts[i], want)
 		}
+	}
+}
+
+// End-to-end roundtrip: SctpChunkField → Save → nft.NftablesToRuleDefinition
+// must reconstruct what we put in. Catches wire-format / encoding drift
+// between the encoder (this file) and the parser (nft/rule.go) — both
+// sides are unit-tested separately, but a bug in either side wouldn't
+// surface without an integration test that exercises the boundary.
+func TestSctpChunkField_SaveParseRoundTrip(t *testing.T) {
+	// Bare-presence first.
+	emptyRule := &nft.Rule{} // no existing SCTP-chunk match
+	f := NewSctpChunkField(emptyRule)
+	// "off" + 21 chunk types → index 1 = "data".
+	f.chunkSelect.Selected = 1
+	f.activeChunkType = "data"
+	f.rebuildSubFieldOptions()
+	// sub-field stays "off" (slot 1 index 0) — bare presence.
+	var rule nftables.Rule
+	f.Save(&rule)
+
+	parsed, err := nft.NftablesToRuleDefinition(&rule)
+	if err != nil {
+		t.Fatalf("parser failed on bare-presence rule: %v", err)
+	}
+	if len(parsed.Conditions) != 1 || parsed.Conditions[0].SctpChunk == nil {
+		t.Fatalf("expected one SctpChunkCondition, got %+v", parsed.Conditions)
+	}
+	if got := parsed.Conditions[0].SctpChunk; got.ChunkType != nftexpr.ChunkData || got.Field != "" {
+		t.Errorf("roundtrip bare-presence: ChunkType=%v Field=%q, want data / empty",
+			got.ChunkType, got.Field)
+	}
+
+	// Sub-field roundtrip: data tsn 1000.
+	emptyRule = &nft.Rule{}
+	f = NewSctpChunkField(emptyRule)
+	f.chunkSelect.Selected = 1 // "data"
+	f.activeChunkType = "data"
+	f.rebuildSubFieldOptions()
+	// subFieldOptionsFor(ChunkData) = ["off", "tsn", "stream", "ssn", "ppid"].
+	f.subFieldSelect.Selected = 1 // "tsn"
+	f.valueInput.SetValue("1000")
+	rule = nftables.Rule{}
+	f.Save(&rule)
+
+	parsed, err = nft.NftablesToRuleDefinition(&rule)
+	if err != nil {
+		t.Fatalf("parser failed on sub-field rule: %v", err)
+	}
+	if len(parsed.Conditions) != 1 || parsed.Conditions[0].SctpChunk == nil {
+		t.Fatalf("expected one SctpChunkCondition, got %+v", parsed.Conditions)
+	}
+	sc := parsed.Conditions[0].SctpChunk
+	if sc.ChunkType != nftexpr.ChunkData {
+		t.Errorf("roundtrip ChunkType = %v, want data", sc.ChunkType)
+	}
+	if sc.Field != "tsn" {
+		t.Errorf("roundtrip Field = %q, want tsn", sc.Field)
+	}
+	if v, ok := sc.Value.(uint32); !ok || v != 1000 {
+		t.Errorf("roundtrip Value = %v (%T), want uint32(1000)", sc.Value, sc.Value)
+	}
+
+	// Switch to a 2-byte sub-field (SACK num-gap-ack-blocks). The encoder
+	// must pick the 2-byte path, the parser must decode it as uint16.
+	emptyRule = &nft.Rule{}
+	f = NewSctpChunkField(emptyRule)
+	// "sack" = offset of nftexpr.ChunkSack (0x03) in the names list +1 for the
+	// leading "off" — easier to look up by name than to hard-code.
+	chunkOpts := append([]string{"off"}, nftexpr.ChunkTypeNames()...)
+	f.chunkSelect.Selected = indexOfString(chunkOpts, "sack")
+	f.activeChunkType = "sack"
+	f.rebuildSubFieldOptions()
+	f.subFieldSelect.Selected = indexOfString(subFieldOptionsFor(nftexpr.ChunkSack), "num-gap-ack-blocks")
+	f.valueInput.SetValue("1024")
+	rule = nftables.Rule{}
+	f.Save(&rule)
+
+	parsed, err = nft.NftablesToRuleDefinition(&rule)
+	if err != nil {
+		t.Fatalf("parser failed on 2-byte sub-field rule: %v", err)
+	}
+	sc = parsed.Conditions[0].SctpChunk
+	if v, ok := sc.Value.(uint16); !ok || v != 1024 {
+		t.Errorf("2-byte roundtrip Value = %v (%T), want uint16(1024)", sc.Value, sc.Value)
+	}
+}
+
+// stripSctpChunkExprs leaves unrelated expressions in place: a Cmp following
+// the SCTP Exthdr that targets a *different* register belongs to another
+// match (e.g. an earlier meta load) and must survive.
+func TestStripSctpChunkExprs_PreservesUnrelatedCmp(t *testing.T) {
+	// Build a slice with: SCTP Exthdr (reg 1) — Cmp on reg 2 (unrelated).
+	in := []expr.Any{
+		&expr.Exthdr{
+			DestRegister: 1, Type: 0, Offset: 0, Len: 1,
+			Flags: nftexpr.SctpExthdrFlagPresent,
+			Op:    expr.ExthdrOp(nftexpr.SctpExthdrOp),
+		},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 2, Data: []byte{17}},
+	}
+	out := stripSctpChunkExprs(in)
+	if len(out) != 1 {
+		t.Fatalf("len(out) = %d, want 1 (Exthdr stripped, unrelated Cmp kept)", len(out))
+	}
+	if _, ok := out[0].(*expr.Cmp); !ok {
+		t.Errorf("out[0] = %T, want the preserved *expr.Cmp", out[0])
+	}
+}
+
+// stripSctpChunkExprs handles back-to-back pairs (multiple SCTP-chunk matches
+// in the same rule — the editor only writes one, but the kernel may have
+// more from external tools).
+func TestStripSctpChunkExprs_MultiplePairs(t *testing.T) {
+	in := []expr.Any{
+		&expr.Exthdr{DestRegister: 1, Type: 0, Op: expr.ExthdrOp(nftexpr.SctpExthdrOp)},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x01}},
+		&expr.Exthdr{DestRegister: 2, Type: 1, Op: expr.ExthdrOp(nftexpr.SctpExthdrOp)},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 2, Data: []byte{0x01}},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	}
+	out := stripSctpChunkExprs(in)
+	if len(out) != 1 {
+		t.Fatalf("len(out) = %d, want 1 (Verdict only)", len(out))
+	}
+	if _, ok := out[0].(*expr.Verdict); !ok {
+		t.Errorf("out[0] = %T, want *expr.Verdict", out[0])
 	}
 }
