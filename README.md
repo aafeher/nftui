@@ -230,6 +230,23 @@ go test ./...                            # unit tests (no kernel required)
 sudo nft -c -f examples/example-nftables-01.conf   # validate the fixture
 ```
 
+### Integration tests
+
+Tests under the `integration` build tag exercise the live netlink readback
+path by applying a small ruleset via `nft -f`, reading it back with the same
+helpers the TUI uses, and asserting on the result. They're excluded from the
+default `go test ./...` and skip themselves when not running as root, so a
+plain `go test` stays portable.
+
+```bash
+sudo -E go test -tags=integration ./nft/ -v
+```
+
+Each test creates a uniquely-named table (timestamp-suffixed, so concurrent
+runs and leftover state don't collide) and tears it down in `t.Cleanup`, even
+when assertions fail. The `nft` binary must be on PATH; install it from the
+`nftables` package on your distro if missing.
+
 ## Release history
 
 Per-version release notes live in [CHANGELOG.md](CHANGELOG.md) in
