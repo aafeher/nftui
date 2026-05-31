@@ -37,7 +37,21 @@ type chainView struct {
 	// of the footer; key.Matches won't match a disabled binding either, so
 	// the handlers below never fire on a write key when set.
 	readOnly bool
+
+	// matchCache memoizes the lowercase "rendered text + comment" haystack
+	// per rule.Handle. Populated lazily by ruleMatchesFilter on first use,
+	// cleared by RefreshRules when the rule list changes. Without it, typing
+	// in the filter on a 1000-rule chain would re-serialize every rule on
+	// every keystroke (activeRules walks the full slice each call, and View
+	// + the filter handler both invoke it).
+	matchCache map[uint64]string
 }
+
+// ruleEntryLines is the visual height of one rule entry in the chain view:
+// human-readable line, serialized line, and two trailing blank lines (so the
+// next rule has breathing room). Used by maxVisibleRules to translate the
+// content-box pixel budget into a rule count.
+const ruleEntryLines = 4
 
 type chainViewKeyMap struct {
 	Up           key.Binding
@@ -135,13 +149,58 @@ func newChainView(chain *nftables.Chain, table *tableNode, readOnly bool) chainV
 	}
 
 	return chainView{
-		chain:    chain,
-		table:    table,
-		rules:    rules,
-		help:     newHelpModel(),
-		keys:     km,
-		readOnly: readOnly,
+		chain:      chain,
+		table:      table,
+		rules:      rules,
+		help:       newHelpModel(),
+		keys:       km,
+		readOnly:   readOnly,
+		matchCache: make(map[uint64]string),
 	}
+}
+
+// headerLines counts the lines rendered inside the content box before the
+// first rule entry: the "Chain:" title + blank, the table/type lines, the
+// optional hook/priority/policy lines, the rules-by-type summary, the
+// optional filter prompt block, and the "Rules:" header line. Counted
+// dynamically because the optional fields shift the budget for the rule
+// list, and so does turning the filter prompt on or off.
+func (c chainView) headerLines() int {
+	n := 2 // "Chain: <name>" + blank
+	n += 2 // "Table: ..." + "Type: ..."
+	if c.chain != nil {
+		if c.chain.Hooknum != nil {
+			n++
+		}
+		if c.chain.Priority != nil {
+			n++
+		}
+		if c.chain.Policy != nil {
+			n++
+		}
+	}
+	n++    // blank line
+	n += 4 // "Rules by type:" + ACCEPT + DROP + etc
+	if c.filterMode {
+		n += 2 // filter prompt line + trailing blank
+	}
+	n += 2 // "Rules:" + blank
+	return n
+}
+
+// maxVisibleRules is how many rule entries fit inside the content box at the
+// current terminal height. The window math (View loop bound, Down/Up scroll
+// triggers) all routes through here so a 1000-rule chain renders the same
+// fixed number of entries as a 10-rule chain — the cost is O(window), not
+// O(N). Clamped to at least 1 so a tiny terminal still scrolls one rule at
+// a time instead of locking the cursor.
+func (c chainView) maxVisibleRules() int {
+	inner := c.height - 10 // contentBox outer is c.height-8; minus 2 for the box border
+	avail := inner - c.headerLines()
+	if avail < ruleEntryLines {
+		return 1
+	}
+	return avail / ruleEntryLines
 }
 
 // IsModal reports whether a confirmation dialog or the inline filter is
@@ -168,13 +227,19 @@ func (c chainView) activeRules() []*nftables.Rule {
 
 // ruleMatchesFilter reports whether rule matches the current filterQuery
 // (case-insensitive substring over the rendered rule text and its comment —
-// so verdict, condition keywords and comment text are all searchable).
+// so verdict, condition keywords and comment text are all searchable). The
+// lowercased haystack is memoized in matchCache so subsequent keystrokes
+// don't re-serialize the rule.
 func (c chainView) ruleMatchesFilter(rule *nftables.Rule) bool {
 	q := strings.ToLower(strings.TrimSpace(c.filterQuery))
 	if q == "" {
 		return true
 	}
-	hay := strings.ToLower(nft.RuleToHumanReadable(rule) + " " + nft.ExtractComment(rule))
+	hay, ok := c.matchCache[rule.Handle]
+	if !ok {
+		hay = strings.ToLower(nft.RuleToHumanReadable(rule) + " " + nft.ExtractComment(rule))
+		c.matchCache[rule.Handle] = hay
+	}
 	return strings.Contains(hay, q)
 }
 
@@ -228,8 +293,8 @@ func (c chainView) updateFilter(msg tea.KeyMsg) (chainView, tea.Cmd) {
 	case "down":
 		if c.cursor < len(rules)-1 {
 			c.cursor++
-			maxHeight := c.height - 20
-			if maxHeight > 0 && c.cursor >= c.scrollOffset+maxHeight {
+			maxHeight := c.maxVisibleRules()
+			if c.cursor >= c.scrollOffset+maxHeight {
 				c.scrollOffset = c.cursor - maxHeight + 1
 			}
 		}
@@ -327,8 +392,8 @@ func (c chainView) Update(msg tea.Msg) (chainView, tea.Cmd) {
 		case key.Matches(msg, c.keys.Down):
 			if c.cursor < len(c.rules)-1 {
 				c.cursor++
-				maxHeight := c.height - 20
-				if maxHeight > 0 && c.cursor >= c.scrollOffset+maxHeight {
+				maxHeight := c.maxVisibleRules()
+				if c.cursor >= c.scrollOffset+maxHeight {
 					c.scrollOffset = c.cursor - maxHeight + 1
 				}
 			}
@@ -498,11 +563,13 @@ func (c chainView) View() string {
 		content.WriteString(defaultBoldStyle.Render("Rules:"))
 		content.WriteString("\n\n")
 
-		// Render list with cursor
-		maxHeight := c.height - 20
+		// Render list with cursor. The window cap is computed from the live
+		// terminal height so the loop iterates O(window), not O(N) — a chain
+		// with 1000 rules costs the same to render as one with 10.
+		maxHeight := c.maxVisibleRules()
 		startIdx := c.scrollOffset
 		endIdx := len(rules)
-		if maxHeight > 0 && endIdx > startIdx+maxHeight {
+		if endIdx > startIdx+maxHeight {
 			endIdx = startIdx + maxHeight
 		}
 
@@ -577,11 +644,14 @@ func (c chainView) getRulesForChain() []*nftables.Rule {
 // Call this after a rule has been saved to ensure fresh data on next open.
 // Cursor and scroll offset are clamped to the new (possibly filtered) list
 // so they don't dangle past the end after a rule was added or removed.
+// The filter-match cache is cleared too: handles survive a rule edit but
+// the rendered text behind them does not.
 func (c *chainView) RefreshRules() {
 	rules, err := nft.ListRulesOfChain(&c.table.Table, c.chain)
 	if err == nil {
 		c.rules = rules
 	}
+	clear(c.matchCache)
 	n := len(c.activeRules())
 	if c.cursor >= n {
 		c.cursor = n - 1

@@ -20,7 +20,11 @@ framework. Talks to the kernel over netlink via the
   background (each chain row briefly shows `[loading rules...]` until its
   fetch lands).
 - Per-chain rule listing with human-readable rendering of every parsed
-  expression.
+  expression. The list is windowed — only the rules that fit on screen are
+  serialized and drawn, so a chain with 1000+ rules costs the same to scroll
+  as one with 10. The inline filter (`/`) caches each rule's lowercase
+  haystack the first time it's matched, so subsequent keystrokes stay
+  responsive on large chains.
 - Per-rule detail view organised into tabs by condition category.
 - Full CRUD on tables, chains and rules: create, rename / edit properties,
   delete (with confirmation), reorder rules up / down within a chain, insert

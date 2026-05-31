@@ -7,7 +7,13 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-Work in progress on v0.8.0 — CLI surface, release polish, deep feature & async load.
+Work in progress on v1.0.0 — release infrastructure pulled forward from earlier stubs.
+
+### Added
+
+- Virtualized rule-list rendering in `chainView`. Replaces the off-by-many `maxHeight := c.height - 20` (which assumed 1 line per rule and let the cursor scroll off-screen with the rest of the entries below it clipped by the content box) with a dynamic `maxVisibleRules()` that divides the available content-box height by the actual `ruleEntryLines = 4` and subtracts a `headerLines()` count computed from the chain's optional hook / priority / policy fields and the optional filter-prompt block. The render loop, the Down handler, and the filter-mode Down handler all route through `maxVisibleRules()` so a 1000-rule chain iterates the same `~5–10` entries as a 10-rule one. New `matchCache map[uint64]string` on `chainView` memoizes the lowercase `RuleToHumanReadable + ExtractComment` haystack per `rule.Handle`; `ruleMatchesFilter` reads it on every keystroke and only re-serializes on a cache miss. `RefreshRules` clears the cache (handles survive a rule edit but the rendered text behind them does not). Manual-test fixture: `examples/example-nftables-01.conf` section 48 (`table inet large_chain_demo` → `chain many_rules`) carries 60 hookless rules with `rule NN — ...` comments for scroll and filter exercises. Unit tests pin the `maxVisibleRules` / `headerLines` math and the cache hit / no-cache-on-empty-query behavior.
+
+## [0.8.0] - 2026-05-30 — CLI surface, release polish, deep feature & async load
 
 ### Added
 
@@ -162,7 +168,8 @@ IP6 Matches, TCP & UDP Transport Matches.
 - Footer help line always lists every available key binding in the current view — the "footer-completeness" invariant.
 - Custom UI components: `NumberInput` (numeric textinput with min/max bounds), `Select` (horizontal single-select), `MultiSelect` (horizontal checkboxes).
 
-[Unreleased]: https://github.com/aafeher/nftui/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/aafeher/nftui/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/aafeher/nftui/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/aafeher/nftui/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/aafeher/nftui/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/aafeher/nftui/compare/v0.4.0...v0.5.0

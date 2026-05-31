@@ -215,10 +215,15 @@ func chainViewWithComments(comments ...string) chainView {
 	tbl := &nftables.Table{Name: "filter", Family: nftables.TableFamilyINet}
 	chn := &nftables.Chain{Name: "input"}
 	var rules []*nftables.Rule
-	for _, c := range comments {
+	for i, c := range comments {
 		rules = append(rules, &nftables.Rule{
-			Table:    tbl,
-			Chain:    chn,
+			Table: tbl,
+			Chain: chn,
+			// Kernel-assigned Handles are unique per rule; mirror that here so
+			// the filter-match cache (keyed by Handle) doesn't collide across
+			// rules. Without a real Handle every test rule defaults to 0 and
+			// the cache returns the first rule's haystack for all of them.
+			Handle:   uint64(i + 1),
 			UserData: encodeCommentToUserData(c),
 		})
 	}
@@ -227,7 +232,8 @@ func chainViewWithComments(comments ...string) chainView {
 		table: &tableNode{Table: *tbl},
 		chain: chn,
 		// Only Filter is exercised by the tests; other bindings stay zero-value.
-		keys: chainViewKeyMap{Filter: key.NewBinding(key.WithKeys("/"))},
+		keys:       chainViewKeyMap{Filter: key.NewBinding(key.WithKeys("/"))},
+		matchCache: make(map[uint64]string),
 	}
 }
 
