@@ -112,17 +112,14 @@ func findChain(t *testing.T, table *nftables.Table, name string) *nftables.Chain
 //   - Regular chain creation
 //   - CT state condition (set form)
 //   - IP saddr CIDR condition
-//   - TCP dport (scalar form)
+//   - TCP dport (scalar and anonymous-set forms)
 //   - accept / drop / jump verdicts
 //   - Counter action
 //   - Comment preservation through UserData TLV
 //
 // The renderer's exact output is not pinned — assertions look for tokens
 // ("ct state", "ip saddr", "tcp dport", "jump") so the test stays green
-// across nft / kernel-renderer drift. Anonymous-set conditions
-// (`tcp dport { 80, 443 }`) are intentionally avoided here: the renderer
-// currently drops the `dport` qualifier in that form (separate bug, tracked
-// outside this harness).
+// across nft / kernel-renderer drift.
 func TestIntegration_RuleRoundtrip(t *testing.T) {
 	requireRoot(t)
 
@@ -136,7 +133,7 @@ table inet %s {
         ct state established,related accept comment "established"
         ip saddr 10.0.0.0/8 drop comment "rfc1918-10"
         tcp dport 22 counter accept comment "ssh"
-        tcp dport 443 accept comment "https"
+        tcp dport { 80, 443 } accept comment "web"
         jump dispatch comment "dispatch"
     }
     chain dispatch {
@@ -176,7 +173,7 @@ table inet %s {
 
 	// Comments live in UserData (TLV) and round-trip cleanly, so they're the
 	// most reliable per-rule identifier — pin them exactly.
-	wantComments := []string{"established", "rfc1918-10", "ssh", "https", "dispatch"}
+	wantComments := []string{"established", "rfc1918-10", "ssh", "web", "dispatch"}
 	for i, want := range wantComments {
 		if got := ExtractComment(rules[i]); got != want {
 			t.Errorf("rule[%d] comment = %q, want %q", i, got, want)
@@ -189,7 +186,7 @@ table inet %s {
 		"ct state",  // rule 0
 		"ip saddr",  // rule 1
 		"tcp dport", // rule 2 (scalar port — ssh)
-		"tcp dport", // rule 3 (scalar port — https)
+		"tcp dport", // rule 3 (anonymous set form — web ports)
 		"jump",      // rule 4
 	}
 	for i, token := range wantTokens {

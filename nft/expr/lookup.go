@@ -17,7 +17,7 @@ func SerializeLookup(lookup *expr.Lookup, register string, sets []*nftables.Set)
 
 	setName := lookup.SetName
 	if setName == "" {
-		setName = fmt.Sprintf("@set_%d", lookup.SetID)
+		setName = fmt.Sprintf("set_%d", lookup.SetID)
 	}
 
 	var formattedElements []string
@@ -49,6 +49,14 @@ func SerializeLookup(lookup *expr.Lookup, register string, sets []*nftables.Set)
 
 	if len(formattedElements) > 0 {
 		elementsString = fmt.Sprintf("{%s}", strings.Join(formattedElements, ", "))
+	}
+
+	// No matching set in the `sets` slice (the set wasn't fetched, or the
+	// Lookup's name didn't appear in the table's set list). Fall back to
+	// "@<setName>" so the rendered form is at least syntactically nft-CLI
+	// shaped, never a bare register with trailing whitespace.
+	if elementsString == "" {
+		elementsString = "@" + setName
 	}
 
 	if lookup.Invert {

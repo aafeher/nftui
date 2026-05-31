@@ -2400,6 +2400,18 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 						break
 					}
 				}
+				// Set lookup: Payload → Lookup. The Payload alone stores just
+				// "saddr"/"daddr" in regMap (no "ip " prefix), so the standalone
+				// Lookup case below would emit "saddr {…}". Catching the pair
+				// inline preserves the "ip" qualifier in the rendered form.
+				if i+1 < len(rule.Exprs) {
+					if lookup, ok := rule.Exprs[i+1].(*expr.Lookup); ok {
+						qualified := fmt.Sprintf("%s %s", ipProto, payloadDesc)
+						parts = append(parts, nftexpr.SerializeLookup(lookup, qualified, sets))
+						i += 2
+						break
+					}
+				}
 			}
 			regMap[v.DestRegister] = payloadDesc
 			i++
@@ -2407,11 +2419,19 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 			//fmt.Printf("Payload parts: %v\n", parts)
 
 		case *expr.Lookup:
-			// Set lookup
-			//parts = append(parts, nftexpr.SerializeLookup(v, regMap))
+			// Standalone set lookup. The register description from regMap is
+			// already what should appear before the set ("dport" for tcp/udp
+			// ports — the protocol prefix is contributed by the upstream
+			// meta-l4proto Cmp as a separate part; "saddr"/"daddr" are caught
+			// inline above in the Payload case so we don't reach here with a
+			// bare IP field name). For unknown register sources fall back to
+			// "register_N" so the rendering still distinguishes the rule.
+			regContent := regMap[v.SourceRegister]
+			if regContent == "" {
+				regContent = fmt.Sprintf("register_%d", v.SourceRegister)
+			}
+			parts = append(parts, nftexpr.SerializeLookup(v, regContent, sets))
 			i++
-			//fmt.Printf("Lookup regMap: %v\n", regMap)
-			//fmt.Printf("Lookup parts: %v\n", parts)
 
 		case *expr.Immediate:
 			// Immediate — loads a constant value into a register
