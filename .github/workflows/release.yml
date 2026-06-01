@@ -23,6 +23,10 @@ jobs:
   goreleaser:
     name: Goreleaser
     runs-on: ubuntu-latest
+    # 30 min is generous for a 2-arch Go static build; a stalled goreleaser
+    # invocation will fail fast instead of pinning a runner for the default
+    # six hours.
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,24 +42,27 @@ jobs:
           check-latest: true
 
       # Pull the [X.Y.Z] section from CHANGELOG.md so the GitHub release body
-      # is the curated text, not the auto-generated commit list. The awk
-      # script captures everything between the matching header and the next
-      # `## [` header. Empty result → write a placeholder so Goreleaser still
-      # has something to publish.
+      # is the curated text, not the auto-generated commit list. The matcher
+      # uses awk's `index()` (literal substring), NOT a regex — so a version
+      # like `1.0.0` is matched as the literal four characters, never as a
+      # regex where `.` would also match `X`. Captures everything between the
+      # matching header and the next `## [` header. Empty result → write a
+      # placeholder so Goreleaser still has something to publish.
       - name: Extract release notes from CHANGELOG.md
         id: notes
         run: |
           ver="${GITHUB_REF_NAME#v}"
+          header="## [${ver}]"
           notes_file="$(mktemp)"
-          awk -v v="^## \\[${ver}\\]" '
-            $0 ~ v {found=1; next}
-            found && /^## \[/ {exit}
-            found {print}
+          awk -v header="$header" '
+            index($0, header) == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
           ' CHANGELOG.md > "$notes_file"
           if [ ! -s "$notes_file" ]; then
             echo "::warning::No CHANGELOG.md section for ${ver} — using placeholder body"
             cat > "$notes_file" <<EOF
-          See [CHANGELOG.md](https://github.com/aafeher/nftui/blob/${GITHUB_REF_NAME}/CHANGELOG.md) for curated release notes.
+          See [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_REF_NAME}/CHANGELOG.md) for curated release notes.
           EOF
           fi
           echo "path=$notes_file" >> "$GITHUB_OUTPUT"
@@ -66,7 +73,10 @@ jobs:
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
-          version: latest
+          # Track the v2 major series — pulls the latest v2.x at run time but
+          # is immune to a v3 breaking-change shipping silently on release
+          # day. The v0.9.0 config was verified locally against v2.5.0.
+          version: "~> v2"
           args: release --clean --release-notes=${{ steps.notes.outputs.path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

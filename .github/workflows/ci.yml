@@ -28,6 +28,10 @@ jobs:
   build-and-test:
     name: Build & unit tests
     runs-on: ubuntu-latest
+    # Tight cap: fmt/vet/build/test for a small Go module finishes in 2-3 min
+    # on GH runners. 15 min gives ample headroom while still failing fast if
+    # something hangs (e.g. a runaway race-detector goroutine).
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,6 +66,10 @@ jobs:
     name: Integration tests (CAP_NET_ADMIN)
     runs-on: ubuntu-latest
     needs: build-and-test
+    # Slightly higher than unit because apt-installing nftables + the netlink
+    # roundtrip adds startup time. A hung `nft -f` or `nft delete table`
+    # against the runner kernel would otherwise eat the default 6 h.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4

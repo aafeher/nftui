@@ -436,16 +436,16 @@ func TestSerializeCt(t *testing.T) {
 				&expr.Ct{Key: unix.NFT_CT_EXPIRATION, Register: 1},
 				&expr.Lookup{
 					SourceRegister: 1,
-					SetName:        "exp_set",
+					SetName:        "__nftui_test_set__",
 				},
 			},
 			pos: 0,
 			sets: []*nftables.Set{
 				{
-					Name: "exp_set",
+					Name: "__nftui_test_set__",
 				},
 			},
-			wantStr: "ct expiration @exp_set",
+			wantStr: "ct expiration @__nftui_test_set__",
 			wantIdx: 2,
 		},
 	}

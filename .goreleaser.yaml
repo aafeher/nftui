@@ -21,9 +21,14 @@ version: 2
 
 project_name: nftui
 
+# Pre-build hooks. `go mod verify` is read-only (asserts go.sum checksums
+# against module cache) so it can NEVER mutate go.mod / go.sum during a
+# release — preserves the "byte-identical given the same toolchain" promise.
+# Avoid `go mod tidy` here; it can rewrite go.sum mid-release and silently
+# diverge the published binary from the committed source state.
 before:
   hooks:
-    - go mod tidy
+    - go mod verify
 
 builds:
   - id: nftui
@@ -77,9 +82,9 @@ changelog:
       - "^ci:"
 
 release:
-  github:
-    owner: aafeher
-    name: nftui
+  # `release.github.{owner,name}` intentionally omitted — Goreleaser auto-
+  # detects them from the git remote at release time. Hardcoding the upstream
+  # repo would make forks unable to release from their own tags.
   draft: false
   # `auto` marks the release as pre-release when the tag is `vX.Y.Z-something`
   # (rc / beta / alpha). Plain `vX.Y.Z` tags publish as stable releases.

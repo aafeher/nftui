@@ -18,27 +18,27 @@ import (
 func TestSerializeLookup_EmptyRegister(t *testing.T) {
 	lookup := &expr.Lookup{
 		SourceRegister: 1,
-		SetName:        "exp_set",
+		SetName:        "__nftui_test_set__",
 	}
-	set := &nftables.Set{Name: "exp_set", ID: 0} // test escape hatch in SerializeLookup
+	set := &nftables.Set{Name: "__nftui_test_set__", ID: 0} // test escape hatch in SerializeLookup
 	got := SerializeLookup(lookup, "", []*nftables.Set{set})
-	want := "register_1 @exp_set"
+	want := "register_1 @__nftui_test_set__"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
 
 // The common case: payload-derived register description ("tcp dport") + named
-// set. The escape hatch (ID=0, Name=="exp_set") side-steps the netlink fetch
+// set. The escape hatch (ID=0, Name=="__nftui_test_set__") side-steps the netlink fetch
 // so we test the formatting code, not the kernel connection.
 func TestSerializeLookup_NamedSet(t *testing.T) {
 	lookup := &expr.Lookup{
 		SourceRegister: 1,
-		SetName:        "exp_set",
+		SetName:        "__nftui_test_set__",
 	}
-	set := &nftables.Set{Name: "exp_set", ID: 0}
+	set := &nftables.Set{Name: "__nftui_test_set__", ID: 0}
 	got := SerializeLookup(lookup, "tcp dport", []*nftables.Set{set})
-	want := "tcp dport @exp_set"
+	want := "tcp dport @__nftui_test_set__"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -48,12 +48,12 @@ func TestSerializeLookup_NamedSet(t *testing.T) {
 func TestSerializeLookup_Invert(t *testing.T) {
 	lookup := &expr.Lookup{
 		SourceRegister: 1,
-		SetName:        "exp_set",
+		SetName:        "__nftui_test_set__",
 		Invert:         true,
 	}
-	set := &nftables.Set{Name: "exp_set", ID: 0}
+	set := &nftables.Set{Name: "__nftui_test_set__", ID: 0}
 	got := SerializeLookup(lookup, "tcp dport", []*nftables.Set{set})
-	want := "tcp dport != @exp_set"
+	want := "tcp dport != @__nftui_test_set__"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}

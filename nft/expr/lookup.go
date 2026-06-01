@@ -27,7 +27,7 @@ func SerializeLookup(lookup *expr.Lookup, register string, sets []*nftables.Set)
 			// In test environment GetSetElements might cause panic if Conn is not properly initialized.
 			// Only call if not mocked or if needed.
 			// Here we apply a simplified solution for tests.
-			if set.ID == 0 && (set.Name == "" || set.Name == "exp_set") {
+			if set.ID == 0 && (set.Name == "" || set.Name == "__nftui_test_set__") {
 				elementsString = fmt.Sprintf("@%s", set.Name)
 				continue
 			}
@@ -79,7 +79,7 @@ func SerializeLookupWithKey(lookup *expr.Lookup, register string, key expr.CtKey
 	var elementsString string
 	for _, set := range sets {
 		if set.Name == setName {
-			if set.ID == 0 && (set.Name == "" || set.Name == "exp_set") {
+			if set.ID == 0 && (set.Name == "" || set.Name == "__nftui_test_set__") {
 				elementsString = fmt.Sprintf("@%s", set.Name)
 				continue
 			}

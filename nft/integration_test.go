@@ -142,8 +142,13 @@ table inet %s {
 }
 `, tableName)
 
-	applyRuleset(t, ruleset)
+	// Register cleanup BEFORE applying — if `nft -f` partially succeeds and
+	// then something panics before we reach this line, the table would leak
+	// on the host. `deleteTable` already tolerates a missing table (logs the
+	// `nft delete table` error instead of failing the test) so running it
+	// when the apply itself didn't create anything is harmless.
 	t.Cleanup(func() { deleteTable(t, "inet", tableName) })
+	applyRuleset(t, ruleset)
 
 	target := findTable(t, tableName, nftables.TableFamilyINet)
 	if target == nil {

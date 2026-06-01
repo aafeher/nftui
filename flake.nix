@@ -25,12 +25,25 @@
 
         nftui = pkgs.buildGoModule {
           pname = "nftui";
-          # `self.rev` is set on a clean tagged build; falls back to "dirty"
-          # for `nix build` against an unclean working tree.
+          # Version derivation: prefer `self.lastModifiedDate` + `self.shortRev`
+          # so the Nix store path is at least date-informative
+          # (e.g. `nftui-20260601-abc1234`). Dirty trees fall back to a "dirty"
+          # suffix so two unclean builds don't accidentally produce
+          # collision-free-looking version strings. There is no semver source
+          # yet — when the project lands a VERSION file (Post-v0.9.0 roadmap),
+          # this block should read from it.
           version =
-            if (self ? rev)
-            then "0.0.0-${builtins.substring 0 7 self.rev}"
-            else "0.0.0-dirty";
+            let
+              date =
+                if self ? lastModifiedDate
+                then builtins.substring 0 8 self.lastModifiedDate
+                else "00000000";
+              rev =
+                if self ? shortRev
+                then self.shortRev
+                else "dirty";
+            in
+            "0-${date}-${rev}";
 
           src = ./.;
 
