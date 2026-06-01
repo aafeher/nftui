@@ -264,6 +264,30 @@ The Go version comes from `go.mod` via `actions/setup-go@v5` with
 the same commit. Concurrent runs on the same ref cancel earlier in-flight
 runs (`cancel-in-progress: true`).
 
+## Release process
+
+Releases are driven by [Goreleaser](https://goreleaser.com/) and a tag-trigger
+workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml)):
+
+1. Promote the `[Unreleased]` section in `CHANGELOG.md` to `[X.Y.Z] - <date>`.
+2. `git tag vX.Y.Z` and `git push --tags`.
+3. The Release workflow extracts the matching `[X.Y.Z]` section from
+   `CHANGELOG.md`, then runs Goreleaser, which builds reproducible Linux
+   `amd64` / `arm64` binaries (`CGO_ENABLED=0 -trimpath -ldflags='-s -w'`,
+   `mod_timestamp` pinned to the commit time), bundles each with `LICENSE`,
+   `README.md`, `CHANGELOG.md`, and `man/nftui.1` into a `tar.gz`, writes a
+   SHA-256 `checksums.txt`, and publishes the GitHub Release with the curated
+   notes as the body.
+
+To validate the config locally without publishing:
+
+```bash
+goreleaser check                                       # config syntax only
+goreleaser release --snapshot --clean --skip=publish   # full build into dist/
+```
+
+Snapshot output (`dist/`) is gitignored, so the working tree stays clean.
+
 ## Release history
 
 Per-version release notes live in [CHANGELOG.md](CHANGELOG.md) in

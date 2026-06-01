@@ -1,0 +1,88 @@
+# Goreleaser config for nftui — reproducible Linux amd64 / arm64 binaries.
+#
+# Triggered from .github/workflows/release.yml on a `v*` tag push. Local
+# validation:
+#
+#   goreleaser check
+#   goreleaser release --snapshot --clean --skip=publish
+#
+# The snapshot variant builds everything under ./dist/ without touching GitHub
+# so the config can be exercised against any working tree.
+#
+# Reproducibility:
+#   - CGO_ENABLED=0      static binary, no glibc dependency
+#   - -trimpath          strips local filesystem paths from the binary
+#   - -s -w              drops the symbol table and DWARF debug info
+#   - mod_timestamp      pins the binary's embedded mtime to the commit time,
+#                        so two builds of the same tag produce byte-identical
+#                        binaries (given the same Go toolchain version).
+
+version: 2
+
+project_name: nftui
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: nftui
+    main: .
+    binary: nftui
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: nftui
+    builds:
+      - nftui
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    files:
+      - LICENSE
+      - README.md
+      - CHANGELOG.md
+      - man/nftui.1
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+# Goreleaser's own changelog block governs the archive's CHANGELOG snippet
+# (commits since the previous tag, filtered). The GitHub release body itself
+# is taken from the curated CHANGELOG.md via --release-notes in release.yml,
+# so this block stays minimal — auto-generated commit lists are a fallback,
+# not the primary release narrative.
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^test:"
+      - "^ci:"
+
+release:
+  github:
+    owner: aafeher
+    name: nftui
+  draft: false
+  # `auto` marks the release as pre-release when the tag is `vX.Y.Z-something`
+  # (rc / beta / alpha). Plain `vX.Y.Z` tags publish as stable releases.
+  prerelease: auto
+  mode: append
+  name_template: "{{ .ProjectName }} {{ .Tag }}"

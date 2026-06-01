@@ -32,3 +32,6 @@ go.work.sum
 # .vscode/
 
 /nftui
+
+# Goreleaser snapshot / release output directory
+/dist/

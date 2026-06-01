@@ -1,0 +1,72 @@
+# Release pipeline: on every `v*` tag push, build reproducible Linux amd64 /
+# arm64 binaries via Goreleaser, publish them as a GitHub release, and use the
+# matching CHANGELOG.md section as the release notes.
+#
+# The user controls the tag — this workflow only fires after `git push --tags`.
+# CHANGELOG.md must already have the [X.Y.Z] section promoted from
+# [Unreleased] for the matching tag; if no section is found, the workflow
+# falls back to a placeholder pointing at the CHANGELOG link.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Releases create artifacts and a GitHub Release object, both of which require
+# write access to the repo's contents. No other scope is needed.
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    name: Goreleaser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Goreleaser's changelog generation walks history from the previous
+          # tag; without full history it can only see the tagged commit.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      # Pull the [X.Y.Z] section from CHANGELOG.md so the GitHub release body
+      # is the curated text, not the auto-generated commit list. The awk
+      # script captures everything between the matching header and the next
+      # `## [` header. Empty result → write a placeholder so Goreleaser still
+      # has something to publish.
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          notes_file="$(mktemp)"
+          awk -v v="^## \\[${ver}\\]" '
+            $0 ~ v {found=1; next}
+            found && /^## \[/ {exit}
+            found {print}
+          ' CHANGELOG.md > "$notes_file"
+          if [ ! -s "$notes_file" ]; then
+            echo "::warning::No CHANGELOG.md section for ${ver} — using placeholder body"
+            cat > "$notes_file" <<EOF
+          See [CHANGELOG.md](https://github.com/aafeher/nftui/blob/${GITHUB_REF_NAME}/CHANGELOG.md) for curated release notes.
+          EOF
+          fi
+          echo "path=$notes_file" >> "$GITHUB_OUTPUT"
+          echo "--- release notes preview ---"
+          cat "$notes_file"
+
+      - name: Run Goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean --release-notes=${{ steps.notes.outputs.path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
