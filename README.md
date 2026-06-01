@@ -87,6 +87,24 @@ cd nftui
 go build -o nftui .
 ```
 
+### Nix flake
+
+The repository ships a [`flake.nix`](flake.nix) with a `buildGoModule` package
+for `x86_64-linux` and `aarch64-linux`, a `devShell` that mirrors the CI
+toolchain, and a runnable `apps.default`:
+
+```bash
+nix build              # builds into ./result/bin/nftui (+ man page)
+nix run                # builds and runs (needs CAP_NET_ADMIN at runtime)
+nix develop            # toolchain: go, gopls, goreleaser, nftables, mandoc
+```
+
+On the first `nix build`, the `vendorHash` is intentionally set to
+`lib.fakeHash` — Nix prints the real `sha256-…` in the error and the user
+pastes it into `flake.nix` (re-pin whenever `go.sum` changes). This keeps
+binary releases (Goreleaser) and Nix builds independent: the Nix path does
+not block release publishing.
+
 ### Running
 
 Either with `sudo`:
