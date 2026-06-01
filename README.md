@@ -247,6 +247,23 @@ runs and leftover state don't collide) and tears it down in `t.Cleanup`, even
 when assertions fail. The `nft` binary must be on PATH; install it from the
 `nftables` package on your distro if missing.
 
+### Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the same checks
+on every push and pull request to `main` / `develop`:
+
+- **Build & unit tests** — `gofmt -l`, `go vet ./...` (default and `integration`
+  build tags), `go build ./...`, and `go test -race ./...`.
+- **Integration tests** — installs the `nftables` package, then runs
+  `sudo -E go test -tags=integration -v ./nft/` so the harness has the
+  `CAP_NET_ADMIN` it needs to apply a live ruleset. Runs only after the
+  unit-test job is green.
+
+The Go version comes from `go.mod` via `actions/setup-go@v5` with
+`go-version-file: go.mod`, so bumping the module's Go version updates CI in
+the same commit. Concurrent runs on the same ref cancel earlier in-flight
+runs (`cancel-in-progress: true`).
+
 ## Release history
 
 Per-version release notes live in [CHANGELOG.md](CHANGELOG.md) in

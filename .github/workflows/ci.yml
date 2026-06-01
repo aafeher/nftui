@@ -1,0 +1,85 @@
+# CI pipeline. Two stages:
+#
+#   1. build-and-test — gofmt, go vet (default + integration tag), go build,
+#      go test -race ./...  Runs on every push / PR; fast, no privileges.
+#   2. integration-test — sudo -E go test -tags=integration ./nft/ -v after
+#      installing the nftables package. Needs CAP_NET_ADMIN (provided by sudo)
+#      because the harness applies / reads back a live ruleset.
+#
+# Concurrency cancels superseded runs on the same ref so a rapid push doesn't
+# queue redundant jobs.
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build & unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt found unformatted files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: |
+          go vet ./...
+          go vet -tags=integration ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Unit tests
+        run: go test -race ./...
+
+  integration-test:
+    name: Integration tests (CAP_NET_ADMIN)
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Install nftables
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nftables
+          nft --version
+
+      # sudo strips PATH by default, so the Go toolchain that setup-go added
+      # is invisible to the elevated process. `sudo -E env PATH=$PATH` forwards
+      # the current PATH (and other env) so `go` resolves under root.
+      - name: Integration tests
+        run: sudo -E env "PATH=$PATH" go test -tags=integration -v ./nft/
