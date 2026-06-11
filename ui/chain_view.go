@@ -85,7 +85,12 @@ func newChainView(chain *nftables.Chain, table *tableNode, readOnly bool) chainV
 	if err != nil {
 		panic(err)
 	}
+	return newChainViewWithRules(chain, table, rules, readOnly)
+}
 
+// newChainViewWithRules builds the view around an already-fetched rule list —
+// the netlink-free core of newChainView, shared with the unit tests.
+func newChainViewWithRules(chain *nftables.Chain, table *tableNode, rules []*nftables.Rule, readOnly bool) chainView {
 	km := chainViewKeyMap{
 		Up: key.NewBinding(
 			key.WithKeys("up", "k"),
@@ -469,9 +474,12 @@ func (c chainView) View() string {
 		Padding(0, 1).
 		Render(tableContent)
 
-	// Rules count
-	rulesForChain := c.getRulesForChain()
-	rulesCount := fmt.Sprintf("%d rules", len(rulesForChain))
+	// Rules count — from the already-fetched list. View must never hit
+	// netlink: it runs on every keystroke (the previous re-fetch here cost a
+	// full ListRulesOfChain per render and panicked the whole TUI on a
+	// transient netlink error). RefreshRules keeps c.rules current after
+	// every rule mutation.
+	rulesCount := fmt.Sprintf("%d rules", len(c.rules))
 	rulesBox := normalGrayBorder.
 		Width(boxWidth).
 		Padding(0, 1).
@@ -534,7 +542,7 @@ func (c chainView) View() string {
 
 	content.WriteString("\n")
 
-	acceptCount, dropCount, otherCount := nft.CountRulesByType(rulesForChain)
+	acceptCount, dropCount, otherCount := nft.CountRulesByType(c.rules)
 
 	content.WriteString(grayStyle.Render("Rules by type" + ":"))
 	content.WriteString("\n")
@@ -630,14 +638,6 @@ func (c chainView) View() string {
 	}
 
 	return base
-}
-
-func (c chainView) getRulesForChain() []*nftables.Rule {
-	rules, err := nft.ListRulesOfChain(&c.table.Table, c.chain)
-	if err != nil {
-		panic(err)
-	}
-	return rules
 }
 
 // RefreshRules re-fetches the chain's rules from the kernel.

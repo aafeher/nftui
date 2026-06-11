@@ -191,8 +191,8 @@ const (
 	MetaKeyProtocol  MetaKey = "protocol" // protocol family
 	MetaKeyPriority  MetaKey = "priority"
 	MetaKeyMark      MetaKey = "mark"
-	MetaKeyL4Proto   MetaKey = "l4proto" // L4 protokoll (tcp, udp, icmp)
-	MetaKeyLength    MetaKey = "length"  // csomag hossz
+	MetaKeyL4Proto   MetaKey = "l4proto" // L4 protocol (tcp, udp, icmp)
+	MetaKeyLength    MetaKey = "length"  // packet length
 	MetaKeyCGroup    MetaKey = "cgroup"
 	MetaKeyPktType   MetaKey = "pkttype" // unicast, broadcast, multicast
 	MetaKeyCPU       MetaKey = "cpu"
@@ -305,7 +305,7 @@ type SetLookupCondition struct {
 // CustomCondition represents a user-defined condition with an expression and associated data for custom logic.
 type CustomCondition struct {
 	Expression string      // the original expression
-	Data       interface{} // extra adatok
+	Data       interface{} // extra data
 }
 
 // Action represents a rule action with a specific type and associated data for different action types.
@@ -2261,13 +2261,20 @@ func syslogLevelToLogLevel(level expr.LogLevel) LogLevel {
 
 // RuleToHumanReadable converts an nftables.Rule object into a human-readable string representation.
 func RuleToHumanReadable(rule *nftables.Rule) string {
-	var parts []string
-	regMap := make(map[uint32]string)
-
 	sets, err := GetSets(rule.Table)
 	if err != nil {
 		return fmt.Sprintf("Error getting sets: %s", err)
 	}
+	return ruleToHumanReadableWithSets(rule, sets)
+}
+
+// ruleToHumanReadableWithSets is the netlink-free core of RuleToHumanReadable:
+// the caller supplies the table's sets, so the expression walk is unit-testable
+// without a live connection (mirrors the serializeRuleExprs seam in
+// nftserializer).
+func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) string {
+	var parts []string
+	regMap := make(map[uint32]string)
 
 	i := 0
 	for i < len(rule.Exprs) {
@@ -2509,7 +2516,7 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 			i++
 
 		case *expr.Masq:
-			// TODO
+			parts = append(parts, nftexpr.SerializeMasq(v))
 			i++
 
 		case *expr.Hash:

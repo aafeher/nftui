@@ -274,7 +274,10 @@ on every push and pull request to `main` / `develop`:
   build tags), `go build ./...`, and `go test -race ./...`.
 - **Integration tests** — installs the `nftables` package, then runs
   `sudo -E go test -tags=integration -v ./nft/` so the harness has the
-  `CAP_NET_ADMIN` it needs to apply a live ruleset. Runs only after the
+  `CAP_NET_ADMIN` it needs to apply a live ruleset. Writes a coverage
+  profile over the `nft` tree (`-coverpkg=./nft/...`) and prints the total
+  in the job log — the live netlink path is invisible to the unit-test
+  profile, so this is where its coverage is observable. Runs only after the
   unit-test job is green.
 
 The Go version comes from `go.mod` via `actions/setup-go@v5` with

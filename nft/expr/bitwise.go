@@ -26,7 +26,7 @@ func BitwiseToHumanReadable(b *expr.Bitwise, regMap map[uint32]string) string {
 
 	// Special handling for CT state
 	if srcContent == string(CtKeyState) {
-		// Try to decode mask to human language (pl. 8 -> new)
+		// Try to decode mask to human language (e.g. 8 -> new)
 		decoded := DecodeCTValue(expr.CtKeySTATE, b.Mask)
 
 		// If Xor is all zeros (which is the case with default masking),

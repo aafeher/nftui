@@ -4,7 +4,10 @@
 #      go test -race ./...  Runs on every push / PR; fast, no privileges.
 #   2. integration-test — sudo -E go test -tags=integration ./nft/ -v after
 #      installing the nftables package. Needs CAP_NET_ADMIN (provided by sudo)
-#      because the harness applies / reads back a live ruleset.
+#      because the harness applies / reads back a live ruleset. Writes a
+#      coverage profile (-coverpkg=./nft/...) and prints the total, so the
+#      live netlink path's coverage — invisible to the unit profile — stays
+#      observable in the job log.
 #
 # Concurrency cancels superseded runs on the same ref so a rapid push doesn't
 # queue redundant jobs.
@@ -89,5 +92,14 @@ jobs:
       # sudo strips PATH by default, so the Go toolchain that setup-go added
       # is invisible to the elevated process. `sudo -E env PATH=$PATH` forwards
       # the current PATH (and other env) so `go` resolves under root.
+      #
+      # -coverprofile makes the live netlink path's coverage observable: the
+      # unit-test profile can't see it (those tests run unprivileged, without
+      # the integration build tag), so this is the only place the numbers
+      # exist. -coverpkg widens attribution to the whole nft tree so helper
+      # packages the harness exercises indirectly are counted too.
       - name: Integration tests
-        run: sudo -E env "PATH=$PATH" go test -tags=integration -v ./nft/
+        run: sudo -E env "PATH=$PATH" go test -tags=integration -coverprofile=integration-cover.out -coverpkg=./nft/... -v ./nft/
+
+      - name: Integration coverage summary
+        run: go tool cover -func=integration-cover.out | tail -1

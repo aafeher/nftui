@@ -14,7 +14,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"nftui/nft"
 	nftexpr "nftui/nft/expr"
 	"sort"
@@ -145,14 +144,21 @@ func serializeChain(ch *nftables.Chain) string {
 
 // SerializeRule converts a rule to a one-line nft rule snippet (without leading indent)
 func SerializeRule(rule *nftables.Rule) string {
-	var parts []string
-	var pendingData any // data loaded from register
-	var l4proto string
-
 	sets, err := nft.GetSets(rule.Table)
 	if err != nil {
 		return fmt.Sprintf("Error getting sets: %s", err)
 	}
+	return serializeRuleExprs(rule, sets)
+}
+
+// serializeRuleExprs is the netlink-free core of SerializeRule: it walks the
+// expression list and dispatches each expr to its nftexpr serializer, with
+// the table's sets supplied by the caller. Split out so unit tests can
+// exercise the dispatch and joining without a live netlink connection.
+func serializeRuleExprs(rule *nftables.Rule, sets []*nftables.Set) string {
+	var parts []string
+	var pendingData any // data loaded from register
+	var l4proto string
 
 	i := 0
 	for i < len(rule.Exprs) {
@@ -196,31 +202,7 @@ func SerializeRule(rule *nftables.Rule) string {
 			parts = append(parts, str)
 			i += skip
 		case *expr.Lookup:
-			//str := nftexpr.SerializeLookup(v)
-			set, err := nft.GetSetByName(rule.Table, v.SetName)
-			if err != nil {
-				log.Printf("failed to get set ID=%d: %v", v.SetID, err)
-				continue
-			}
-			elements := nft.GetSetElements(set)
-			if err != nil {
-				log.Printf("failed to get set elements: %v", err)
-				continue
-			}
-			lookupParts := []string{}
-			for _, el := range elements {
-				if l4proto == "icmpv6" {
-					lookupParts = append(lookupParts, fmt.Sprintf("%s", nft.Icmpv6TypeToString(el.Key[0])))
-					continue
-				}
-				if len(el.Key) == 2 {
-					port := binary.BigEndian.Uint16(el.Key)
-					lookupParts = append(lookupParts, fmt.Sprintf("%d", port))
-				}
-			}
-			lookupStr := "{" + strings.Join(lookupParts, ", ") + "}"
-
-			parts = append(parts, lookupStr)
+			parts = append(parts, serializeLookupExpr(v, sets, l4proto))
 			i++
 		case *expr.Immediate:
 			str := nftexpr.SerializeImmediate(v)
@@ -350,6 +332,54 @@ func SerializeRule(rule *nftables.Rule) string {
 	}
 
 	return result
+}
+
+// serializeLookupExpr renders a set lookup against the already-fetched sets
+// slice. Element data still needs a live netlink fetch; any failure on the
+// way (set not in the slice, no netlink in a unit-test run) falls back to
+// "@<name>" so the result stays nft-CLI shaped. The previous in-line version
+// re-fetched the set over netlink and looped forever on a fetch error
+// (`continue` without advancing the expression index), and its element fetch
+// went through a helper that log.Fatal'd the whole process on error.
+func serializeLookupExpr(lk *expr.Lookup, sets []*nftables.Set, l4proto string) string {
+	name := lk.SetName
+	if name == "" {
+		name = fmt.Sprintf("set_%d", lk.SetID)
+	}
+
+	var set *nftables.Set
+	for _, s := range sets {
+		if (lk.SetName != "" && s.Name == lk.SetName) ||
+			(lk.SetName == "" && lk.SetID != 0 && s.ID == lk.SetID) {
+			set = s
+			break
+		}
+	}
+	if set == nil {
+		return "@" + name
+	}
+
+	conn := &nftables.Conn{}
+	elements, err := conn.GetSetElements(set)
+	if err != nil {
+		return "@" + name
+	}
+
+	lookupParts := make([]string, 0, len(elements))
+	for _, el := range elements {
+		if len(el.Key) == 0 {
+			continue
+		}
+		if l4proto == "icmpv6" {
+			lookupParts = append(lookupParts, nft.Icmpv6TypeToString(el.Key[0]))
+			continue
+		}
+		if len(el.Key) == 2 {
+			port := binary.BigEndian.Uint16(el.Key)
+			lookupParts = append(lookupParts, fmt.Sprintf("%d", port))
+		}
+	}
+	return "{" + strings.Join(lookupParts, ", ") + "}"
 }
 
 // serializeExpr converts expr.Any to textual representation. This covers common expr types.
