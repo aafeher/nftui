@@ -75,7 +75,8 @@ jobs:
           distribution: goreleaser
           # Track the v2 major series — pulls the latest v2.x at run time but
           # is immune to a v3 breaking-change shipping silently on release
-          # day. The v0.9.0 config was verified locally against v2.5.0.
+          # day. The v0.9.0 config was verified locally against v2.16.0
+          # (current-schema fields: archives.formats / archives.ids).
           version: "~> v2"
           args: release --clean --release-notes=${{ steps.notes.outputs.path }}
         env:

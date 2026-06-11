@@ -96,10 +96,12 @@
           program = "${nftui}/bin/nftui";
         };
 
-        # `nix develop` drops you into a shell with the toolchain matching
-        # what CI uses: go from go.mod, plus the auxiliary tools the
-        # README documents (`goreleaser check`, `mandoc -Tlint`, the live
-        # `nft` binary for integration tests).
+        # `nix develop` drops you into a shell with the same tool *set* CI
+        # uses, plus the auxiliary tools the README documents
+        # (`goreleaser check`, `mandoc -Tlint`, the live `nft` binary for
+        # integration tests). Note: `pkgs.go` is whatever nixpkgs-unstable
+        # currently pins — not necessarily the exact go.mod toolchain
+        # version that actions/setup-go resolves in CI.
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             go

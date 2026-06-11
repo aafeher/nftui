@@ -324,11 +324,14 @@ to date:
   UX: auto-fading tree hints, unified Reset / Delete error routing.
 - **v0.7.0** (2026-05-29) — error messaging (`CAP_NET_ADMIN` advice, rejected-rule
   display) and navigation (`/` search in the tree, `/` filter in `chainView`).
-- **v0.8.0** (in progress) — CLI flags (`--table`, `--config`, `--read-only`,
+- **v0.8.0** (2026-05-30) — CLI flags (`--table`, `--config`, `--read-only`,
   `--help`), release polish (CHANGELOG, man page), `sctp chunk` editor, async
   incremental loading.
-- **v1.0.0** — integration test harness, CI, virtualized rule list, goreleaser,
+- **v0.9.0** (in progress) — release infrastructure: integration test harness,
+  CI workflow, virtualized rule list, Goreleaser release pipeline, Nix flake
   packaging.
+- **v1.0.0** — picks from the post-v0.9.0 candidate pool (AUR / deb / rpm
+  packaging, `--version` flag, IPv6 saddr/daddr renderer, Nix-aware CI lane).
 
 ## License
 

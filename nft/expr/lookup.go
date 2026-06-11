@@ -72,7 +72,7 @@ func SerializeLookupWithKey(lookup *expr.Lookup, register string, key expr.CtKey
 
 	setName := lookup.SetName
 	if setName == "" {
-		setName = fmt.Sprintf("@set_%d", lookup.SetID)
+		setName = fmt.Sprintf("set_%d", lookup.SetID)
 	}
 
 	var formattedElements []string
@@ -101,6 +101,13 @@ func SerializeLookupWithKey(lookup *expr.Lookup, register string, key expr.CtKey
 		elementsString = fmt.Sprintf("{%s}", strings.Join(formattedElements, ", "))
 	}
 
+	// Same fallback as SerializeLookup: a set missing from the `sets` slice
+	// must render as "@<setName>", never as a register with trailing
+	// whitespace.
+	if elementsString == "" {
+		elementsString = "@" + setName
+	}
+
 	if lookup.Invert {
 		return fmt.Sprintf("%s != %s", register, elementsString)
 	}
@@ -114,7 +121,7 @@ func formatElement(el nftables.SetElement, set *nftables.Set) string {
 		return net.IP(el.Key).String()
 	case nftables.TypeIP6Addr:
 		return net.IP(el.Key).String()
-	case nftables.TypeInetService: // Portok (pl. TCP/UDP)
+	case nftables.TypeInetService: // ports (e.g. TCP/UDP)
 		if len(el.Key) >= 2 {
 			return fmt.Sprintf("%d", binary.BigEndian.Uint16(el.Key))
 		}

@@ -74,3 +74,50 @@ func TestSerializeLookup_AnonymousByID(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+// SerializeLookupWithKey is the CT-typed sibling of SerializeLookup (used for
+// `ct state @setname` style lookups, where elements decode through the CtKey).
+// It must share the same fallback behavior: a set missing from the caller's
+// `sets` slice renders as `@<setName>`, never as a register with trailing
+// whitespace.
+func TestSerializeLookupWithKey_NoMatchFallback(t *testing.T) {
+	lookup := &expr.Lookup{
+		SourceRegister: 1,
+		SetName:        "ct_states",
+	}
+	got := SerializeLookupWithKey(lookup, "ct state", expr.CtKeySTATE, nil)
+	want := "ct state @ct_states"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// Empty SetName falls back to set_<id> — and the post-format "@" prefix must
+// not double up (the fallback itself carried a stray leading "@" before the
+// v0.9.0 pre-tag audit fix).
+func TestSerializeLookupWithKey_AnonymousByID(t *testing.T) {
+	lookup := &expr.Lookup{
+		SourceRegister: 1,
+		SetID:          7,
+		SetName:        "",
+	}
+	got := SerializeLookupWithKey(lookup, "ct state", expr.CtKeySTATE, nil)
+	want := "ct state @set_7"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// Invert flag (`!=`) must survive the fallback path too.
+func TestSerializeLookupWithKey_InvertFallback(t *testing.T) {
+	lookup := &expr.Lookup{
+		SourceRegister: 1,
+		SetName:        "ct_states",
+		Invert:         true,
+	}
+	got := SerializeLookupWithKey(lookup, "ct state", expr.CtKeySTATE, nil)
+	want := "ct state != @ct_states"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

@@ -49,10 +49,11 @@ builds:
 
 archives:
   - id: nftui
-    builds:
+    ids:
       - nftui
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format: tar.gz
+    formats:
+      - tar.gz
     files:
       - LICENSE
       - README.md
@@ -66,11 +67,12 @@ checksum:
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
-# Goreleaser's own changelog block governs the archive's CHANGELOG snippet
-# (commits since the previous tag, filtered). The GitHub release body itself
-# is taken from the curated CHANGELOG.md via --release-notes in release.yml,
-# so this block stays minimal — auto-generated commit lists are a fallback,
-# not the primary release narrative.
+# This block only applies when no --release-notes file is passed — i.e. a
+# manual `goreleaser release` outside the workflow. The tag workflow in
+# .github/workflows/release.yml ALWAYS passes --release-notes (the curated
+# CHANGELOG.md section), which bypasses Goreleaser's changelog generation
+# entirely. The CHANGELOG.md bundled in each archive comes from `files:`
+# above, not from here. Kept as a sane fallback for manual runs.
 changelog:
   sort: asc
   use: github
