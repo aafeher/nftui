@@ -68,8 +68,12 @@ func (k setViewKeyMap) FullHelp() [][]key.Binding {
 func newSetView(set *nftables.Set, table *tableNode, readOnly bool) setView {
 	// Best-effort fetch — the kernel returns nothing for anonymous sets if
 	// they're unreferenced, which we tolerate as an empty list.
-	elements := nft.GetSetElements(set)
+	return newSetViewWithElements(set, table, nft.GetSetElements(set), readOnly)
+}
 
+// newSetViewWithElements is the netlink-free core of newSetView: the element
+// list is injected instead of fetched, which keeps it unit-testable.
+func newSetViewWithElements(set *nftables.Set, table *tableNode, elements []nftables.SetElement, readOnly bool) setView {
 	km := setViewKeyMap{
 		Up: key.NewBinding(
 			key.WithKeys("up", "k"),

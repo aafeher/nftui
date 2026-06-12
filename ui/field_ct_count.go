@@ -11,11 +11,12 @@ import (
 )
 
 // CtCountField edits the ct count (connlimit) condition.
-// "over" = Flags==0 (matches when count >= N); no "over" = Flags==NFT_CONNLIMIT_F_INV (matches when count < N).
+// nft CLI encoding (verified via `nft --debug=netlink`): "over" = Flags==NFT_CONNLIMIT_F_INV
+// (matches when count > N); no "over" = Flags==0 (matches when count <= N).
 type CtCountField struct {
 	overInput     Select
 	countInput    NumberInput
-	originalOver  bool // true when Flags == 0
+	originalOver  bool // true when Flags == NFT_CONNLIMIT_F_INV
 	originalCount uint32
 }
 
@@ -33,7 +34,7 @@ func NewCtCountField(rd *nft.Rule) *CtCountField {
 
 	for _, condition := range rd.Conditions {
 		if condition.Connlimit != nil {
-			originalOver = condition.Connlimit.Flags&expr.NFT_CONNLIMIT_F_INV == 0
+			originalOver = condition.Connlimit.Flags&expr.NFT_CONNLIMIT_F_INV != 0
 			originalCount = condition.Connlimit.Count
 		}
 	}
@@ -104,7 +105,7 @@ func (f *CtCountField) Save(rule *nftables.Rule) {
 	}
 	newCount := uint32(val)
 	var newFlags uint32
-	if f.overInput.Value() != "over" {
+	if f.overInput.Value() == "over" {
 		newFlags = expr.NFT_CONNLIMIT_F_INV
 	}
 

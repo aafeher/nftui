@@ -2932,9 +2932,9 @@ func TestNftablesToRuleDefinition_CTZone(t *testing.T) {
 	}
 }
 
-func TestNftablesToRuleDefinition_CTCountOver(t *testing.T) {
+func TestNftablesToRuleDefinition_CTCount(t *testing.T) {
 	rd, err := NftablesToRuleDefinition(makeRule(
-		&expr.Connlimit{Count: 100, Flags: 0}, // Flags=0 → "over"
+		&expr.Connlimit{Count: 100, Flags: 0}, // Flags=0 → plain "ct count N" (nft CLI encoding)
 		&expr.Verdict{Kind: expr.VerdictDrop},
 	))
 	if err != nil {
@@ -2953,13 +2953,13 @@ func TestNftablesToRuleDefinition_CTCountOver(t *testing.T) {
 		t.Errorf("Count = %d, want 100", found.Connlimit.Count)
 	}
 	if found.Connlimit.Flags != 0 {
-		t.Errorf("Flags = %d, want 0 (over)", found.Connlimit.Flags)
+		t.Errorf("Flags = %d, want 0 (plain ct count)", found.Connlimit.Flags)
 	}
 }
 
-func TestNftablesToRuleDefinition_CTCount(t *testing.T) {
+func TestNftablesToRuleDefinition_CTCountOver(t *testing.T) {
 	rd, err := NftablesToRuleDefinition(makeRule(
-		&expr.Connlimit{Count: 50, Flags: expr.NFT_CONNLIMIT_F_INV},
+		&expr.Connlimit{Count: 50, Flags: expr.NFT_CONNLIMIT_F_INV}, // INV → "ct count over N"
 		&expr.Verdict{Kind: expr.VerdictAccept},
 	))
 	if err != nil {

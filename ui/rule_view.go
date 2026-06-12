@@ -362,7 +362,7 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 			continue
 		}
 		labelPart := grayBoldStyle.Render(fmt.Sprintf("%-*s", labelWidth, "CT count:"))
-		over := condition.Connlimit.Flags&expr.NFT_CONNLIMIT_F_INV == 0
+		over := condition.Connlimit.Flags&expr.NFT_CONNLIMIT_F_INV != 0
 		var valStr string
 		if over {
 			valStr = fmt.Sprintf("over %d", condition.Connlimit.Count)

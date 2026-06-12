@@ -201,3 +201,117 @@ func TestParseSetElementKey_MAC_RejectsRangeForm(t *testing.T) {
 		t.Fatalf("plain MAC must parse: %v", err)
 	}
 }
+
+func TestParseSetElementKey_MoreBranches(t *testing.T) {
+	// Single IPv6 host.
+	b, end, err := ParseSetElementKey(mkSet(nftables.TypeIP6Addr, false), "fe80::1")
+	if err != nil || end != nil || len(b) != 16 {
+		t.Errorf("ipv6 single: b=%v end=%v err=%v", b, end, err)
+	}
+	if _, _, err := ParseSetElementKey(mkSet(nftables.TypeIP6Addr, false), "not-an-ip"); err == nil {
+		t.Error("bad ipv6 accepted")
+	}
+
+	// IPv6 dash range needs interval and parses both ends.
+	start, end, err := ParseSetElementKey(mkSet(nftables.TypeIP6Addr, true), "fe80::1-fe80::5")
+	if err != nil || len(start) != 16 || len(end) != 16 {
+		t.Errorf("ipv6 range: start=%v end=%v err=%v", start, end, err)
+	}
+
+	// inet_proto single byte.
+	b, _, err = ParseSetElementKey(mkSet(nftables.TypeInetProto, false), "6")
+	if err != nil || !bytes.Equal(b, []byte{6}) {
+		t.Errorf("proto: b=%v err=%v", b, err)
+	}
+	if _, _, err := ParseSetElementKey(mkSet(nftables.TypeInetProto, false), "300"); err == nil {
+		t.Error("proto > 255 accepted")
+	}
+
+	// mark falls back to 4-byte width.
+	b, _, err = ParseSetElementKey(mkSet(nftables.TypeMark, false), "0x10")
+	if err != nil || !bytes.Equal(b, []byte{0, 0, 0, 0x10}) {
+		t.Errorf("mark: b=%v err=%v", b, err)
+	}
+
+	// Empty input and unsupported key type.
+	if _, _, err := ParseSetElementKey(mkSet(nftables.TypeIPAddr, false), "   "); err == nil {
+		t.Error("empty input accepted")
+	}
+	if _, _, err := ParseSetElementKey(mkSet(nftables.TypeVerdict, false), "accept"); err == nil {
+		t.Error("unsupported key type accepted")
+	}
+
+	// Bad MAC.
+	if _, _, err := ParseSetElementKey(mkSet(nftables.TypeEtherAddr, false), "zz:zz"); err == nil {
+		t.Error("bad MAC accepted")
+	}
+}
+
+func TestParseSetElementVal(t *testing.T) {
+	// Value parsing reuses the key logic with the DataType, never intervals.
+	s := &nftables.Set{KeyType: nftables.TypeInetService, DataType: nftables.TypeIPAddr, IsMap: true}
+	b, err := ParseSetElementVal(s, "10.0.0.7")
+	if err != nil || !bytes.Equal(b, []byte{10, 0, 0, 7}) {
+		t.Errorf("val: b=%v err=%v", b, err)
+	}
+	// Range forms are rejected for values even on interval sets.
+	s.Interval = true
+	if _, err := ParseSetElementVal(s, "10.0.0.0/24"); err == nil {
+		t.Error("CIDR value accepted")
+	}
+}
+
+func TestKeyTypeFromString(t *testing.T) {
+	tests := []struct {
+		name string
+		want nftables.SetDatatype
+		ok   bool
+	}{
+		{"ipv4_addr", nftables.TypeIPAddr, true},
+		{"ipv6_addr", nftables.TypeIP6Addr, true},
+		{"ether_addr", nftables.TypeEtherAddr, true},
+		{"inet_service", nftables.TypeInetService, true},
+		{"inet_proto", nftables.TypeInetProto, true},
+		{"mark", nftables.TypeMark, true},
+		{"integer", nftables.TypeInteger, true},
+		{"verdict", nftables.TypeVerdict, true},
+		{"bogus", nftables.SetDatatype{}, false},
+	}
+	for _, tt := range tests {
+		got, ok := KeyTypeFromString(tt.name)
+		if ok != tt.ok || got.Name != tt.want.Name {
+			t.Errorf("KeyTypeFromString(%q) = %q/%v, want %q/%v", tt.name, got.Name, ok, tt.want.Name, tt.ok)
+		}
+	}
+}
+
+func TestSupportedTypeLists(t *testing.T) {
+	keys := SupportedSetKeyTypes()
+	if len(keys) != 7 {
+		t.Errorf("SupportedSetKeyTypes() has %d entries, want 7", len(keys))
+	}
+	for _, name := range keys {
+		if _, ok := KeyTypeFromString(name); !ok {
+			t.Errorf("key type %q is not resolvable via KeyTypeFromString", name)
+		}
+	}
+	data := SupportedMapDataTypes()
+	if len(data) != len(keys)+1 || data[len(data)-1] != "verdict" {
+		t.Errorf("SupportedMapDataTypes() = %v, want key types + verdict", data)
+	}
+}
+
+func TestFormatVerdict_MoreKinds(t *testing.T) {
+	if got := FormatVerdict(&expr.Verdict{Kind: expr.VerdictReturn}); got != "return" {
+		t.Errorf("return = %q", got)
+	}
+	if got := FormatVerdict(&expr.Verdict{Kind: expr.VerdictContinue}); got != "continue" {
+		t.Errorf("continue = %q", got)
+	}
+	if got := FormatVerdict(&expr.Verdict{Kind: expr.VerdictQueue}); got != "queue" {
+		t.Errorf("queue = %q", got)
+	}
+	if got := FormatVerdict(&expr.Verdict{Kind: 99}); got != "verdict(99)" {
+		t.Errorf("unknown = %q", got)
+	}
+}

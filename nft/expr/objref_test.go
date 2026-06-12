@@ -63,3 +63,21 @@ func TestFormatObjref(t *testing.T) {
 		})
 	}
 }
+
+func TestSerializeObjref(t *testing.T) {
+	tests := []struct {
+		typ  int
+		want string
+	}{
+		{1, "counter name cnt"},
+		{2, "quota name cnt"},
+		{5, "limit name cnt"},
+		{9, "objref cnt"},
+	}
+	for _, tt := range tests {
+		o := &expr.Objref{Type: tt.typ, Name: "cnt"}
+		if got := SerializeObjref(o); got != tt.want {
+			t.Errorf("SerializeObjref(type %d) = %q, want %q", tt.typ, got, tt.want)
+		}
+	}
+}

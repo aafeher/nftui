@@ -119,7 +119,7 @@ func TestRenderCTTab(t *testing.T) {
 			{Operation: nft.CompareOpEq, CT: &nft.CTCondition{Key: nftexpr.CtKeyEventMask, Value: []string{"new", "destroy"}}},
 			{Operation: nft.CompareOpEq, CT: &nft.CTCondition{Key: nftexpr.CtKeyHelper, Value: "ftp"}},
 			{Operation: nft.CompareOpEq, CT: &nft.CTCondition{Key: nftexpr.CtKeyAvgpkt, Value: &nft.SetValue{Elements: []any{uint64(100), uint64(200)}}}},
-			{Operation: nft.CompareOpEq, Connlimit: &expr.Connlimit{Count: 5}},
+			{Operation: nft.CompareOpEq, Connlimit: &expr.Connlimit{Count: 5, Flags: expr.NFT_CONNLIMIT_F_INV}},
 		},
 	}
 
@@ -139,12 +139,13 @@ func TestRenderCTTab(t *testing.T) {
 		"(empty)", // keys not present render as placeholders
 	})
 
-	// Inverted connlimit (NFT_CONNLIMIT_F_INV) drops the "over" prefix.
-	inv := &nft.Rule{Conditions: []nft.Condition{
-		{Connlimit: &expr.Connlimit{Count: 3, Flags: expr.NFT_CONNLIMIT_F_INV}},
+	// Plain connlimit (flags 0) renders without the "over" prefix —
+	// "over" belongs to NFT_CONNLIMIT_F_INV, matching nft CLI encoding.
+	plain := &nft.Rule{Conditions: []nft.Condition{
+		{Connlimit: &expr.Connlimit{Count: 3}},
 	}}
-	if got := r.renderCTTab(inv); strings.Contains(got, "over 3") {
-		t.Error("inverted connlimit must not render as \"over\"")
+	if got := r.renderCTTab(plain); strings.Contains(got, "over 3") {
+		t.Error("plain connlimit (flags 0) must not render as \"over\"")
 	}
 }
 

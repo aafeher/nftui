@@ -134,3 +134,113 @@ func TestExtractChainRules(t *testing.T) {
 		})
 	}
 }
+
+func TestChainHookFromString(t *testing.T) {
+	tests := []struct {
+		name string
+		want *nftables.ChainHook
+	}{
+		{"prerouting", nftables.ChainHookPrerouting},
+		{"input", nftables.ChainHookInput},
+		{"forward", nftables.ChainHookForward},
+		{"output", nftables.ChainHookOutput},
+		{"postrouting", nftables.ChainHookPostrouting},
+		{"ingress", nftables.ChainHookIngress},
+		{"egress", nftables.ChainHookEgress},
+		{"bogus", nil},
+		{"", nil},
+	}
+	for _, tt := range tests {
+		if got := ChainHookFromString(tt.name); got != tt.want {
+			t.Errorf("ChainHookFromString(%q) = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestChainPolicyFromString(t *testing.T) {
+	if p, ok := ChainPolicyFromString("accept"); p != nftables.ChainPolicyAccept || !ok {
+		t.Errorf("accept = %v/%v", p, ok)
+	}
+	if p, ok := ChainPolicyFromString("drop"); p != nftables.ChainPolicyDrop || !ok {
+		t.Errorf("drop = %v/%v", p, ok)
+	}
+	if p, ok := ChainPolicyFromString("bogus"); p != nftables.ChainPolicyAccept || ok {
+		t.Errorf("bogus = %v/%v, want Accept/false", p, ok)
+	}
+}
+
+func TestChainTypeFromString(t *testing.T) {
+	tests := []struct {
+		name string
+		want nftables.ChainType
+	}{
+		{"filter", nftables.ChainTypeFilter},
+		{"nat", nftables.ChainTypeNAT},
+		{"route", nftables.ChainTypeRoute},
+		{"bogus", ""},
+	}
+	for _, tt := range tests {
+		if got := ChainTypeFromString(tt.name); got != tt.want {
+			t.Errorf("ChainTypeFromString(%q) = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestValidChainTypesForFamily(t *testing.T) {
+	full := []string{"filter", "nat", "route"}
+	filterOnly := []string{"filter"}
+	tests := []struct {
+		family nftables.TableFamily
+		want   []string
+	}{
+		{nftables.TableFamilyIPv4, full},
+		{nftables.TableFamilyIPv6, full},
+		{nftables.TableFamilyINet, full},
+		{nftables.TableFamilyARP, filterOnly},
+		{nftables.TableFamilyBridge, filterOnly},
+		{nftables.TableFamilyNetdev, filterOnly},
+		{nftables.TableFamilyUnspecified, filterOnly},
+	}
+	for _, tt := range tests {
+		got := ValidChainTypesForFamily(tt.family)
+		if len(got) != len(tt.want) {
+			t.Errorf("family %v: %v, want %v", tt.family, got, tt.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tt.want[i] {
+				t.Errorf("family %v: types[%d] = %q, want %q", tt.family, i, got[i], tt.want[i])
+			}
+		}
+	}
+}
+
+func TestValidChainHooksForTypeFamily(t *testing.T) {
+	tests := []struct {
+		chainType string
+		family    nftables.TableFamily
+		want      []string
+	}{
+		{"filter", nftables.TableFamilyIPv4, []string{"prerouting", "input", "forward", "output", "postrouting"}},
+		{"filter", nftables.TableFamilyINet, []string{"prerouting", "input", "forward", "output", "postrouting", "ingress"}},
+		{"filter", nftables.TableFamilyARP, []string{"input", "output"}},
+		{"filter", nftables.TableFamilyNetdev, []string{"ingress", "egress"}},
+		{"nat", nftables.TableFamilyIPv4, []string{"prerouting", "input", "output", "postrouting"}},
+		{"nat", nftables.TableFamilyNetdev, []string{}},
+		{"route", nftables.TableFamilyIPv6, []string{"output"}},
+		{"route", nftables.TableFamilyARP, []string{"output"}},
+		{"bogus", nftables.TableFamilyUnspecified, []string{"prerouting", "input", "forward", "output", "postrouting"}},
+	}
+	for _, tt := range tests {
+		got := ValidChainHooksForTypeFamily(tt.chainType, tt.family)
+		if len(got) != len(tt.want) {
+			t.Errorf("%s/%v: %v, want %v", tt.chainType, tt.family, got, tt.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tt.want[i] {
+				t.Errorf("%s/%v: hooks[%d] = %q, want %q", tt.chainType, tt.family, i, got[i], tt.want[i])
+			}
+		}
+	}
+}

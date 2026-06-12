@@ -1,6 +1,7 @@
 package nftexpr
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/nftables"
@@ -119,5 +120,33 @@ func TestSerializeLookupWithKey_InvertFallback(t *testing.T) {
 	want := "ct state != @ct_states"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestFormatElement(t *testing.T) {
+	tests := []struct {
+		name string
+		set  *nftables.Set
+		el   nftables.SetElement
+		want string
+	}{
+		{"ipv4", &nftables.Set{KeyType: nftables.TypeIPAddr}, nftables.SetElement{Key: []byte{10, 0, 0, 1}}, "10.0.0.1"},
+		{"ipv6", &nftables.Set{KeyType: nftables.TypeIP6Addr}, nftables.SetElement{Key: []byte{0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}}, "fe80::1"},
+		{"port", &nftables.Set{KeyType: nftables.TypeInetService}, nftables.SetElement{Key: []byte{0x01, 0xbb}}, "443"},
+		{"hex fallback", &nftables.Set{KeyType: nftables.TypeEtherAddr}, nftables.SetElement{Key: []byte{0xaa, 0xbb}}, "aabb"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatElement(tt.el, tt.set); got != tt.want {
+				t.Errorf("formatElement() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+
+	// 4-byte keys of unknown set types decode as CT state bitmasks.
+	ct := &nftables.Set{KeyType: nftables.TypeInteger}
+	got := formatElement(nftables.SetElement{Key: []byte{0x08, 0, 0, 0}}, ct)
+	if !strings.Contains(got, "new") {
+		t.Errorf("formatElement(ct state 8) = %q, want a decoded \"new\"", got)
 	}
 }
