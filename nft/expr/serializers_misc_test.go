@@ -285,3 +285,100 @@ func TestSerializeNATExpr(t *testing.T) {
 		t.Error("FormatNAT() returned empty string")
 	}
 }
+
+func TestInterfaceIndexToName(t *testing.T) {
+	if got := InterfaceIndexToName([]byte{0, 0, 0}); got != "" {
+		t.Errorf("non-4-byte = %q, want empty", got)
+	}
+	if got := InterfaceIndexToName([]byte{0, 0, 0, 0}); got != "any" {
+		t.Errorf("index 0 = %q, want any", got)
+	}
+	// A very high index is unlikely to resolve to a real interface, so the
+	// helper falls back to the decimal index string.
+	if got := InterfaceIndexToName([]byte{0xff, 0xff, 0x00, 0x00}); got == "" {
+		t.Error("high index returned empty, want decimal fallback or a name")
+	}
+}
+
+func TestSerializeMeta(t *testing.T) {
+	// Bare meta (no following Cmp): just the key name, skip 1.
+	s, skip, l4 := SerializeMeta(&expr.Meta{Key: expr.MetaKeyMARK}, []expr.Any{&expr.Meta{}}, 0)
+	if s != "mark" || skip != 1 || l4 != "" {
+		t.Errorf("bare meta = %q/%d/%q", s, skip, l4)
+	}
+
+	// meta l4proto tcp collapses to "tcp" and reports the l4proto context.
+	exprs := []expr.Any{
+		&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{6}},
+	}
+	s, skip, l4 = SerializeMeta(exprs[0].(*expr.Meta), exprs, 0)
+	if s != "tcp" || skip != 2 || l4 != "tcp" {
+		t.Errorf("meta l4proto tcp = %q/%d/%q", s, skip, l4)
+	}
+
+	// Non-collapsing key with a Cmp: "<key> <value>".
+	exprs2 := []expr.Any{
+		&expr.Meta{Key: expr.MetaKeyMARK, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{0x10}},
+	}
+	s, skip, _ = SerializeMeta(exprs2[0].(*expr.Meta), exprs2, 0)
+	if skip != 2 || !strings.Contains(s, "mark") {
+		t.Errorf("meta mark neq = %q/%d", s, skip)
+	}
+
+	// Source-register "meta X set" form.
+	s, skip, _ = SerializeMeta(&expr.Meta{Key: expr.MetaKeyMARK, Register: 1, SourceRegister: true}, []expr.Any{&expr.Meta{}}, 0)
+	if s != "mark set" || skip != 1 {
+		t.Errorf("meta set = %q/%d", s, skip)
+	}
+
+	if got := FormatMeta(&expr.Meta{Key: expr.MetaKeyMARK, Register: 1}); got == "" {
+		t.Error("FormatMeta returned empty")
+	}
+	if got := FormatMeta(&expr.Meta{Key: expr.MetaKeyMARK, Register: 1, SourceRegister: true}); !strings.Contains(got, "sreg") {
+		t.Errorf("FormatMeta sreg = %q", got)
+	}
+}
+
+func TestSerializePayload(t *testing.T) {
+	// transport dport 22 (transport header, offset 2, len 2) + Cmp.
+	exprs := []expr.Any{
+		&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 22}},
+	}
+	s, skip := SerializePayload(exprs[0].(*expr.Payload), exprs, 0)
+	if skip != 2 || !strings.Contains(s, "dport") {
+		t.Errorf("transport dport = %q/%d", s, skip)
+	}
+
+	// network saddr (offset 12, len 4), no Cmp → skip 1.
+	s, skip = SerializePayload(&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1}, []expr.Any{&expr.Payload{}}, 0)
+	if skip != 1 || !strings.Contains(s, "saddr") {
+		t.Errorf("network saddr = %q/%d", s, skip)
+	}
+
+	// link-layer header.
+	s, _ = SerializePayload(&expr.Payload{Base: expr.PayloadBaseLLHeader, Offset: 0, Len: 6, DestRegister: 1}, []expr.Any{&expr.Payload{}}, 0)
+	if s == "" {
+		t.Error("link payload returned empty")
+	}
+
+	// unknown base → raw @base,off,len form.
+	s, _ = SerializePayload(&expr.Payload{Base: 99, Offset: 4, Len: 2, DestRegister: 1}, []expr.Any{&expr.Payload{}}, 0)
+	if !strings.Contains(s, "@") {
+		t.Errorf("unknown base = %q, want @-form", s)
+	}
+}
+
+func TestChunkTypeNames(t *testing.T) {
+	names := ChunkTypeNames()
+	if len(names) == 0 {
+		t.Fatal("ChunkTypeNames() returned no entries")
+	}
+	for _, n := range names {
+		if n == "" {
+			t.Error("ChunkTypeNames() contains an empty entry")
+		}
+	}
+}

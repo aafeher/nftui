@@ -182,3 +182,110 @@ func TestQueueToAction(t *testing.T) {
 		t.Fatalf("flags = %v, want bypass+fanout", flagged.Queue.Flags)
 	}
 }
+
+func TestMasqToAction(t *testing.T) {
+	// Bare masquerade (no port-range registers).
+	act := masqToAction(&expr.Masq{Random: true, Persistent: true}, map[uint32]*registerValue{})
+	if act.Type != ActionTypeMasq || act.Masq == nil {
+		t.Fatalf("masqToAction type = %v", act.Type)
+	}
+	if act.Masq.PortRange != nil {
+		t.Errorf("PortRange = %+v, want nil", act.Masq.PortRange)
+	}
+	if !act.Masq.Random || !act.Masq.Persistent || act.Masq.FullyRandom {
+		t.Errorf("flags = %+v", act.Masq)
+	}
+
+	// masquerade to :1024-2048 — proto-min/max registers carry the ports.
+	regMap := map[uint32]*registerValue{
+		1: {immediateData: []byte{0x04, 0x00}}, // 1024
+		2: {immediateData: []byte{0x08, 0x00}}, // 2048
+	}
+	act = masqToAction(&expr.Masq{RegProtoMin: 1, RegProtoMax: 2}, regMap)
+	if act.Masq.PortRange == nil || act.Masq.PortRange.From != 1024 || act.Masq.PortRange.To != 2048 {
+		t.Errorf("PortRange = %+v, want {1024 2048}", act.Masq.PortRange)
+	}
+
+	// Single port (min only): To collapses to From.
+	act = masqToAction(&expr.Masq{RegProtoMin: 1}, map[uint32]*registerValue{
+		1: {immediateData: []byte{0x00, 0x50}}, // 80
+	})
+	if act.Masq.PortRange == nil || act.Masq.PortRange.From != 80 || act.Masq.PortRange.To != 80 {
+		t.Errorf("single-port PortRange = %+v, want {80 80}", act.Masq.PortRange)
+	}
+}
+
+func TestDynsetOpToString(t *testing.T) {
+	tests := []struct {
+		op   uint32
+		want string
+	}{
+		{uint32(unix.NFT_DYNSET_OP_ADD), "add"},
+		{uint32(unix.NFT_DYNSET_OP_UPDATE), "update"},
+		{2, "delete"},
+		{99, "add"}, // default
+	}
+	for _, tt := range tests {
+		if got := dynsetOpToString(tt.op); got != tt.want {
+			t.Errorf("dynsetOpToString(%d) = %q, want %q", tt.op, got, tt.want)
+		}
+	}
+}
+
+func TestExthdrFieldName(t *testing.T) {
+	tests := []struct {
+		name    string
+		hdrType uint8
+		offset  uint32
+		length  uint32
+		want    string
+	}{
+		{"hbh nexthdr", 0, 0, 1, "nexthdr"},
+		{"dst hdrlength", 60, 1, 1, "hdrlength"},
+		{"frag nexthdr", 44, 0, 1, "nexthdr"},
+		{"frag reserved", 44, 1, 1, "reserved"},
+		{"frag frag-off", 44, 2, 2, "frag-off"},
+		{"frag more-fragments", 44, 3, 1, "more-fragments"},
+		{"frag id", 44, 4, 4, "id"},
+		{"rt type", 43, 2, 1, "type"},
+		{"rt seg-left", 43, 3, 1, "seg-left"},
+		{"mh checksum", 135, 4, 2, "checksum"},
+		{"unknown falls back", 200, 9, 9, "offset_9_len_9"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := exthdrFieldName(tt.hdrType, tt.offset, tt.length); got != tt.want {
+				t.Errorf("exthdrFieldName(%d, %d, %d) = %q, want %q", tt.hdrType, tt.offset, tt.length, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRegValueFieldLabel(t *testing.T) {
+	if got := regValueFieldLabel(nil); got != "" {
+		t.Errorf("nil regVal = %q, want empty", got)
+	}
+	// Meta type → meta key name.
+	meta := &registerValue{valueType: regTypeMeta, metaKey: unix.NFT_META_MARK}
+	if got := regValueFieldLabel(meta); got != "mark" {
+		t.Errorf("meta mark = %q, want mark", got)
+	}
+	// CT type → ct key name.
+	ct := &registerValue{valueType: regTypeCT, ctKey: expr.CtKeySTATE}
+	if got := regValueFieldLabel(ct); got == "" {
+		t.Error("ct key produced an empty label")
+	}
+	// Unknown type → empty.
+	if got := regValueFieldLabel(&registerValue{valueType: regTypeImmediate}); got != "" {
+		t.Errorf("immediate = %q, want empty", got)
+	}
+}
+
+func TestFormatMACBytes(t *testing.T) {
+	if got := formatMACBytes([]byte{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}); got != "aa:bb:cc:dd:ee:ff" {
+		t.Errorf("formatMACBytes = %q", got)
+	}
+	if got := formatMACBytes([]byte{0xaa, 0xbb}); got != "" {
+		t.Errorf("short MAC = %q, want empty", got)
+	}
+}

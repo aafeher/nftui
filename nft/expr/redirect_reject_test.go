@@ -45,3 +45,22 @@ func TestSerializeReject(t *testing.T) {
 		})
 	}
 }
+
+func TestSerializeReject_AllIcmpCodes(t *testing.T) {
+	codes := map[uint8]string{
+		0:  "net-unreachable",
+		1:  "host-unreachable",
+		2:  "prot-unreachable",
+		3:  "port-unreachable",
+		9:  "net-prohibited",
+		10: "host-prohibited",
+		13: "admin-prohibited",
+		99: "99", // numeric fallback for unknown codes
+	}
+	for code, name := range codes {
+		want := "reject with icmp type " + name
+		if got := SerializeReject(&expr.Reject{Type: 0, Code: code}); got != want {
+			t.Errorf("icmp code %d = %q, want %q", code, got, want)
+		}
+	}
+}

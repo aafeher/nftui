@@ -123,3 +123,106 @@ func TestLabelBitMaskRoundtrip(t *testing.T) {
 		t.Errorf("zero mask produced bits %v", bits)
 	}
 }
+
+// TestCtConverters_AllValues drives every string constant through its
+// string→type→string roundtrip and asserts each sets a distinct, non-zero
+// encode bit. This exhausts the switch arms in the converters and encoders.
+func TestCtConverters_AllValues(t *testing.T) {
+	t.Run("states", func(t *testing.T) {
+		all := []string{"invalid", "established", "related", "new", "untracked"}
+		seen := uint32(0)
+		for _, s := range all {
+			st := CtStateStringToState(s)
+			if string(st) != s {
+				t.Errorf("CtStateStringToState(%q) = %q", s, st)
+			}
+			mask := EncodeCtStates([]CtState{st})
+			bits := le32(mask)
+			if bits == 0 {
+				t.Errorf("EncodeCtStates(%q) = 0", s)
+			}
+			if seen&bits != 0 {
+				t.Errorf("state %q bit overlaps a previous one", s)
+			}
+			seen |= bits
+		}
+		if got := CtStateStringToState("bogus"); got != CtStateInvalid {
+			t.Errorf("unknown state -> %q, want invalid", got)
+		}
+	})
+
+	t.Run("statuses", func(t *testing.T) {
+		// CtStatusStringToStatus has no arm for template/untracked, so those
+		// two encodable statuses are not string-parseable (drop them here).
+		parseable := []string{
+			"expected", "seen-reply", "assured", "confirmed", "snat", "dnat",
+			"seq-adjust", "snat-done", "dnat-done", "dying", "fixed-timeout",
+			"helper", "offload", "hw-offload",
+		}
+		seen := uint32(0)
+		for _, s := range parseable {
+			st := CtStatusStringToStatus(s)
+			if string(st) != s {
+				t.Errorf("CtStatusStringToStatus(%q) = %q", s, st)
+			}
+			bits := le32(EncodeCtStatuses([]CtStatus{st}))
+			if bits == 0 {
+				t.Errorf("EncodeCtStatuses(%q) = 0", s)
+			}
+			if seen&bits != 0 {
+				t.Errorf("status %q bit overlaps a previous one", s)
+			}
+			seen |= bits
+		}
+		// template/untracked encode to distinct bits even though they don't parse.
+		for _, st := range []CtStatus{CtStatusTemplate, CtStatusUntracked} {
+			if le32(EncodeCtStatuses([]CtStatus{st})) == 0 {
+				t.Errorf("EncodeCtStatuses(%q) = 0", st)
+			}
+		}
+	})
+
+	t.Run("events", func(t *testing.T) {
+		all := []string{
+			"new", "related", "destroy", "reply", "assured", "protoinfo",
+			"helper", "mark", "seqadj", "secmark", "label", "synproxy",
+		}
+		seen := uint32(0)
+		for _, s := range all {
+			ev := CtEventStringToEvent(s)
+			if string(ev) != s {
+				t.Errorf("CtEventStringToEvent(%q) = %q", s, ev)
+			}
+			bits := le32(EncodeCtEvents([]CtEvent{ev}))
+			if bits == 0 {
+				t.Errorf("EncodeCtEvents(%q) = 0", s)
+			}
+			if seen&bits != 0 {
+				t.Errorf("event %q bit overlaps a previous one", s)
+			}
+			seen |= bits
+		}
+		if got := CtEventStringToEvent("bogus"); got != "" {
+			t.Errorf("unknown event -> %q, want empty", got)
+		}
+	})
+}
+
+func le32(b []byte) uint32 {
+	if len(b) != 4 {
+		return 0
+	}
+	return uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24
+}
+
+func TestCtStatesAreEqual(t *testing.T) {
+	if !CtStatesAreEqual([]string{"new", "established"}, []string{"established", "new"}) {
+		t.Error("order-independent equality failed")
+	}
+	if CtStatesAreEqual([]string{"new"}, []string{"new", "related"}) {
+		t.Error("different lengths reported equal")
+	}
+	if CtStatesAreEqual([]string{"new"}, []string{"related"}) {
+		t.Error("different elements reported equal")
+	}
+}

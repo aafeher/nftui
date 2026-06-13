@@ -68,6 +68,88 @@ func TestRuleToHumanReadableWithSets(t *testing.T) {
 			sets:   []*nftables.Set{{Name: "__nftui_test_set__", ID: 0}},
 			tokens: []string{"@__nftui_test_set__"},
 		},
+		{
+			name:   "counter",
+			exprs:  []expr.Any{&expr.Counter{}},
+			tokens: []string{"counter"},
+		},
+		{
+			name:   "objref counter",
+			exprs:  []expr.Any{&expr.Objref{Type: 1, Name: "cnt"}},
+			tokens: []string{"counter name cnt"},
+		},
+		{
+			name:   "connlimit over",
+			exprs:  []expr.Any{&expr.Connlimit{Count: 5, Flags: expr.NFT_CONNLIMIT_F_INV}},
+			tokens: []string{"ct count over 5"},
+		},
+		{
+			name: "ct mark equality",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyMARK, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x10, 0x00, 0x00, 0x00}},
+			},
+			// meta mark is loaded into the register; the Cmp renders it.
+			tokens: []string{"mark"},
+		},
+		{
+			name: "udp via meta l4proto",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{17}},
+			},
+			tokens: []string{"udp"},
+		},
+		{
+			name: "ip saddr CIDR via bitwise",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1},
+				&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Mask: []byte{255, 255, 255, 0}, Xor: []byte{0, 0, 0, 0}},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{10, 0, 0, 0}},
+			},
+			tokens: []string{"ip saddr", "10.0.0.0/24"},
+		},
+		{
+			name: "ip saddr set lookup keeps ip qualifier",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1},
+				&expr.Lookup{SourceRegister: 1, SetName: "blocklist"},
+			},
+			tokens: []string{"ip saddr", "@blocklist"},
+		},
+		{
+			name: "limit",
+			exprs: []expr.Any{&expr.Limit{
+				Type: expr.LimitTypePkts, Rate: 10, Unit: expr.LimitTimeSecond, Burst: 5,
+			}},
+			tokens: []string{"limit rate"},
+		},
+		{
+			name: "log prefix and level",
+			exprs: []expr.Any{
+				&expr.Log{Data: []byte("blocked"), Level: expr.LogLevelWarning},
+			},
+			tokens: []string{"log", `prefix "blocked"`, "level"},
+		},
+		{
+			name: "dynset add to set",
+			exprs: []expr.Any{
+				&expr.Dynset{Operation: 0, SetName: "flood"},
+			},
+			tokens: []string{"add", "@flood"},
+		},
+		{
+			name: "range on unknown register",
+			exprs: []expr.Any{
+				&expr.Range{Op: expr.CmpOpEq, Register: 1, FromData: []byte{0, 80}, ToData: []byte{0, 90}},
+			},
+			tokens: []string{"register_1"},
+		},
+		{
+			name:   "unknown expr marker",
+			exprs:  []expr.Any{&expr.Byteorder{}},
+			tokens: []string{"unknown expr"},
+		},
 	}
 
 	for _, tt := range tests {

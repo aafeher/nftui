@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
+	"golang.org/x/sys/unix"
 )
 
 // commentUserData encodes a rule comment in the UserData TLV format
@@ -168,6 +169,123 @@ func TestSerializeRuleExprs(t *testing.T) {
 				Table: &nftables.Table{Name: "nftui_serializer_unit_test", Family: nftables.TableFamilyIPv4},
 			}},
 			want: "@blocklist",
+		},
+		{
+			name:  "objref counter",
+			exprs: []expr.Any{&expr.Objref{Type: 1, Name: "cnt"}},
+			want:  "counter name cnt",
+		},
+		{
+			name:  "redirect",
+			exprs: []expr.Any{&expr.Redir{}},
+			want:  "redirect",
+		},
+		{
+			name:  "nat snat",
+			exprs: []expr.Any{&expr.NAT{Type: expr.NATTypeSourceNAT, RegAddrMin: 1}},
+			want:  "snat to ADDRESS",
+		},
+		{
+			name:  "quota",
+			exprs: []expr.Any{&expr.Quota{Bytes: 5 * 1024 * 1024}},
+			want:  "quota 5 mbytes",
+		},
+		{
+			name:  "dynset",
+			exprs: []expr.Any{&expr.Dynset{SetName: "flood"}},
+			want:  "unknown @flood",
+		},
+		{
+			name:  "match",
+			exprs: []expr.Any{&expr.Match{Name: "limit"}},
+			want:  "match limit",
+		},
+		{
+			name:  "target",
+			exprs: []expr.Any{&expr.Target{Name: "TRACE"}},
+			want:  "target TRACE",
+		},
+		{
+			name:  "connlimit over",
+			exprs: []expr.Any{&expr.Connlimit{Count: 5, Flags: expr.NFT_CONNLIMIT_F_INV}},
+			want:  "ct count over 5",
+		},
+		{
+			name:  "flow offload",
+			exprs: []expr.Any{&expr.FlowOffload{Name: "ft"}},
+			want:  "flow add @ft",
+		},
+		{
+			name:  "hash",
+			exprs: []expr.Any{&expr.Hash{Modulus: 10, Offset: 2}},
+			want:  "jhash mod 10 offset 2",
+		},
+		{
+			name:  "synproxy",
+			exprs: []expr.Any{&expr.SynProxy{Mss: 1460, Wscale: 7}},
+			want:  "synproxy mss 1460 wscale 7",
+		},
+		{
+			name:  "secmark",
+			exprs: []expr.Any{&expr.SecMark{Ctx: "sshctx"}},
+			want:  "meta secmark set sshctx",
+		},
+		{
+			name:  "fib",
+			exprs: []expr.Any{&expr.Fib{FlagSADDR: true, ResultOIFNAME: true}},
+			want:  "fib  saddr oifname",
+		},
+		{
+			name:  "numgen",
+			exprs: []expr.Any{&expr.Numgen{Type: unix.NFT_NG_INCREMENTAL, Modulus: 2}},
+			want:  "numgen inc mod 2 offset 0",
+		},
+		{
+			name:  "rt",
+			exprs: []expr.Any{&expr.Rt{Key: expr.RtTCPMSS}},
+			want:  "rt tcpmss",
+		},
+		{
+			name:  "dup",
+			exprs: []expr.Any{&expr.Dup{}},
+			want:  "dup to ADDR device DEV",
+		},
+		{
+			name:  "notrack",
+			exprs: []expr.Any{&expr.Notrack{}},
+			want:  "notrack",
+		},
+		{
+			name:  "tproxy",
+			exprs: []expr.Any{&expr.TProxy{}},
+			want:  "tproxy to ADDRESS:PORT",
+		},
+		{
+			name:  "socket",
+			exprs: []expr.Any{&expr.Socket{Key: expr.SocketKeyTransparent}},
+			want:  "socket transparent",
+		},
+		{
+			name: "bitwise standalone",
+			exprs: []expr.Any{
+				&expr.Bitwise{Mask: []byte{0xff, 0xff}, Xor: []byte{0x00, 0x00}},
+			},
+			want: "& 65535 ^ 0",
+		},
+		{
+			name: "immediate non-empty",
+			exprs: []expr.Any{
+				&expr.Immediate{Data: []byte{0x00, 0x50}},
+			},
+			want: "80",
+		},
+		{
+			name: "range from pending payload",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2, DestRegister: 1},
+				&expr.Range{Op: expr.CmpOpEq, FromData: []byte{0, 80}, ToData: []byte{0, 90}},
+			},
+			want: "dport 80-90",
 		},
 		{
 			name:  "unknown expr",
