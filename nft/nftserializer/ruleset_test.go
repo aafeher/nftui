@@ -288,6 +288,43 @@ func TestSerializeRuleExprs(t *testing.T) {
 			want: "dport 80-90",
 		},
 		{
+			name: "ct state",
+			exprs: []expr.Any{
+				&expr.Ct{Key: expr.CtKeySTATE, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x02, 0, 0, 0}},
+			},
+			want: "ct state established",
+		},
+		{
+			name:  "standalone cmp with no pending register",
+			exprs: []expr.Any{&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 22}}},
+			want:  "22",
+		},
+		{
+			name: "exthdr frag field",
+			exprs: []expr.Any{
+				&expr.Exthdr{DestRegister: 1, Type: 44, Offset: 0, Len: 1, Op: expr.ExthdrOpIpv6},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{6}},
+			},
+			want: "frag field 6",
+		},
+		{
+			name: "empty immediate is skipped",
+			// SerializeImmediate returns "" for zero-length data; the dispatch
+			// must drop it rather than emit a blank token.
+			exprs: []expr.Any{&expr.Immediate{Register: 1}, &expr.Counter{}},
+			want:  "counter",
+		},
+		{
+			name:  "anonymous set matched by ID falls back when unfetchable",
+			exprs: []expr.Any{&expr.Lookup{SourceRegister: 1, SetID: 7}},
+			sets: []*nftables.Set{{
+				ID:    7,
+				Table: &nftables.Table{Name: "nftui_serializer_unit_test", Family: nftables.TableFamilyIPv4},
+			}},
+			want: "@set_7",
+		},
+		{
 			name:  "unknown expr",
 			exprs: []expr.Any{&expr.Byteorder{}},
 			want:  "/* unknown expr: *expr.Byteorder */",
