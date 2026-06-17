@@ -247,6 +247,47 @@ func TestParseSetElementKey_MoreBranches(t *testing.T) {
 	}
 }
 
+func TestParseSetElementKey_ErrorPaths(t *testing.T) {
+	// Valid 6-byte MAC succeeds; an 8-byte EUI-64 is rejected by the length guard.
+	if b, _, err := ParseSetElementKey(mkSet(nftables.TypeEtherAddr, false), "aa:bb:cc:dd:ee:ff"); err != nil || len(b) != 6 {
+		t.Errorf("valid MAC: b=%v err=%v", b, err)
+	}
+	if _, _, err := ParseSetElementKey(mkSet(nftables.TypeEtherAddr, false), "aa:bb:cc:dd:ee:ff:00:11"); err == nil {
+		t.Error("8-byte EUI-64 accepted, want length error")
+	}
+
+	// CIDR / range parse failures bubble up from the per-family helpers.
+	bad := []struct {
+		name  string
+		typ   nftables.SetDatatype
+		input string
+	}{
+		{"ipv4 single bad", nftables.TypeIPAddr, "999.1.1.1"},
+		{"ipv4 cidr bad", nftables.TypeIPAddr, "10.0.0.0/99"},
+		{"ipv4 range bad start", nftables.TypeIPAddr, "bad-10.0.0.1"},
+		{"ipv6 cidr bad", nftables.TypeIP6Addr, "fe80::/200"},
+		{"ipv6 range bad end", nftables.TypeIP6Addr, "fe80::1-nope"},
+		{"inet_service single bad", nftables.TypeInetService, "99999"},
+		{"inet_service range bad", nftables.TypeInetService, "80-bad"},
+		{"mark range bad", nftables.TypeMark, "0x10-bad"},
+	}
+	for _, tt := range bad {
+		t.Run(tt.name, func(t *testing.T) {
+			// Range / CIDR forms need an interval set; singles do not — pass
+			// interval=true uniformly so only the parse failure is exercised.
+			if _, _, err := ParseSetElementKey(mkSet(tt.typ, true), tt.input); err == nil {
+				t.Errorf("%q accepted, want error", tt.input)
+			}
+		})
+	}
+
+	// Mark range success path (both bounds parse to the configured width).
+	start, end, err := ParseSetElementKey(mkSet(nftables.TypeMark, true), "0x10-0x20")
+	if err != nil || !bytes.Equal(start, []byte{0, 0, 0, 0x10}) || !bytes.Equal(end, []byte{0, 0, 0, 0x20}) {
+		t.Errorf("mark range: start=%v end=%v err=%v", start, end, err)
+	}
+}
+
 func TestParseSetElementVal(t *testing.T) {
 	// Value parsing reuses the key logic with the DataType, never intervals.
 	s := &nftables.Set{KeyType: nftables.TypeInetService, DataType: nftables.TypeIPAddr, IsMap: true}

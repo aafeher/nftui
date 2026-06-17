@@ -150,6 +150,92 @@ func TestRuleToHumanReadableWithSets(t *testing.T) {
 			exprs:  []expr.Any{&expr.Byteorder{}},
 			tokens: []string{"unknown expr"},
 		},
+		{
+			name: "icmpv6 via meta l4proto",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{58}}, // IPPROTO_ICMPV6
+			},
+			tokens: []string{"icmpv6"},
+		},
+		{
+			name: "ip saddr CIDR via bitwise, negated",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1},
+				&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Mask: []byte{255, 255, 255, 0}, Xor: []byte{0, 0, 0, 0}},
+				&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{10, 0, 0, 0}},
+			},
+			tokens: []string{"saddr", "!=", "10.0.0.0/24"},
+		},
+		{
+			name: "ip saddr exact, negated",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpNeq, Register: 1, Data: []byte{10, 0, 0, 5}},
+			},
+			tokens: []string{"saddr", "!=", "10.0.0.5"},
+		},
+		{
+			name: "ip saddr byte-aligned /24 prefix (no bitwise)",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{10, 0, 0}}, // 3 bytes → /24
+			},
+			tokens: []string{"saddr", "10.0.0.0/24"},
+		},
+		{
+			name: "ip daddr odd-width falls back to hex",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 16, Len: 4, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{1, 2, 3, 4, 5}}, // >4 bytes
+			},
+			tokens: []string{"daddr", "0x"},
+		},
+		{
+			name: "ip protocol icmp",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 9, Len: 1, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{1}},
+			},
+			tokens: []string{"ip protocol", "icmp"},
+		},
+		{
+			name: "ip protocol tcp",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 9, Len: 1, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{6}},
+			},
+			tokens: []string{"tcp"},
+		},
+		{
+			name: "ip protocol udp",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 9, Len: 1, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{17}},
+			},
+			tokens: []string{"udp"},
+		},
+		{
+			name: "icmp type echo-request",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 0, Len: 1, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{8}},
+			},
+			tokens: []string{"icmp type", "echo-request"},
+		},
+		{
+			name: "iif by index",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyIIF, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 0, 0, 1}},
+			},
+			tokens: []string{"iif"},
+		},
+		{
+			name:   "log without prefix",
+			exprs:  []expr.Any{&expr.Log{}},
+			tokens: []string{"log"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -162,6 +248,40 @@ func TestRuleToHumanReadableWithSets(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestRuleToHumanReadableWithSets_TodoArms drives the render arms that are
+// currently no-ops (`i++` only) plus the simple action arms, in one rule.
+// They contribute no tokens but must be walked without panicking — this pins
+// the dispatch so a future implementer's change is caught by coverage.
+func TestRuleToHumanReadableWithSets_TodoArms(t *testing.T) {
+	rule := &nftables.Rule{
+		Exprs: []expr.Any{
+			&expr.Immediate{Register: 1, Data: []byte{0, 80}},
+			&expr.Redir{},
+			&expr.NAT{Type: expr.NATTypeSourceNAT},
+			&expr.Quota{Bytes: 100},
+			&expr.Exthdr{Type: 44},
+			&expr.Match{Name: "comment"},
+			&expr.Target{Name: "LOG"},
+			&expr.Queue{Num: 1},
+			&expr.FlowOffload{Name: "ft"},
+			&expr.Reject{},
+			&expr.Hash{},
+			&expr.CtHelper{},
+			&expr.SynProxy{},
+			&expr.CtExpect{},
+			&expr.SecMark{},
+			&expr.CtTimeout{},
+			&expr.Fib{},
+			&expr.Numgen{},
+			&expr.Verdict{Kind: expr.VerdictAccept},
+		},
+	}
+	// Must not panic; the trailing verdict guarantees a non-empty render.
+	if got := ruleToHumanReadableWithSets(rule, nil); got == "" {
+		t.Error("render returned empty for the todo-arm sweep")
 	}
 }
 
