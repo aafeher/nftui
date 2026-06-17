@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"nftui/ui"
 )
 
 // docFor must return the summary registered in flagDocs and panic on misses
@@ -106,5 +108,52 @@ func TestLoadConfigFromFlag_ExistingFileReachesNft(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "cannot read file") {
 		t.Errorf("existing file was treated as missing: %q", err)
+	}
+}
+
+// applyStartupOptions with no flags set is a pure no-op: neither --config nor
+// --table fires, so it returns nil without touching the kernel.
+func TestApplyStartupOptions_Empty(t *testing.T) {
+	if err := applyStartupOptions(ui.Options{}); err != nil {
+		t.Errorf("empty options = %v, want nil", err)
+	}
+}
+
+// A --config pointing at a missing file fails the existence gate before the
+// (kernel-touching) --table validation runs, so the error is the file-level
+// one from loadConfigFromFlag.
+func TestApplyStartupOptions_BadConfig(t *testing.T) {
+	err := applyStartupOptions(ui.Options{ConfigFile: filepath.Join(t.TempDir(), "nope.conf")})
+	if err == nil {
+		t.Fatal("expected error for missing config file")
+	}
+	if !strings.Contains(err.Error(), "--config:") {
+		t.Errorf("error = %q, want --config prefix", err)
+	}
+}
+
+// With no --config, a --table filter is validated against the live kernel.
+// Unprivileged, ListTables errors (EPERM → permission advice); as root the
+// synthetic name simply isn't found. Either way a nonexistent table must
+// surface a non-nil error — this drives applyStartupOptions' table branch and
+// validateTableFilter.
+func TestApplyStartupOptions_TableFilterValidates(t *testing.T) {
+	if err := applyStartupOptions(ui.Options{TableFilter: "__nftui_no_such_table__"}); err == nil {
+		t.Error("expected error for nonexistent table filter")
+	}
+}
+
+func TestValidateTableFilter_Nonexistent(t *testing.T) {
+	err := validateTableFilter("__nftui_no_such_table__")
+	if err == nil {
+		t.Fatal("expected error for nonexistent table")
+	}
+	// The message must name the table and either advise on permissions or
+	// report it as not found — never an opaque bare error.
+	msg := err.Error()
+	if !strings.Contains(msg, "__nftui_no_such_table__") &&
+		!strings.Contains(msg, "Permission denied") &&
+		!strings.Contains(msg, "cannot read nftables tables") {
+		t.Errorf("uninformative error: %q", msg)
 	}
 }
