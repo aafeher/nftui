@@ -250,11 +250,12 @@ sudo nft -c -f examples/example-nftables-01.conf   # validate the fixture
 
 ### Integration tests
 
-Tests under the `integration` build tag exercise the live netlink readback
-path by applying a small ruleset via `nft -f`, reading it back with the same
-helpers the TUI uses, and asserting on the result. They're excluded from the
-default `go test ./...` and skip themselves when not running as root, so a
-plain `go test` stays portable.
+Tests under the `integration` build tag exercise the live netlink read **and**
+write paths with the same helpers the TUI uses: applying a ruleset via `nft -f`
+and reading it back, plus creating / renaming / deleting tables and chains and
+adding / inserting / moving / deleting rules, asserting the kernel state read
+back after each step. They're excluded from the default `go test ./...` and
+skip themselves when not running as root, so a plain `go test` stays portable.
 
 ```bash
 sudo -E go test -tags=integration ./nft/ -v
