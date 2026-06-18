@@ -64,6 +64,34 @@ checksum:
   name_template: "checksums.txt"
   algorithm: sha256
 
+# Supply-chain attestation (audit E-6). Three layers, all consumable with
+# standard tooling:
+#   - sboms:  a Syft SPDX SBOM per archive, so downstreams can inventory what
+#             ships. Requires `syft` on PATH (the release workflow installs it).
+#   - signs:  keyless cosign signature over checksums.txt. Signing the checksum
+#             file (not each artifact) is the canonical, cheap pattern: verify
+#             the signature once, then verify any artifact against the trusted
+#             checksums. Keyless uses the workflow's OIDC identity via Fulcio /
+#             Rekor — no long-lived private key to store. Requires `cosign` on
+#             PATH and `id-token: write` in the workflow.
+# SLSA build provenance is attested separately in release.yml via
+# actions/attest-build-provenance (GitHub-native, not a Goreleaser feature).
+sboms:
+  - id: archive
+    artifacts: archive
+
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    certificate: "${artifact}.pem"
+    signature: "${artifact}.sig"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 

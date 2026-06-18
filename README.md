@@ -308,15 +308,34 @@ workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml)):
    `README.md`, `CHANGELOG.md`, and `man/nftui.1` into a `tar.gz`, writes a
    SHA-256 `checksums.txt`, and publishes the GitHub Release with the curated
    notes as the body.
+4. The release is hardened with supply-chain attestation: `checksums.txt` is
+   signed with **cosign** (keyless — the signature is bound to the workflow's
+   OIDC identity via Fulcio/Rekor, no stored private key), a **Syft SBOM** is
+   emitted per archive, and a **SLSA build-provenance** attestation is recorded
+   for the archives and checksums.
+
+Verifying a downloaded release:
+
+```bash
+# 1. signature over the checksum file (keyless cosign)
+cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig \
+  --certificate-identity-regexp '.*' --certificate-oidc-issuer-regexp '.*' checksums.txt
+# 2. the archive against the trusted checksums
+sha256sum --check --ignore-missing checksums.txt
+# 3. build provenance (binds the bytes to this repo's release workflow)
+gh attestation verify nftui_<ver>_linux_amd64.tar.gz --repo <owner>/nftui
+```
 
 To validate the config locally without publishing:
 
 ```bash
-goreleaser check                                       # config syntax only
-goreleaser release --snapshot --clean --skip=publish   # full build into dist/
+goreleaser check                                                  # config syntax only
+goreleaser release --snapshot --clean --skip=publish,sign,sbom    # build into dist/
 ```
 
-Snapshot output (`dist/`) is gitignored, so the working tree stays clean.
+`sign` / `sbom` are skipped locally because they need the CI runner's `cosign`
+OIDC identity and `syft`; the provenance attestation is workflow-only. Snapshot
+output (`dist/`) is gitignored, so the working tree stays clean.
 
 ## Release history
 

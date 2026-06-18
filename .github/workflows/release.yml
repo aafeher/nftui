@@ -14,10 +14,16 @@ on:
     tags:
       - 'v*'
 
-# Releases create artifacts and a GitHub Release object, both of which require
-# write access to the repo's contents. No other scope is needed.
+# Releases create artifacts and a GitHub Release object (contents: write).
+# Supply-chain attestation (audit E-6) needs two more scopes:
+#   - id-token: write      OIDC token for keyless cosign signing (Fulcio/Rekor)
+#                          and for the build-provenance attestation.
+#   - attestations: write  lets actions/attest-build-provenance record the
+#                          signed SLSA provenance for the built artifacts.
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   goreleaser:
@@ -40,6 +46,15 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
+
+      # Supply-chain tooling Goreleaser shells out to (audit E-6): cosign for
+      # the keyless checksum signature, syft for the per-archive SBOM. Both
+      # must be on PATH before `goreleaser release` runs.
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Install syft (SBOM generator)
+        uses: anchore/sbom-action/download-syft@v0
 
       # Pull the [X.Y.Z] section from CHANGELOG.md so the GitHub release body
       # is the curated text, not the auto-generated commit list. The matcher
@@ -81,3 +96,15 @@ jobs:
           args: release --clean --release-notes=${{ steps.notes.outputs.path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # SLSA build provenance for the published archives + checksums (audit
+      # E-6). GitHub-native attestation: signs a provenance statement with the
+      # workflow's OIDC identity and records it so `gh attestation verify` (or
+      # cosign) can later prove these bytes were built by this workflow from
+      # this repo. Runs after Goreleaser has populated ./dist/.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/checksums.txt
