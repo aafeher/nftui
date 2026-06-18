@@ -6,6 +6,12 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
+	// Intentionally pinned to a post-v0.3.0 snapshot — the latest upstream tag
+	// is v0.3.0, but nftui relies on ~4k lines of CT/rule/set marshalling work
+	// merged after it (and types/socket files absent from v0.3.0). go.sum
+	// content-pins this exact commit, so the build stays reproducible despite
+	// the untagged version. Move to a tag once google/nftables publishes
+	// v0.3.1+ (audit E-5).
 	github.com/google/nftables v0.3.1-0.20251119083706-1db35da82052
 	github.com/mdlayher/netlink v1.11.1
 	github.com/stretchr/testify v1.11.1
