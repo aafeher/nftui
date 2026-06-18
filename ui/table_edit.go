@@ -80,8 +80,8 @@ func (te tableEdit) Update(msg tea.Msg) (tableEdit, tea.Cmd) {
 	case tea.KeyMsg:
 		if key.Matches(msg, te.keys.Save) {
 			newName := strings.TrimSpace(te.input.Value())
-			if newName == "" {
-				te.statusMsg = "Name cannot be empty."
+			if err := nft.ValidateIdentifier(newName); err != nil {
+				te.statusMsg = err.Error()
 				return te, nil
 			}
 			if newName == te.table.Name {

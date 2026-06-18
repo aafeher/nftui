@@ -181,8 +181,8 @@ func (cc chainCreate) Update(msg tea.Msg) (chainCreate, tea.Cmd) {
 			return cc, nil
 		case key.Matches(msg, cc.keys.Save):
 			name := strings.TrimSpace(cc.nameInput.Value())
-			if name == "" {
-				cc.statusMsg = "Name cannot be empty."
+			if err := nft.ValidateIdentifier(name); err != nil {
+				cc.statusMsg = err.Error()
 				return cc, nil
 			}
 			cc.statusMsg = ""

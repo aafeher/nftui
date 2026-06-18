@@ -9,6 +9,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
+
+	"nftui/nft"
 )
 
 type tableCreateKeyMap struct {
@@ -141,8 +143,8 @@ func (tc tableCreate) Update(msg tea.Msg) (tableCreate, tea.Cmd) {
 			return tc, nil
 		case key.Matches(msg, tc.keys.Save):
 			name := strings.TrimSpace(tc.nameInput.Value())
-			if name == "" {
-				tc.statusMsg = "Name cannot be empty."
+			if err := nft.ValidateIdentifier(name); err != nil {
+				tc.statusMsg = err.Error()
 				return tc, nil
 			}
 			family := familyFromOption(tc.familySelect.Value())

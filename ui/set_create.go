@@ -232,8 +232,8 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 			return sc, nil
 		case key.Matches(msg, sc.keys.Save):
 			name := strings.TrimSpace(sc.nameInput.Value())
-			if name == "" {
-				sc.statusMsg = "Name cannot be empty."
+			if err := nft.ValidateIdentifier(name); err != nil {
+				sc.statusMsg = err.Error()
 				return sc, nil
 			}
 			kt, ok := nft.KeyTypeFromString(sc.keyTypeSelect.Value())

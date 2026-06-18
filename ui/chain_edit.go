@@ -175,8 +175,8 @@ func (ce chainEdit) Update(msg tea.Msg) (chainEdit, tea.Cmd) {
 			return ce, nil
 		case key.Matches(msg, ce.keys.Save):
 			name := strings.TrimSpace(ce.nameInput.Value())
-			if name == "" {
-				ce.statusMsg = "Name cannot be empty."
+			if err := nft.ValidateIdentifier(name); err != nil {
+				ce.statusMsg = err.Error()
 				return ce, nil
 			}
 			newSpec := ce.buildNewSpec(name)

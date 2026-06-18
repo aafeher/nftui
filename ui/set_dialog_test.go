@@ -324,8 +324,9 @@ func TestSetCreate_SaveEmptyName_StatusErr(t *testing.T) {
 	if cmd != nil {
 		t.Error("save with empty name must not dispatch a command")
 	}
-	if updated.statusMsg != "Name cannot be empty." {
-		t.Errorf("statusMsg = %q, want 'Name cannot be empty.'", updated.statusMsg)
+	// Empty name is now rejected by nft.ValidateIdentifier (audit E-2).
+	if updated.statusMsg != "name cannot be empty" {
+		t.Errorf("statusMsg = %q, want 'name cannot be empty'", updated.statusMsg)
 	}
 }
 

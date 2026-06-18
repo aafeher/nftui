@@ -151,3 +151,19 @@ func TestTableCreate_ViewRenders(t *testing.T) {
 		t.Error("View() does not render the status message")
 	}
 }
+
+// A name carrying nft-script metacharacters is rejected before any kernel cmd
+// is produced (audit E-2 / S1). Without the validator this string would inject
+// statements into the privileged `nft -f -` transaction the rename path builds.
+func TestTableCreate_SaveRejectsInjectionName(t *testing.T) {
+	tc := newTableCreate()
+	tc.nameInput.SetValue("evil{ }\ntable inet pwned")
+
+	tc, cmd := tc.Update(keyMsg(tea.KeyF2))
+	if cmd != nil {
+		t.Error("injection name returned a kernel cmd, want nil")
+	}
+	if tc.statusMsg == "" {
+		t.Error("injection name did not set a status message")
+	}
+}

@@ -113,6 +113,22 @@ func TestChainCreate_SaveEmptyNameRejected(t *testing.T) {
 	}
 }
 
+// A chain name carrying nft-script metacharacters is rejected before any
+// kernel cmd is produced (audit E-2 / S1). recreateBaseChain interpolates the
+// chain name into an `nft -f -` script, so this is the injection guard.
+func TestChainCreate_SaveRejectsInjectionName(t *testing.T) {
+	cc := newChainCreate(chainDialogTable())
+	cc.nameInput.SetValue("c; add rule inet t c drop")
+
+	cc, cmd := cc.Update(keyMsg(tea.KeyF2))
+	if cmd != nil {
+		t.Error("injection name returned a kernel cmd, want nil")
+	}
+	if cc.statusMsg == "" {
+		t.Error("injection name did not set statusMsg")
+	}
+}
+
 func TestChainCreate_SaveValidNameReturnsCmd(t *testing.T) {
 	cc := newChainCreate(chainDialogTable())
 	cc, _ = cc.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("mychain")})
