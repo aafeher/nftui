@@ -280,6 +280,14 @@ on every push and pull request to `main` / `develop`:
   in the job log — the live netlink path is invisible to the unit-test
   profile, so this is where its coverage is observable. Runs only after the
   unit-test job is green.
+- **Vulnerability scan** — runs `govulncheck ./...` against the module and the
+  Go standard library. As its own check (parallel to the build), it fails the
+  run only when a known vulnerability is reachable from nftui's call graph.
+
+Dependency and GitHub-Actions updates are automated with Dependabot
+(`.github/dependabot.yml`, weekly), which opens PRs as upstream releases and
+security fixes land. `github.com/google/nftables` is excluded from those PRs
+because it is intentionally held at a pinned snapshot.
 
 The Go version comes from `go.mod` via `actions/setup-go@v5` with
 `go-version-file: go.mod`, so bumping the module's Go version updates CI in

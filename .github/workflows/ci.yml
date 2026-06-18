@@ -1,4 +1,4 @@
-# CI pipeline. Two stages:
+# CI pipeline. Three stages:
 #
 #   1. build-and-test — gofmt, go vet (default + integration tag), go build,
 #      go test -race ./...  Runs on every push / PR; fast, no privileges.
@@ -8,6 +8,11 @@
 #      coverage profile (-coverpkg=./nft/...) and prints the total, so the
 #      live netlink path's coverage — invisible to the unit profile — stays
 #      observable in the job log.
+#   3. govulncheck — scans the module + stdlib against the Go vulnerability DB
+#      (audit E-7). Independent of build-and-test so a CVE surfaces as its own
+#      check; fails only on a vulnerability reachable from nftui's own call
+#      graph. Paired with .github/dependabot.yml, which opens dependency- and
+#      action-update PRs.
 #
 # Concurrency cancels superseded runs on the same ref so a rapid push doesn't
 # queue redundant jobs.
@@ -103,3 +108,28 @@ jobs:
 
       - name: Integration coverage summary
         run: go tool cover -func=integration-cover.out | tail -1
+
+  govulncheck:
+    name: Vulnerability scan (govulncheck)
+    runs-on: ubuntu-latest
+    # Independent of build-and-test (own check, runs in parallel) and not a
+    # gate for the integration job. govulncheck's default symbol-level analysis
+    # fails the run only when a known vulnerability is actually reachable from
+    # nftui's call graph — informational findings in unused dependency code do
+    # not break the build.
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...

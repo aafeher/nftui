@@ -1,0 +1,24 @@
+# Dependabot keeps dependencies current and surfaces upstream security fixes as
+# pull requests (audit E-7), complementing the govulncheck job in ci.yml. Two
+# ecosystems are watched:
+#   - gomod          — the Go module dependencies (go.mod / go.sum).
+#   - github-actions — the action versions pinned in .github/workflows/*.
+#
+# github.com/google/nftables is intentionally held at a post-v0.3.0 snapshot
+# (see the comment on its require line in go.mod, audit E-5) and there is no
+# newer tagged release, so it is ignored here to avoid churn.
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "github.com/google/nftables"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
