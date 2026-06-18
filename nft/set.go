@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"net"
 	"sort"
 	"strconv"
@@ -41,13 +40,26 @@ func GetSetByName(table *nftables.Table, name string) (*nftables.Set, error) {
 	return set, nil
 }
 
-func GetSetElements(set *nftables.Set) []nftables.SetElement {
+// GetSetElements fetches a set's elements over netlink and normalizes them for
+// the renderers (see decodeSetElements). It returns the netlink error rather
+// than terminating the process: a transient read failure must surface as a
+// recoverable error in the caller, not kill the TUI (and leave the terminal in
+// raw mode by skipping Bubble Tea's restore). Callers treat an error as an
+// empty / unchanged element list — anonymous unreferenced sets legitimately
+// return nothing.
+func GetSetElements(set *nftables.Set) ([]nftables.SetElement, error) {
 	conn := &nftables.Conn{}
 	elements, err := conn.GetSetElements(set)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
+	return decodeSetElements(set, elements), nil
+}
 
+// decodeSetElements is the netlink-free post-processing core of
+// GetSetElements: the vmap VerdictData fixup and the interval pairing. Kept
+// separate from the fetch so both branches are unit-testable without a kernel.
+func decodeSetElements(set *nftables.Set, elements []nftables.SetElement) []nftables.SetElement {
 	// google/nftables (v0.3.1) doesn't populate SetElement.VerdictData on
 	// reads for vmap elements — the verdict bytes land in Val instead.
 	// Decode them ourselves so renderers can rely on VerdictData.

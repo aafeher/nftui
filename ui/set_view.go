@@ -67,8 +67,13 @@ func (k setViewKeyMap) FullHelp() [][]key.Binding {
 
 func newSetView(set *nftables.Set, table *tableNode, readOnly bool) setView {
 	// Best-effort fetch — the kernel returns nothing for anonymous sets if
-	// they're unreferenced, which we tolerate as an empty list.
-	return newSetViewWithElements(set, table, nft.GetSetElements(set), readOnly)
+	// they're unreferenced, and a transient netlink error is tolerated as an
+	// empty list rather than crashing the TUI (audit E-1 / R1).
+	elements, err := nft.GetSetElements(set)
+	if err != nil {
+		elements = nil
+	}
+	return newSetViewWithElements(set, table, elements, readOnly)
 }
 
 // newSetViewWithElements is the netlink-free core of newSetView: the element
@@ -276,8 +281,18 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 
 // RefreshElements re-fetches the set's elements after a mutation.
 // Cursor clamps to the new length so we never index out of range.
+//
+// A netlink read error keeps the previously-loaded elements and surfaces the
+// reason in statusMsg rather than blanking the view or crashing the TUI
+// (audit E-1 / R1).
 func (sv *setView) RefreshElements() {
-	sv.elements = nft.GetSetElements(sv.set)
+	elements, err := nft.GetSetElements(sv.set)
+	if err != nil {
+		sv.statusMsg = "could not refresh elements: " + err.Error()
+		return
+	}
+	sv.statusMsg = ""
+	sv.elements = elements
 	if sv.cursor >= len(sv.elements) {
 		sv.cursor = len(sv.elements) - 1
 	}
