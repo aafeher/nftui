@@ -13,7 +13,7 @@ require (
 	// the untagged version. Move to a tag once google/nftables publishes
 	// v0.3.1+ (audit E-5).
 	github.com/google/nftables v0.3.1-0.20251119083706-1db35da82052
-	github.com/mdlayher/netlink v1.11.1
+	github.com/mdlayher/netlink v1.11.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sys v0.44.0
 )
