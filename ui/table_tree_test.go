@@ -1,8 +1,8 @@
 package ui
 
 // Update state-machine tests for the table tree (tableTreeModel). The tree is
-// built by hand instead of through initialTableTreeModel (which panics
-// without netlink), so navigation, expand/collapse, incremental search,
+// built by hand instead of through initialTableTreeModel (which needs netlink
+// and returns an error without CAP_NET_ADMIN), so navigation, expand/collapse, incremental search,
 // read-only guards, and the delete-confirm modal are all exercised without
 // CAP_NET_ADMIN. Kernel-touching cmds (delete*/reset*) are returned but never
 // executed; the row-selection cmds (e/c/s/f3) are pure message wrappers and

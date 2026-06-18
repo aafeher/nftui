@@ -155,7 +155,12 @@ type ruleEditSelectedMsg struct {
 }
 
 func InitialMainWindow(opts Options) MainWindow {
-	ttm := initialTableTreeModel(opts.TableFilter, opts.ReadOnly)
+	// A failed initial load is captured, not panicked: it surfaces through the
+	// View's loadErrorView (CAP_NET_ADMIN advice on a permission error). When
+	// the load fails there is nothing to "load", so loading starts false and
+	// the error shows as soon as the first WindowSizeMsg makes the view ready
+	// (audit E-3 / R2).
+	ttm, loadErr := initialTableTreeModel(opts.TableFilter, opts.ReadOnly)
 
 	km := keyMap{
 		Up: key.NewBinding(
@@ -226,7 +231,8 @@ func InitialMainWindow(opts Options) MainWindow {
 	}
 
 	return MainWindow{
-		loading:         true,
+		loading:         loadErr == nil,
+		err:             loadErr,
 		tableTree:       ttm,
 		activeView:      "main",
 		help:            newHelpModel(),
@@ -269,8 +275,15 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case chainSelectedMsg:
-		// chain selected — switch to chainView
-		cv := newChainView(msg.chain, msg.table, m.readOnly)
+		// chain selected — switch to chainView. A netlink fetch failure stays
+		// on the main view with the error surfaced via loadErrorView rather
+		// than crashing the TUI (audit E-3 / R2).
+		cv, err := newChainView(msg.chain, msg.table, m.readOnly)
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+		m.err = nil
 		cv.width = m.width
 		cv.height = m.height
 		m.chainView = &cv

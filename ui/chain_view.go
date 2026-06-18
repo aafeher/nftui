@@ -80,12 +80,15 @@ func (k chainViewKeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
-func newChainView(chain *nftables.Chain, table *tableNode, readOnly bool) chainView {
+// newChainView fetches the chain's rules over netlink and builds the view. A
+// fetch failure is returned so the caller can surface it gracefully instead of
+// crashing the TUI (audit E-3 / R2).
+func newChainView(chain *nftables.Chain, table *tableNode, readOnly bool) (chainView, error) {
 	rules, err := nft.ListRulesOfChain(&table.Table, chain)
 	if err != nil {
-		panic(err)
+		return chainView{}, err
 	}
-	return newChainViewWithRules(chain, table, rules, readOnly)
+	return newChainViewWithRules(chain, table, rules, readOnly), nil
 }
 
 // newChainViewWithRules builds the view around an already-fetched rule list —

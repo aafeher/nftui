@@ -230,10 +230,15 @@ type flatItem struct {
 	obj          *nft.NamedObject
 }
 
-func initialTableTreeModel(filter string, readOnly bool) tableTreeModel {
+// initialTableTreeModel builds the tree skeleton from the live kernel state.
+// A netlink read failure (table / chain / rule enumeration) is returned to the
+// caller, which surfaces it through loadErrorView — it must never panic, since
+// at startup that prints a Go stack trace instead of the CAP_NET_ADMIN advice
+// (audit E-3 / R2). Set and named-object enumeration stays best-effort.
+func initialTableTreeModel(filter string, readOnly bool) (tableTreeModel, error) {
 	tables, err := nft.ListTables()
 	if err != nil {
-		panic(err)
+		return tableTreeModel{}, err
 	}
 	if filter != "" {
 		kept := tables[:0]
@@ -249,7 +254,7 @@ func initialTableTreeModel(filter string, readOnly bool) tableTreeModel {
 	for t, table := range tables {
 		chainsOfTable, err := nft.ListChainsOfTable(table)
 		if err != nil {
-			panic(err)
+			return tableTreeModel{}, err
 		}
 		chains := make([]*chainNode, len(chainsOfTable))
 		for c, chain := range chainsOfTable {
@@ -264,7 +269,7 @@ func initialTableTreeModel(filter string, readOnly bool) tableTreeModel {
 
 		rulesOfTable, err := nft.ListRulesOfTable(table)
 		if err != nil {
-			panic(err)
+			return tableTreeModel{}, err
 		}
 
 		// Sets and named objects are best-effort — failure to enumerate them
@@ -287,7 +292,7 @@ func initialTableTreeModel(filter string, readOnly bool) tableTreeModel {
 		cursor:      0,
 		tableFilter: filter,
 		readOnly:    readOnly,
-	}
+	}, nil
 }
 
 func (tm tableTreeModel) Init() tea.Cmd {
