@@ -467,7 +467,19 @@ func recreateBaseChain(oldChain, newSpec *nftables.Chain) error {
 }
 
 // DeleteRule removes the given rule from the kernel.
+//
+// Before deleting it re-reads the chain and confirms the rule's handle is
+// still present (TOCTOU guard, audit E-4): the rule list the UI holds may be
+// stale if the ruleset changed underneath us. Since handles are not reused, a
+// missing handle means the rule is genuinely gone, so we fail with a clear
+// "refresh and retry" message instead of a cryptic netlink ENOENT. The check
+// shrinks but cannot fully close the race — the kernel Flush is atomic, so a
+// change landing in the remaining microsecond window fails cleanly rather than
+// corrupting the ruleset.
 func DeleteRule(rule *nftables.Rule) error {
+	if err := ensureRuleCurrent(rule); err != nil {
+		return err
+	}
 	conn, err := nftables.New()
 	if err != nil {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
@@ -479,11 +491,56 @@ func DeleteRule(rule *nftables.Rule) error {
 	return nil
 }
 
+// ensureRuleCurrent re-reads rule's chain and verifies its handle still exists,
+// returning a descriptive staleness error otherwise. It is a no-op when the
+// rule carries no Table/Chain or no handle yet (handle 0 = uncommitted), so it
+// never blocks a legitimately handle-less rule.
+func ensureRuleCurrent(rule *nftables.Rule) error {
+	if rule == nil || rule.Table == nil || rule.Chain == nil || rule.Handle == 0 {
+		return nil
+	}
+	current, err := ListRulesOfChain(rule.Table, rule.Chain)
+	if err != nil {
+		return fmt.Errorf("failed to re-read chain before mutating rule: %v", err)
+	}
+	if _, _, ok := findRuleByHandle(current, rule.Handle); !ok {
+		return fmt.Errorf("rule no longer exists (handle %d) — the ruleset changed; refresh and retry", rule.Handle)
+	}
+	return nil
+}
+
+// refreshMoveContext re-reads target's chain and locates it by handle in the
+// fresh list, returning that list and the target's current index so a move
+// acts on the live ordering rather than the UI's possibly-stale view (TOCTOU
+// guard, audit E-4). When target carries no Table/Chain/handle it falls back to
+// the caller's slice and index unchanged.
+func refreshMoveContext(rules []*nftables.Rule, idx int, target *nftables.Rule) ([]*nftables.Rule, int, error) {
+	if target.Table == nil || target.Chain == nil || target.Handle == 0 {
+		return rules, idx, nil
+	}
+	current, err := ListRulesOfChain(target.Table, target.Chain)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to re-read chain before move: %v", err)
+	}
+	_, curIdx, ok := findRuleByHandle(current, target.Handle)
+	if !ok {
+		return nil, 0, fmt.Errorf("rule no longer exists (handle %d) — the ruleset changed; refresh and retry", target.Handle)
+	}
+	return current, curIdx, nil
+}
+
 // MoveRuleUp moves rules[idx] one position earlier in the chain.
 // The operation is a delete + re-insert before the preceding rule.
 func MoveRuleUp(rules []*nftables.Rule, idx int) error {
 	if idx <= 0 || idx >= len(rules) {
 		return nil
+	}
+	rules, idx, err := refreshMoveContext(rules, idx, rules[idx])
+	if err != nil {
+		return err
+	}
+	if idx <= 0 {
+		return nil // target is already at the top in the current view
 	}
 	conn, err := nftables.New()
 	if err != nil {
@@ -510,6 +567,13 @@ func MoveRuleUp(rules []*nftables.Rule, idx int) error {
 func MoveRuleDown(rules []*nftables.Rule, idx int) error {
 	if idx < 0 || idx >= len(rules)-1 {
 		return nil
+	}
+	rules, idx, err := refreshMoveContext(rules, idx, rules[idx])
+	if err != nil {
+		return err
+	}
+	if idx >= len(rules)-1 {
+		return nil // target is already at the bottom in the current view
 	}
 	conn, err := nftables.New()
 	if err != nil {

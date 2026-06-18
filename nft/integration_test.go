@@ -555,3 +555,59 @@ table inet %s {
 		t.Errorf("GetAllRulesWithDrop = %d, want >= 1", len(dropAll))
 	}
 }
+
+// TestIntegration_RuleMutationStaleHandle exercises the TOCTOU guard (audit
+// E-4): a rule deleted out from under a stale handle must produce the clear
+// "no longer exists" staleness error from DeleteRule / MoveRuleUp, not a
+// cryptic netlink failure. This also confirms ListRulesOfChain populates the
+// Table/Chain/Handle the guard relies on.
+func TestIntegration_RuleMutationStaleHandle(t *testing.T) {
+	requireRoot(t)
+	tableName := integrationTableName()
+	t.Logf("table name: inet %s", tableName)
+	t.Cleanup(func() { deleteTable(t, "inet", tableName) })
+
+	if err := CreateTable(nftables.TableFamilyINet, tableName); err != nil {
+		t.Fatalf("CreateTable: %v", err)
+	}
+	table := findTable(t, tableName, nftables.TableFamilyINet)
+	if table == nil {
+		t.Fatal("table not found")
+	}
+	if err := CreateChain(table, baseChainSpec("input", 0)); err != nil {
+		t.Fatalf("CreateChain: %v", err)
+	}
+	chain := findChain(t, table, "input")
+	if chain == nil {
+		t.Fatal("chain not found")
+	}
+
+	r, err := AddNewRuleToChain(table, chain)
+	if err != nil {
+		t.Fatalf("AddNewRuleToChain: %v", err)
+	}
+	if r.Handle == 0 {
+		t.Fatal("fresh rule has no handle; the guard cannot engage")
+	}
+
+	// Delete it once — succeeds.
+	if err := DeleteRule(r); err != nil {
+		t.Fatalf("first DeleteRule: %v", err)
+	}
+
+	// Deleting the same (now-stale) handle again must be caught by the guard
+	// with a descriptive error, not a raw netlink ENOENT.
+	err = DeleteRule(r)
+	if err == nil {
+		t.Fatal("second DeleteRule on a stale handle returned nil, want a staleness error")
+	}
+	if !strings.Contains(err.Error(), "no longer exists") {
+		t.Errorf("stale DeleteRule error = %q, want it to mention 'no longer exists'", err)
+	}
+
+	// MoveRuleUp against a stale slice (the rule is gone) hits the same guard.
+	err = MoveRuleUp([]*nftables.Rule{r, r}, 1)
+	if err == nil || !strings.Contains(err.Error(), "no longer exists") {
+		t.Errorf("stale MoveRuleUp error = %v, want a 'no longer exists' staleness error", err)
+	}
+}
