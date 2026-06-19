@@ -457,11 +457,13 @@ to date:
 - **v0.8.0** (2026-05-30) — CLI flags (`--table`, `--config`, `--read-only`,
   `--help`), release polish (CHANGELOG, man page), `sctp chunk` editor, async
   incremental loading.
-- **v0.9.0** (in progress) — release infrastructure: integration test harness,
-  CI workflow, virtualized rule list, Goreleaser release pipeline, Nix flake
-  packaging.
-- **v1.0.0** — picks from the post-v0.9.0 candidate pool (AUR / deb / rpm
-  packaging, `--version` flag, IPv6 saddr/daddr renderer, Nix-aware CI lane).
+- **v0.9.0** (2026-06-19) — release infrastructure (integration test harness, CI
+  workflow, virtualized rule list, Goreleaser release pipeline, Nix flake
+  packaging) plus an enterprise-readiness hardening pass: supply-chain
+  attestation (cosign / SBOM / SLSA provenance), CI vulnerability scanning, an
+  optional mutation audit log, defense-in-depth identifier validation, and
+  governance & deployment docs (`SECURITY.md`, `CONTRIBUTING.md`,
+  `CODE_OF_CONDUCT.md`).
 
 ## License
 
