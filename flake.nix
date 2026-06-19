@@ -47,10 +47,11 @@
 
           src = ./.;
 
-          # TODO(packager): on the first `nix build` this fakeHash will fail
-          # and the error message prints the real `sha256-...` to paste here.
-          # Re-pin whenever go.sum changes. The CI release pipeline does not
-          # depend on this hash — it's only consumed by Nix users.
+          # TODO(packager): on the first `nix build` — or the first run of the
+          # `nix` CI lane (.github/workflows/ci.yml) — this fakeHash fails and
+          # the error prints the real `sha256-...` to paste here. Re-pin whenever
+          # go.sum changes. The CI *release* pipeline does not depend on this
+          # hash; only Nix users and the `nix` CI lane consume it.
           vendorHash = pkgs.lib.fakeHash;
 
           # buildGoModule defaults to CGO_ENABLED=0, which is what we want —

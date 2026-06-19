@@ -424,13 +424,18 @@ on every push and pull request to `main` / `develop`:
 - **Reproducible build check** — builds the release binaries twice with
   `goreleaser build --snapshot` and fails if the two differ, verifying the
   `mod_timestamp` / `-trimpath` / CGO-free build is byte-for-byte reproducible.
+- **Nix flake build** — on a Nix runner, `nix flake check` + `nix build .#default`
+  build [`flake.nix`](flake.nix) end-to-end (compiling nftui and running its unit
+  suite in the sandbox), so the flake can't silently break. The first run must
+  pin `flake.nix`'s `vendorHash` — it ships as a placeholder and the failing
+  build prints the real value to paste in.
 
 Dependency and GitHub-Actions updates are automated with Dependabot
 (`.github/dependabot.yml`, weekly), which opens PRs as upstream releases and
 security fixes land. `github.com/google/nftables` is excluded from those PRs
 because it is intentionally held at a pinned snapshot.
 
-The Go version comes from `go.mod` via `actions/setup-go@v5` with
+The Go version comes from `go.mod` via `actions/setup-go@v6` with
 `go-version-file: go.mod`, so bumping the module's Go version updates CI in
 the same commit. Concurrent runs on the same ref cancel earlier in-flight
 runs (`cancel-in-progress: true`).

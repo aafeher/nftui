@@ -1,4 +1,4 @@
-# CI pipeline. Four stages:
+# CI pipeline. Five stages:
 #
 #   1. build-and-test — gofmt, go vet (default + integration tag), go build,
 #      go test -race ./...  Runs on every push / PR; fast, no privileges.
@@ -18,6 +18,11 @@
 #      mod_timestamp + -trimpath + CGO-free build is byte-reproducible (v1.0.0
 #      item V-4). Gated on build-and-test so it skips a commit that doesn't even
 #      compile.
+#   5. nix — builds the flake end-to-end on a Nix host (`nix flake check` +
+#      `nix build .#default`), closing the v0.9.0 gap that flake.nix was only
+#      hand-validated, never built (v1.0.0 item V-5). Gated on build-and-test.
+#      NOTE: the first run fails on flake.nix's `vendorHash = fakeHash` and
+#      prints the real `sha256-...` to pin — a one-time bootstrap.
 #
 # Concurrency cancels superseded runs on the same ref so a rapid push doesn't
 # queue redundant jobs.
@@ -182,3 +187,35 @@ jobs:
             exit 1
           fi
           echo "OK: both builds produced byte-identical binaries."
+
+  nix:
+    name: Nix flake build
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    # A from-scratch Nix build (fetch nixpkgs + compile the Go module with
+    # doCheck=true) is the slowest lane; the headroom covers a cold cache.
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      # `nix flake check` evaluates every output (packages, apps, devShell,
+      # checks) and builds the checks — i.e. it compiles nftui and runs its unit
+      # suite (doCheck) inside the sandbox. `nix build` then materializes the
+      # default package explicitly.
+      #
+      # First-run bootstrap: flake.nix ships `vendorHash = lib.fakeHash`, so the
+      # first build here FAILS and prints the real `sha256-...`. Paste it into
+      # flake.nix's vendorHash line and re-push; the lane then goes green and
+      # guards the hash against go.sum drift.
+      - name: nix flake check
+        run: nix flake check -L
+
+      - name: nix build
+        run: nix build .#default -L
