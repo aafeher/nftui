@@ -29,15 +29,19 @@ SRC_URI="
 	https://github.com/aafeher/nftui/releases/download/v${PV}/${P}-deps.tar.xz
 "
 
-# MIT covers nftui itself; go-module.eclass expects every bundled module's
-# license listed too, so a maintainer should expand this with the dependency
-# licenses (e.g. Apache-2.0, BSD) — check go.sum / the deps tarball.
-LICENSE="MIT"
+# MIT for nftui itself, plus the licenses of the bundled Go module dependencies
+# (go-module.eclass expects every vendored module's license listed). The set
+# below covers the current go.sum; re-verify against the deps tarball on bumps.
+LICENSE="Apache-2.0 BSD ISC MIT"
 SLOT="0"
 KEYWORDS="~amd64 ~arm64"
 
-# nftui shells out to nft(8) for --config load and table/chain rename.
-RDEPEND="net-firewall/nftables"
+# nftui shells out to nft(8) for --config load and table/chain rename. The -bin
+# variant installs the same /usr/bin/nftui, so the two cannot be merged together.
+RDEPEND="
+	net-firewall/nftables
+	!!net-firewall/nftui-bin
+"
 
 src_compile() {
 	# Inject the version like the upstream Goreleaser build (V-1). go-module's

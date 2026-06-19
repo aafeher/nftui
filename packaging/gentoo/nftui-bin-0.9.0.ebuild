@@ -27,13 +27,20 @@ SRC_URI="
 	arm64? ( ${BASE_URI}/nftui_${PV}_linux_arm64.tar.gz )
 "
 
-LICENSE="MIT"
+# MIT for nftui, plus the licenses of the Go module dependencies the prebuilt
+# binary statically embeds (Apache-2.0 google/nftables + yaml, BSD golang.org/x
+# + go-cmp + difflib + clipboard, ISC go-spew, MIT the rest).
+LICENSE="Apache-2.0 BSD ISC MIT"
 SLOT="0"
 # Binary package: keyworded only on the arches the release ships.
 KEYWORDS="-* amd64 arm64"
 
-# nftui shells out to nft(8) for --config load and table/chain rename.
-RDEPEND="net-firewall/nftables"
+# nftui shells out to nft(8) for --config load and table/chain rename. The
+# from-source variant installs the same /usr/bin/nftui, so they cannot coexist.
+RDEPEND="
+	net-firewall/nftables
+	!!net-firewall/nftui
+"
 
 # Prebuilt, already stripped (-s -w) static CGO-free binary: nothing to compile,
 # strip, or test.

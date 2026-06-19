@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<!--
+  Reference metadata.xml for the nftui Gentoo packages. Copy it into each
+  package directory of your overlay (net-firewall/nftui/ and
+  net-firewall/nftui-bin/). Add a <maintainer> block with your own details
+  before submitting anywhere; a package with no <maintainer> is treated as
+  maintainer-needed. nftui upstream does not maintain a Portage/GURU entry.
+-->
+<pkgmetadata>
+	<upstream>
+		<remote-id type="github">aafeher/nftui</remote-id>
+		<bugs-to>https://github.com/aafeher/nftui/issues</bugs-to>
+		<changelog>https://github.com/aafeher/nftui/blob/main/CHANGELOG.md</changelog>
+		<doc>https://github.com/aafeher/nftui/blob/main/README.md</doc>
+	</upstream>
+</pkgmetadata>

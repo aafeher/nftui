@@ -119,7 +119,10 @@ simplest path. Two community-maintainable reference ebuilds are provided for a
 local overlay: [`nftui-0.9.0.ebuild`](packaging/gentoo/nftui-0.9.0.ebuild)
 builds from source via `go-module.eclass`, and
 [`nftui-bin-0.9.0.ebuild`](packaging/gentoo/nftui-bin-0.9.0.ebuild) installs the
-prebuilt release binary. nftui does not maintain a Portage / GURU entry.
+prebuilt release binary; install one or the other (they share `/usr/bin/nftui`
+and block each other). See
+[`packaging/gentoo/README.md`](packaging/gentoo/README.md) for overlay setup.
+nftui does not maintain a Portage / GURU entry.
 
 ### Nix flake
 
