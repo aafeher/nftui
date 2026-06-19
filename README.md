@@ -460,7 +460,12 @@ workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml)):
    signed with **cosign** (keyless — the signature is bound to the workflow's
    OIDC identity via Fulcio/Rekor, no stored private key), a **Syft SBOM** is
    emitted per archive, and a **SLSA build-provenance** attestation is recorded
-   for the archives and checksums.
+   for the archives, checksums, and the dependency tarball below.
+5. A reproducible `nftui-<X.Y.Z>-deps.tar.xz` (the Go module cache, from
+   `scripts/gen-deps-tarball.sh`) is uploaded for offline source builds — chiefly
+   the Gentoo source ebuild, whose `go-module.eclass` forbids network access at
+   build time. Its contents are pinned by `go.sum`, so it rides on the
+   build-provenance attestation rather than `checksums.txt` (already signed).
 
 Verifying a downloaded release:
 

@@ -97,6 +97,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Go module dependency tarball for offline source builds (v1.0.0 item
+      # V-7) — chiefly the from-source Gentoo ebuild, whose go-module.eclass
+      # forbids network access during the build. The archive is reproducible
+      # (deterministic tar + single-threaded xz, mtime pinned to the tagged
+      # commit) and its contents are content-addressed by go.sum. Goreleaser
+      # doesn't track it (and checksums.txt is already cosign-signed by now), so
+      # it's generated here and uploaded to the release Goreleaser just created;
+      # the attestation step below then covers it with SLSA provenance.
+      - name: Attach Go module dependency tarball
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          epoch="$(git log -1 --format=%ct)"
+          out="dist/nftui-${GITHUB_REF_NAME#v}-deps.tar.xz"
+          bash scripts/gen-deps-tarball.sh "$out" "$epoch"
+          gh release upload "${GITHUB_REF_NAME}" "$out" --clobber
+
       # SLSA build provenance for the published archives + checksums (audit
       # E-6). GitHub-native attestation: signs a provenance statement with the
       # workflow's OIDC identity and records it so `gh attestation verify` (or
@@ -108,3 +125,4 @@ jobs:
           subject-path: |
             dist/*.tar.gz
             dist/checksums.txt
+            dist/nftui-*-deps.tar.xz

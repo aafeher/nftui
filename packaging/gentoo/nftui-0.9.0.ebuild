@@ -8,14 +8,14 @@
 # (the two install the same /usr/bin/nftui, so don't merge both).
 #
 # go-module.eclass forbids network access during the build, so the Go module
-# dependencies must be supplied as a separate tarball. nftui's release pipeline
-# does not (yet) attach one, so the maintainer generates and hosts it. From a
-# clean checkout of the tag:
-#   GOMODCACHE="${PWD}/go-mod" go mod download -modcacherw
-#   tar caf nftui-${PV}-deps.tar.xz go-mod
-# then point the second SRC_URI entry at wherever it is hosted, run
-#   ebuild nftui-${PV}.ebuild manifest
-# (Gentoo records distfile digests in Manifest, not the ebuild), and emerge.
+# dependencies must be supplied as a separate tarball. nftui's release attaches
+# a reproducible `nftui-<ver>-deps.tar.xz` from v1.0.0 onward, so the second
+# SRC_URI entry resolves directly for those releases. For a release without one
+# (e.g. v0.9.0), regenerate it from a clean checkout with the repo helper and
+# host it yourself:
+#   scripts/gen-deps-tarball.sh nftui-${PV}-deps.tar.xz
+# Then run `ebuild nftui-${PV}.ebuild manifest` (Gentoo records distfile digests
+# in Manifest, not the ebuild) and emerge.
 
 EAPI=8
 

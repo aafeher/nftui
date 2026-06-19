@@ -34,17 +34,18 @@ dependency tarball described next.
 ## The source ebuild needs a dependency tarball
 
 `go-module.eclass` forbids network access during the build, so the Go module
-dependencies must be supplied as a separate tarball. nftui's release does not
-attach one yet (tracked as a future candidate in `ROADMAP.md`), so generate and
-host it yourself. From a clean checkout of the tag:
+dependencies must be supplied as a separate tarball. **From v1.0.0 onward the
+release attaches a reproducible `nftui-<ver>-deps.tar.xz`** (covered by the SLSA
+build-provenance attestation), so the source ebuild's second `SRC_URI` entry
+resolves directly. For a release without one (e.g. v0.9.0), regenerate it from a
+clean checkout with the repo helper and host it yourself:
 
 ```bash
-GOMODCACHE="${PWD}/go-mod" go mod download -modcacherw
-tar caf nftui-0.9.0-deps.tar.xz go-mod
+scripts/gen-deps-tarball.sh nftui-0.9.0-deps.tar.xz
 ```
 
 Then point the second `SRC_URI` entry at wherever you host it and regenerate the
-Manifest.
+Manifest with `pkgdev manifest`.
 
 ## Per-release upkeep
 
