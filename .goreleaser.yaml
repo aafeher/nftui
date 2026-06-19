@@ -61,6 +61,49 @@ archives:
       - CHANGELOG.md
       - man/nftui.1
 
+# Debian / RPM packages (nfpm, v1.0.0 item V-2). Built from the same `nftui`
+# build as the archives, so the deb/rpm binary is byte-for-byte the archive's.
+# nfpm builds both formats in pure Go (no rpmbuild/dpkg-dev needed), and the
+# packages are folded into checksums.txt automatically — so the existing cosign
+# signature over the checksum file covers them too, no extra signing config.
+nfpms:
+  - id: nftui
+    package_name: nftui
+    ids:
+      - nftui
+    formats:
+      - deb
+      - rpm
+    maintainer: "Ákos Fehér <aafeher@users.noreply.github.com>"
+    homepage: "https://github.com/aafeher/nftui"
+    description: "Terminal user interface for managing the Linux nftables firewall."
+    license: MIT
+    section: net
+    # nftui shells out to nft(8) for `--config` load and table/chain rename, so
+    # the nftables package is a hard runtime dependency (same package name on
+    # Debian/Ubuntu and Fedora/RHEL).
+    dependencies:
+      - nftables
+    # The binary lands in /usr/bin automatically (nfpm default bindir). Ship the
+    # man page on the standard path and the docs under /usr/share/doc/nftui.
+    contents:
+      - src: ./man/nftui.1
+        dst: /usr/share/man/man1/nftui.1
+        file_info:
+          mode: 0644
+      - src: ./LICENSE
+        dst: /usr/share/doc/nftui/LICENSE
+        file_info:
+          mode: 0644
+      - src: ./README.md
+        dst: /usr/share/doc/nftui/README.md
+        file_info:
+          mode: 0644
+      - src: ./CHANGELOG.md
+        dst: /usr/share/doc/nftui/CHANGELOG.md
+        file_info:
+          mode: 0644
+
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256

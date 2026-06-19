@@ -87,6 +87,19 @@ cd nftui
 go build -o nftui .
 ```
 
+### Debian / RPM packages
+
+Each [release](https://github.com/aafeher/nftui/releases) attaches `.deb` and
+`.rpm` packages for `amd64` and `arm64`, built from the same binary as the
+archives and listed in `checksums.txt`. They install `nftui` to `/usr/bin`, the
+man page to `/usr/share/man/man1`, and declare the `nftables` runtime
+dependency:
+
+```bash
+sudo apt install ./nftui_<version>_linux_amd64.deb     # Debian / Ubuntu
+sudo dnf install ./nftui_<version>_linux_amd64.rpm     # Fedora / RHEL
+```
+
 ### Nix flake
 
 The repository ships a [`flake.nix`](flake.nix) with a `buildGoModule` package
@@ -406,9 +419,10 @@ workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml)):
    `CHANGELOG.md`, then runs Goreleaser, which builds reproducible Linux
    `amd64` / `arm64` binaries (`CGO_ENABLED=0 -trimpath -ldflags='-s -w'`,
    `mod_timestamp` pinned to the commit time), bundles each with `LICENSE`,
-   `README.md`, `CHANGELOG.md`, and `man/nftui.1` into a `tar.gz`, writes a
-   SHA-256 `checksums.txt`, and publishes the GitHub Release with the curated
-   notes as the body.
+   `README.md`, `CHANGELOG.md`, and `man/nftui.1` into a `tar.gz`, also emits
+   `.deb` / `.rpm` packages (nfpm, same binary), writes a SHA-256
+   `checksums.txt` covering every artifact, and publishes the GitHub Release
+   with the curated notes as the body.
 4. The release is hardened with supply-chain attestation: `checksums.txt` is
    signed with **cosign** (keyless — the signature is bound to the workflow's
    OIDC identity via Fulcio/Rekor, no stored private key), a **Syft SBOM** is
