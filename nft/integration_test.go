@@ -660,3 +660,70 @@ func TestIntegration_AuditLogRecordsMutations(t *testing.T) {
 		t.Errorf("expected uid 0 under root, got %d", recs[0].UID)
 	}
 }
+
+// TestIntegration_IPv6AddressRoundtrip pins the V-6 IPv6 saddr/daddr renderer
+// against the live kernel: it applies ip6 saddr/daddr rules (exact, CIDR, and
+// anonymous-set forms), reads them back over netlink, and asserts the rendered
+// text carries the `ip6` qualifier and the actual v6 addresses. Before V-6 the
+// renderer emitted a raw `payload[network header+8:16] == 0x...` form for these,
+// so this would have failed — it confirms the kernel's offset-8/24 encoding
+// matches the renderer's assumptions end-to-end.
+func TestIntegration_IPv6AddressRoundtrip(t *testing.T) {
+	requireRoot(t)
+
+	tableName := integrationTableName()
+	t.Logf("table name: ip6 %s", tableName)
+
+	ruleset := fmt.Sprintf(`
+table ip6 %s {
+    chain input {
+        type filter hook input priority 0; policy accept;
+        ip6 saddr 2001:db8::1 accept comment "v6-saddr-exact"
+        ip6 daddr 2001:db8::/32 accept comment "v6-daddr-cidr"
+        ip6 saddr { 2001:db8::1, 2001:db8::2 } accept comment "v6-saddr-set"
+    }
+}
+`, tableName)
+
+	t.Cleanup(func() { deleteTable(t, "ip6", tableName) })
+	applyRuleset(t, ruleset)
+
+	target := findTable(t, tableName, nftables.TableFamilyIPv6)
+	if target == nil {
+		t.Fatalf("table %q not found after nft -f", tableName)
+	}
+	input := findChain(t, target, "input")
+	if input == nil {
+		t.Fatal("input chain not found")
+	}
+
+	rules, err := ListRulesOfChain(target, input)
+	if err != nil {
+		t.Fatalf("ListRulesOfChain(input): %v", err)
+	}
+	if got, want := len(rules), 3; got != want {
+		t.Fatalf("input rule count = %d, want %d (rules diverged from fixture)", got, want)
+	}
+
+	// Each rule's rendered text must carry the ip6 qualifier, the right field,
+	// and the actual v6 address(es) — not a raw payload/hex dump.
+	cases := []struct {
+		comment string
+		want    []string
+	}{
+		{"v6-saddr-exact", []string{"ip6", "saddr", "2001:db8::1"}},
+		{"v6-daddr-cidr", []string{"ip6", "daddr", "2001:db8::/32"}},
+		{"v6-saddr-set", []string{"ip6", "saddr", "2001:db8::1", "2001:db8::2"}},
+	}
+	for i, c := range cases {
+		if got := ExtractComment(rules[i]); got != c.comment {
+			t.Errorf("rule[%d] comment = %q, want %q", i, got, c.comment)
+		}
+		rendered := RuleToHumanReadable(rules[i])
+		for _, tok := range c.want {
+			if !strings.Contains(rendered, tok) {
+				t.Errorf("rule[%d] (%s) rendered %q does not contain %q", i, c.comment, rendered, tok)
+			}
+		}
+	}
+}

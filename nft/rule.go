@@ -2364,8 +2364,18 @@ func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) stri
 			// Payload — loads data from the packet body
 			payloadDesc := payloadToHumanReadable(v)
 			if payloadDesc == "saddr" || payloadDesc == "daddr" {
+				// Family from the payload offset: IPv4 saddr/daddr sit at 12/16,
+				// IPv6 at 8/24. fullLen / ipBits drive the value formatting so a
+				// 16-byte address renders as IPv6 and a 4-byte one as IPv4.
 				ipProto := "ip"
-				// CIDR: Payload{4} → Bitwise → Cmp
+				ipBits := 32
+				fullLen := 4
+				if v.Offset == 8 || v.Offset == 24 {
+					ipProto = "ip6"
+					ipBits = 128
+					fullLen = 16
+				}
+				// CIDR: Payload → Bitwise → Cmp
 				if i+2 < len(rule.Exprs) {
 					if bw, ok1 := rule.Exprs[i+1].(*expr.Bitwise); ok1 {
 						if cmp, ok2 := rule.Exprs[i+2].(*expr.Cmp); ok2 {
@@ -2386,13 +2396,13 @@ func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) stri
 				if i+1 < len(rule.Exprs) {
 					if cmp, ok := rule.Exprs[i+1].(*expr.Cmp); ok {
 						var valStr string
-						if len(cmp.Data) == 4 {
+						if len(cmp.Data) == fullLen {
 							valStr = net.IP(cmp.Data).String()
-						} else if len(cmp.Data) >= 1 && len(cmp.Data) <= 3 {
-							// Byte-aligned prefix: pad to 4 bytes and build CIDR
-							padded := make([]byte, 4)
+						} else if len(cmp.Data) >= 1 && len(cmp.Data) < fullLen {
+							// Byte-aligned prefix: pad to the full width and build CIDR
+							padded := make([]byte, fullLen)
 							copy(padded, cmp.Data)
-							mask := net.CIDRMask(len(cmp.Data)*8, 32)
+							mask := net.CIDRMask(len(cmp.Data)*8, ipBits)
 							valStr = (&net.IPNet{IP: net.IP(padded), Mask: mask}).String()
 						} else {
 							valStr = fmt.Sprintf("0x%x", cmp.Data)
@@ -2601,10 +2611,22 @@ func payloadToHumanReadable(p *expr.Payload) string {
 			return "ip protocol"
 		}
 		if p.Offset == 12 && p.Len >= 1 && p.Len <= 4 {
-			return "saddr" // source address (len 1-3: byte-aligned prefix, len 4: full address)
+			return "saddr" // IPv4 source address (len 1-3: byte-aligned prefix, len 4: full)
 		}
 		if p.Offset == 16 && p.Len >= 1 && p.Len <= 4 {
-			return "daddr" // destination address
+			return "daddr" // IPv4 destination address
+		}
+		// IPv6 source/destination address (16-byte fields at offsets 8 / 24).
+		// The caller infers the family from p.Offset (8/24 → ip6, 12/16 → ip)
+		// and formats the value accordingly. Offset 24 is past the IPv4 header,
+		// so any len there is v6; at offset 8 a len > 4 rules out the 1-byte
+		// IPv4 fields (ttl at offset 8 is len 1) — so v6 byte-prefixes shorter
+		// than /40 fall through to the raw form rather than be mislabelled.
+		if p.Offset == 8 && p.Len >= 5 && p.Len <= 16 {
+			return "saddr" // IPv6 source address
+		}
+		if p.Offset == 24 && p.Len >= 1 && p.Len <= 16 {
+			return "daddr" // IPv6 destination address
 		}
 	}
 

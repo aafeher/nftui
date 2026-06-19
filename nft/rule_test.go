@@ -177,6 +177,14 @@ func TestPayloadToHumanReadable(t *testing.T) {
 		{"saddr prefix /8", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 12, Len: 1}, "saddr"},
 		{"daddr", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 16, Len: 4}, "daddr"},
 		{"daddr prefix /24", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 16, Len: 3}, "daddr"},
+		// IPv6 saddr/daddr (16-byte fields at offsets 8 / 24). Offset 24 is past
+		// the IPv4 header, so any len is v6; at offset 8 only len > 4 is v6
+		// (len 1 there is IPv4 ttl).
+		{"ip6 saddr", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 8, Len: 16}, "saddr"},
+		{"ip6 saddr prefix /64", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 8, Len: 8}, "saddr"},
+		{"ip6 daddr", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 24, Len: 16}, "daddr"},
+		{"ip6 daddr prefix /48", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 24, Len: 6}, "daddr"},
+		{"ip ttl not v6 saddr", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 8, Len: 1}, "payload[network header+8:1]"},
 		{"unknown transport", expr.Payload{Base: unix.NFT_PAYLOAD_TRANSPORT_HEADER, Offset: 99, Len: 4}, "payload[transport header+99:4]"},
 		{"unknown network", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 99, Len: 4}, "payload[network header+99:4]"},
 	}

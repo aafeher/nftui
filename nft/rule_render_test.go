@@ -50,6 +50,40 @@ func TestRuleToHumanReadableWithSets(t *testing.T) {
 			tokens: []string{"saddr", "10.0.0.5", "drop"},
 		},
 		{
+			name: "ip6 saddr (offset 8, len 16)",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 8, Len: 16, DestRegister: 1},
+				// 2001:db8::1
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}},
+				&expr.Verdict{Kind: expr.VerdictDrop},
+			},
+			tokens: []string{"ip6", "saddr", "2001:db8::1", "drop"},
+		},
+		{
+			name: "ip6 daddr (offset 24, len 16)",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 24, Len: 16, DestRegister: 1},
+				// 2001:db8::2
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02}},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			},
+			tokens: []string{"ip6", "daddr", "2001:db8::2", "accept"},
+		},
+		{
+			name: "ip6 saddr CIDR (payload + bitwise + cmp)",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 8, Len: 16, DestRegister: 1},
+				// /32 mask over a 16-byte address
+				&expr.Bitwise{SourceRegister: 1, DestRegister: 1, Len: 16,
+					Mask: []byte{0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+					Xor:  make([]byte, 16)},
+				// 2001:db8::
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
+				&expr.Verdict{Kind: expr.VerdictDrop},
+			},
+			tokens: []string{"ip6", "saddr", "2001:db8::/32", "drop"},
+		},
+		{
 			name:   "jump verdict",
 			exprs:  []expr.Any{&expr.Verdict{Kind: expr.VerdictJump, Chain: "dispatch"}},
 			tokens: []string{"jump", "dispatch"},
