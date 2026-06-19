@@ -114,6 +114,12 @@ no AUR needed. nftui does not publish to the AUR itself; a community maintainer
 is welcome to adopt the reference [`packaging/aur/PKGBUILD`](packaging/aur/PKGBUILD)
 (a `-bin` package over the release tarball).
 
+**Gentoo:** the repo is a standard Go module, so `go build -o nftui .` is the
+simplest path. A community-maintainable reference
+[`packaging/gentoo/nftui-bin-0.9.0.ebuild`](packaging/gentoo/nftui-bin-0.9.0.ebuild)
+(an EAPI 8 binary ebuild over the release tarball) is provided for use in a
+local overlay; nftui does not maintain a Portage / GURU entry.
+
 ### Nix flake
 
 The repository ships a [`flake.nix`](flake.nix) with a `buildGoModule` package
