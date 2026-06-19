@@ -7,6 +7,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `--version` CLI flag (v1.0.0 item V-1): `nftui --version` prints `nftui <version>` to stdout and exits 0. The release version is injected at build time via Goreleaser `-ldflags '-X main.version={{ .Version }}'`; a source build falls back to the Go build-info module version (set for `go install <module>@vX.Y.Z`), and finally to `dev` for a plain `go build`. Pre-scanned before `flag.Parse` (like `--help`), so it works regardless of other flags; surfaced in `--help` output and the man page OPTIONS. Pure `resolveVersion` / `writeVersion` seams in `flags.go` are unit-tested.
+
 ## [0.9.0] - 2026-06-19 — Release infrastructure
 
 The release-infrastructure milestone: integration test harness for the live netlink path, GitHub Actions CI, a reproducible Goreleaser release pipeline, Nix flake packaging, and virtualized rule-list rendering for large chains. (Originally targeted as v1.0.0; renamed after a strict audit surfaced enough hardening items that bumping straight to a 1.0 stable was premature — v1.0.0 picks from the post-v0.9.0 candidate pool.)

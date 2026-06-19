@@ -17,6 +17,7 @@ nftui \- Terminal User Interface for Linux nftables
 [\fB\-\-config\fR \fIfile\fR]
 [\fB\-\-read\-only\fR]
 [\fB\-\-help\fR]
+[\fB\-\-version\fR]
 .SH DESCRIPTION
 .B nftui
 is an interactive terminal UI for browsing and editing the Linux
@@ -84,6 +85,17 @@ to standard output, then exit
 .BR 0 .
 Invalid flags emit the same usage to standard error and exit
 .BR 2 .
+.TP
+.B \-\-version
+Print
+.BR "nftui <version>"
+to standard output and exit
+.BR 0 .
+The version is injected at release-build time; a source build reports the
+Go build-info module version, or
+.B dev
+for a plain
+.BR "go build" .
 .SH "KEY BINDINGS"
 .SS "Main tree view (tables, chains, sets, named objects)"
 .TP

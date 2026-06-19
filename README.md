@@ -142,6 +142,7 @@ man -l man/nftui.1
 | `--config <file>` | Apply the given nftables ruleset via `nft -f <file>` **before** the TUI starts. **This mutates the running ruleset** — the file may contain `flush ruleset`. Use to bring up a known state for testing. Resolved before `--table` so the post-load kernel state is what `--table` validates against. |
 | `--read-only` | Disable every write path: no rule add / insert / move / delete / edit / save, no chain / table / set create / delete, no counter reset. Blocked keys dim out of the footer (per the footer-completeness invariant) and a `[READ-ONLY MODE]` marker rides next to the title in every main view. Useful for safe browsing, auditing, or pairing with `--config` to inspect a fixture without risk of accidental edits. |
 | `--help` (also `-h`) | Print the full flag list with one-line descriptions and usage examples, then exit. Goes to stdout (so you can pipe to `less`); explicit `--help` exits 0. Invalid flags emit the same usage to stderr and exit 2. |
+| `--version` | Print `nftui <version>` to stdout and exit 0. The version is injected at release-build time; a binary built from source reports the Go build-info module version, or `dev` for a plain `go build`. |
 
 Examples:
 
@@ -151,6 +152,7 @@ sudo ./nftui --table missing                             # exits: "table 'missin
 sudo ./nftui --config examples/example-nftables-01.conf  # load the manual-test fixture, then browse it
 sudo ./nftui --read-only                                 # safe browsing — every write key is dimmed and inert
 sudo ./nftui --config new.conf --table filter            # apply new.conf, then restrict the view to its 'filter' table
+./nftui --version                                        # print the version and exit (no privileges needed)
 ```
 
 Without `--config`, the running ruleset is left untouched. Without `--table`, every table is shown. Without `--read-only`, every CRUD action is available.

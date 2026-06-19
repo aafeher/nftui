@@ -37,6 +37,7 @@ func TestWriteUsage(t *testing.T) {
 		"Usage:",
 		"Flags:",
 		"--help",                       // synthetic entry must show up
+		"--version",                    // synthetic entry must show up
 		"sudo setcap cap_net_admin=ep", // capability hint always present
 		"Examples:",
 		"nftui [flags]", // the bin name was substituted in
@@ -59,6 +60,45 @@ func TestWriteUsage(t *testing.T) {
 		if !strings.Contains(out, f.summary) {
 			t.Errorf("flag %q summary missing from usage", f.name)
 		}
+	}
+}
+
+// resolveVersion prefers the ldflags-injected version; falls back to the Go
+// build-info module version (set for `go install module@vX.Y.Z`); and finally
+// to "dev" for a plain `go build` / `(devel)` checkout where neither is set.
+func TestResolveVersion(t *testing.T) {
+	cases := []struct {
+		name, injected, build, want string
+	}{
+		{"injected wins", "0.9.0", "v1.2.3", "0.9.0"},
+		{"injected wins over empty build", "0.9.0", "", "0.9.0"},
+		{"build info used when not injected", "", "v1.2.3", "v1.2.3"},
+		{"devel build falls back to dev", "", "(devel)", "dev"},
+		{"empty everything falls back to dev", "", "", "dev"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := resolveVersion(c.injected, c.build); got != c.want {
+				t.Errorf("resolveVersion(%q, %q) = %q, want %q", c.injected, c.build, got, c.want)
+			}
+		})
+	}
+}
+
+// writeVersion renders a single "<bin> <version>" line so `nftui --version`
+// output is stable and machine-greppable.
+func TestWriteVersion(t *testing.T) {
+	var buf bytes.Buffer
+	writeVersion(&buf, "nftui", "0.9.0")
+	out := buf.String()
+	if !strings.Contains(out, "nftui") || !strings.Contains(out, "0.9.0") {
+		t.Errorf("writeVersion output = %q, want bin name + version", out)
+	}
+	if !strings.HasSuffix(out, "\n") {
+		t.Errorf("writeVersion must end with a newline: %q", out)
+	}
+	if n := strings.Count(out, "\n"); n != 1 {
+		t.Errorf("writeVersion must be a single line, got %d newlines: %q", n, out)
 	}
 }
 

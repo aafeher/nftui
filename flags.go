@@ -3,7 +3,47 @@ package main
 import (
 	"fmt"
 	"io"
+	"runtime/debug"
 )
+
+// version is the release version, injected at build time via
+// -ldflags '-X main.version={{ .Version }}' (Goreleaser / the Nix build).
+// It is empty in a plain `go build`; resolveVersion then supplies a fallback.
+var version = ""
+
+// resolveVersion picks the version string to display for `--version`. The
+// ldflags-injected value wins; otherwise the Go build-info module version
+// (set when the binary came from `go install <module>@vX.Y.Z`) is used —
+// unless it is the "(devel)" placeholder a plain VCS checkout carries — and
+// failing both it reports "dev". Kept pure (both inputs as args) so the
+// precedence is unit-testable without build-time state.
+func resolveVersion(injected, buildVersion string) string {
+	if injected != "" {
+		return injected
+	}
+	if buildVersion != "" && buildVersion != "(devel)" {
+		return buildVersion
+	}
+	return "dev"
+}
+
+// currentVersion resolves the effective version from the injected var plus the
+// runtime build info (the impure inputs), delegating the decision to the pure
+// resolveVersion.
+func currentVersion() string {
+	buildVersion := ""
+	if info, ok := debug.ReadBuildInfo(); ok {
+		buildVersion = info.Main.Version
+	}
+	return resolveVersion(version, buildVersion)
+}
+
+// writeVersion renders the `--version` output: a single "<bin> <version>"
+// line. Its own io.Writer-typed function (mirrors writeUsage) so tests assert
+// the format without poking os.Stdout.
+func writeVersion(w io.Writer, bin, ver string) {
+	fmt.Fprintf(w, "%s %s\n", bin, ver)
+}
 
 // flagSpec describes a single CLI flag for *both* flag registration and the
 // custom Usage handler. The upcoming nftui(1) man page will read from the
@@ -70,6 +110,9 @@ func writeUsage(w io.Writer, bin string) {
 	if h := len("--help"); h > colWidth {
 		colWidth = h
 	}
+	if v := len("--version"); v > colWidth {
+		colWidth = v
+	}
 	colWidth += 4 // padding between the flag and its description
 
 	for _, f := range flagDocs {
@@ -80,6 +123,7 @@ func writeUsage(w io.Writer, bin string) {
 		fmt.Fprintf(w, "  %-*s%s\n", colWidth, prefix, f.summary)
 	}
 	fmt.Fprintf(w, "  %-*sshow this help and exit\n", colWidth, "--help")
+	fmt.Fprintf(w, "  %-*sprint the version and exit\n", colWidth, "--version")
 
 	fmt.Fprintf(w, "\nExamples:\n")
 	fmt.Fprintf(w, "  sudo %s                                browse the live ruleset\n", bin)

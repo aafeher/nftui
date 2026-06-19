@@ -23,6 +23,10 @@ func main() {
 			writeUsage(os.Stdout, bin)
 			return
 		}
+		if a == "--version" || a == "-version" {
+			writeVersion(os.Stdout, bin, currentVersion())
+			return
+		}
 	}
 
 	tableFilter := flag.String("table", "", docFor("table"))
