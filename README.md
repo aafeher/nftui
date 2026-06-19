@@ -417,6 +417,9 @@ on every push and pull request to `main` / `develop`:
 - **Vulnerability scan** — runs `govulncheck ./...` against the module and the
   Go standard library. As its own check (parallel to the build), it fails the
   run only when a known vulnerability is reachable from nftui's call graph.
+- **Reproducible build check** — builds the release binaries twice with
+  `goreleaser build --snapshot` and fails if the two differ, verifying the
+  `mod_timestamp` / `-trimpath` / CGO-free build is byte-for-byte reproducible.
 
 Dependency and GitHub-Actions updates are automated with Dependabot
 (`.github/dependabot.yml`, weekly), which opens PRs as upstream releases and

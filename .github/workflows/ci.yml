@@ -1,4 +1,4 @@
-# CI pipeline. Three stages:
+# CI pipeline. Four stages:
 #
 #   1. build-and-test — gofmt, go vet (default + integration tag), go build,
 #      go test -race ./...  Runs on every push / PR; fast, no privileges.
@@ -13,6 +13,11 @@
 #      check; fails only on a vulnerability reachable from nftui's own call
 #      graph. Paired with .github/dependabot.yml, which opens dependency- and
 #      action-update PRs.
+#   4. reproducibility — builds the release binaries twice with
+#      `goreleaser build --snapshot` and fails if the two differ, proving the
+#      mod_timestamp + -trimpath + CGO-free build is byte-reproducible (v1.0.0
+#      item V-4). Gated on build-and-test so it skips a commit that doesn't even
+#      compile.
 #
 # Concurrency cancels superseded runs on the same ref so a rapid push doesn't
 # queue redundant jobs.
@@ -133,3 +138,47 @@ jobs:
 
       - name: Run govulncheck
         run: govulncheck ./...
+
+  reproducibility:
+    name: Reproducible build check
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    # Two full cross-arch builds plus the GoReleaser install. Comfortably under
+    # this cap; the headroom guards against a hung build.
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          install-only: true
+          version: "~> v2"
+
+      # Build the release binaries twice and compare their SHA-256 sums. The
+      # snapshot version derives from the last tag (no timestamp), so it is
+      # identical across both runs; combined with mod_timestamp / -trimpath /
+      # CGO_ENABLED=0 the binaries must come out byte-for-byte identical. Only
+      # the compiled binaries are compared — archive / package containers carry
+      # their own metadata and are out of scope for this check.
+      - name: Build twice and compare
+        run: |
+          set -euo pipefail
+          goreleaser build --snapshot --clean
+          sha256sum $(find dist -type f -name nftui | sort) | awk '{print $1}' > /tmp/repro-1
+          goreleaser build --snapshot --clean
+          sha256sum $(find dist -type f -name nftui | sort) | awk '{print $1}' > /tmp/repro-2
+          echo "First build:";  cat /tmp/repro-1
+          echo "Second build:"; cat /tmp/repro-2
+          if ! diff -u /tmp/repro-1 /tmp/repro-2; then
+            echo "::error::build is not reproducible — binaries differ between two builds"
+            exit 1
+          fi
+          echo "OK: both builds produced byte-identical binaries."
