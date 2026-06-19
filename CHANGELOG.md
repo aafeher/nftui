@@ -7,7 +7,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
-## [0.9.0] - 2026-06-11 — Release infrastructure
+## [0.9.0] - 2026-06-19 — Release infrastructure
 
 The release-infrastructure milestone: integration test harness for the live netlink path, GitHub Actions CI, a reproducible Goreleaser release pipeline, Nix flake packaging, and virtualized rule-list rendering for large chains. (Originally targeted as v1.0.0; renamed after a strict audit surfaced enough hardening items that bumping straight to a 1.0 stable was premature — v1.0.0 picks from the post-v0.9.0 candidate pool.)
 
