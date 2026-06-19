@@ -611,3 +611,52 @@ func TestIntegration_RuleMutationStaleHandle(t *testing.T) {
 		t.Errorf("stale MoveRuleUp error = %v, want a 'no longer exists' staleness error", err)
 	}
 }
+
+// TestIntegration_AuditLogRecordsMutations verifies the audit hook captures
+// real kernel mutations end-to-end. It installs a temp-file sink via the test
+// seam (so it is independent of the NFTUI_AUDIT_LOG env / sync.Once ordering),
+// drives a CreateTable → DeleteTable lifecycle against the live kernel, and
+// asserts both operations landed in the log as successful JSON records.
+func TestIntegration_AuditLogRecordsMutations(t *testing.T) {
+	requireRoot(t)
+	path := filepath.Join(t.TempDir(), "audit.log")
+	sink, err := newFileAuditSink(path)
+	if err != nil {
+		t.Fatalf("newFileAuditSink: %v", err)
+	}
+	defer sink.close()
+	restore := swapAuditSink(sink)
+	defer restore()
+
+	name := integrationTableName()
+	t.Logf("table name: inet %s", name)
+	t.Cleanup(func() { deleteTable(t, "inet", name) })
+
+	if err := CreateTable(nftables.TableFamilyINet, name); err != nil {
+		t.Fatalf("CreateTable: %v", err)
+	}
+	tbl := findTable(t, name, nftables.TableFamilyINet)
+	if tbl == nil {
+		t.Fatal("table not found after CreateTable")
+	}
+	if err := DeleteTable(tbl); err != nil {
+		t.Fatalf("DeleteTable: %v", err)
+	}
+
+	recs := readAuditRecords(t, path)
+	if len(recs) != 2 {
+		t.Fatalf("expected 2 audit records, got %d: %+v", len(recs), recs)
+	}
+	if recs[0].Op != "create-table" || recs[0].Result != "ok" {
+		t.Errorf("record 0 = %+v, want create-table/ok", recs[0])
+	}
+	if recs[1].Op != "delete-table" || recs[1].Result != "ok" {
+		t.Errorf("record 1 = %+v, want delete-table/ok", recs[1])
+	}
+	if !strings.Contains(recs[0].Target, name) {
+		t.Errorf("create-table target %q does not name the table %q", recs[0].Target, name)
+	}
+	if recs[0].UID != 0 {
+		t.Errorf("expected uid 0 under root, got %d", recs[0].UID)
+	}
+}

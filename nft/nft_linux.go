@@ -32,6 +32,7 @@ func LoadExamples() error {
 func LoadConfig(path string) error {
 	cmd := exec.Command("nft", "-f", path)
 	output, err := cmd.CombinedOutput()
+	auditEvent("load-config", path, err)
 	if err != nil {
 		return fmt.Errorf("nft -f %s: %w\n%s", path, err, string(output))
 	}
@@ -42,6 +43,7 @@ func FlushRules() error {
 	cmd := exec.Command("nft", "flush", "ruleset")
 
 	output, err := cmd.CombinedOutput()
+	auditEvent("flush-ruleset", "ruleset", err)
 	if err != nil {
 		return fmt.Errorf("failed to flush nftables configuration: %v\nOutput: %s", err, string(output))
 	}
@@ -204,8 +206,10 @@ func CreateTable(family nftables.TableFamily, name string) error {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
 	}
 	conn.AddTable(&nftables.Table{Name: name, Family: family})
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to create table: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("create-table", tableTarget(&nftables.Table{Name: name, Family: family}), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to create table: %v", flushErr)
 	}
 	return nil
 }
@@ -217,8 +221,10 @@ func DeleteTable(table *nftables.Table) error {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
 	}
 	conn.DelTable(table)
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to delete table: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("delete-table", tableTarget(table), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to delete table: %v", flushErr)
 	}
 	return nil
 }
@@ -283,6 +289,7 @@ func RenameTable(table *nftables.Table, newName string) error {
 	cmd := exec.Command("nft", "-f", "-")
 	cmd.Stdin = strings.NewReader(script)
 	out, err := cmd.CombinedOutput()
+	auditEvent("rename-table", fmt.Sprintf("%s %s -> %s", family, table.Name, newName), err)
 	if err != nil {
 		return fmt.Errorf("nft -f failed: %v\n%s", err, strings.TrimSpace(string(out)))
 	}
@@ -300,8 +307,10 @@ func DeleteChain(chain *nftables.Chain) error {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
 	}
 	conn.DelChain(chain)
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to delete chain: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("delete-chain", chainTarget(chain.Table, chain.Name), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to delete chain: %v", flushErr)
 	}
 	return nil
 }
@@ -330,8 +339,10 @@ func CreateChain(table *nftables.Table, spec *nftables.Chain) error {
 		Priority: spec.Priority,
 		Policy:   spec.Policy,
 	})
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to create chain: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("create-chain", chainTarget(table, spec.Name), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to create chain: %v", flushErr)
 	}
 	return nil
 }
@@ -365,7 +376,9 @@ func UpdateChain(oldChain *nftables.Chain, newSpec *nftables.Chain) error {
 		family := nftCLIFamily(oldChain.Table.Family)
 		cmd := exec.Command("nft", "rename", "chain", family,
 			oldChain.Table.Name, oldChain.Name, newSpec.Name)
-		if out, err := cmd.CombinedOutput(); err != nil {
+		out, err := cmd.CombinedOutput()
+		auditEvent("rename-chain", fmt.Sprintf("%s %s %s -> %s", family, oldChain.Table.Name, oldChain.Name, newSpec.Name), err)
+		if err != nil {
 			return fmt.Errorf("nft rename chain failed: %v\n%s", err, strings.TrimSpace(string(out)))
 		}
 	}
@@ -403,8 +416,10 @@ func UpdateChain(oldChain *nftables.Chain, newSpec *nftables.Chain) error {
 		Table:  oldChain.Table,
 		Policy: newSpec.Policy,
 	})
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to update chain: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("update-chain-policy", chainTarget(oldChain.Table, newSpec.Name), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to update chain: %v", flushErr)
 	}
 	return nil
 }
@@ -460,7 +475,9 @@ func recreateBaseChain(oldChain, newSpec *nftables.Chain) error {
 
 	cmd := exec.Command("nft", "-f", "-")
 	cmd.Stdin = strings.NewReader(b.String())
-	if out, err := cmd.CombinedOutput(); err != nil {
+	out, err := cmd.CombinedOutput()
+	auditEvent("recreate-chain", chainTarget(oldChain.Table, chainName), err)
+	if err != nil {
 		return fmt.Errorf("nft chain recreation failed: %v\n%s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
@@ -485,8 +502,10 @@ func DeleteRule(rule *nftables.Rule) error {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
 	}
 	conn.DelRule(rule)
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to delete rule: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("delete-rule", ruleTarget(rule), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to delete rule: %v", flushErr)
 	}
 	return nil
 }
@@ -556,8 +575,10 @@ func MoveRuleUp(rules []*nftables.Rule, idx int) error {
 		UserData: r.UserData,
 	}
 	conn.InsertRule(newRule)
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to move rule up: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("move-rule-up", ruleTarget(r), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to move rule up: %v", flushErr)
 	}
 	return nil
 }
@@ -589,8 +610,10 @@ func MoveRuleDown(rules []*nftables.Rule, idx int) error {
 		UserData: r.UserData,
 	}
 	conn.AddRule(newRule)
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to move rule down: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("move-rule-down", ruleTarget(r), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to move rule down: %v", flushErr)
 	}
 	return nil
 }
@@ -610,8 +633,10 @@ func AddNewRuleToChain(table *nftables.Table, chain *nftables.Chain) (*nftables.
 		},
 	}
 	conn.AddRule(newRule)
-	if err := conn.Flush(); err != nil {
-		return nil, fmt.Errorf("failed to add rule: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("add-rule", chainTarget(table, chain.Name), flushErr)
+	if flushErr != nil {
+		return nil, fmt.Errorf("failed to add rule: %v", flushErr)
 	}
 	fresh, err := ListRulesOfChain(table, chain)
 	if err != nil || len(fresh) == 0 {
@@ -640,8 +665,10 @@ func InsertNewRuleBefore(table *nftables.Table, chain *nftables.Chain, rules []*
 	} else {
 		conn.InsertRule(newRule)
 	}
-	if err := conn.Flush(); err != nil {
-		return nil, fmt.Errorf("failed to insert rule: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("insert-rule", chainTarget(table, chain.Name), flushErr)
+	if flushErr != nil {
+		return nil, fmt.Errorf("failed to insert rule: %v", flushErr)
 	}
 	fresh, err := ListRulesOfChain(table, chain)
 	if err != nil {

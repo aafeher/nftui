@@ -2680,8 +2680,10 @@ func ApplyRuleChange(rule *nftables.Rule) error {
 	conn.AddRule(rule)
 
 	// commit the changes to the kernel
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to apply changes to kernel: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("apply-rule", ruleTarget(rule), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to apply changes to kernel: %v", flushErr)
 	}
 
 	return nil

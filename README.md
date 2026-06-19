@@ -155,6 +155,38 @@ sudo ./nftui --config new.conf --table filter            # apply new.conf, then 
 
 Without `--config`, the running ruleset is left untouched. Without `--table`, every table is shown. Without `--read-only`, every CRUD action is available.
 
+## Audit logging
+
+For change-management and compliance (e.g. SOC 2 / PCI-DSS), nftui can record
+every ruleset mutation it applies. Set the `NFTUI_AUDIT_LOG` environment
+variable to a writable file path:
+
+```bash
+sudo NFTUI_AUDIT_LOG=/var/log/nftui-audit.log ./nftui
+```
+
+When the variable is **unset or empty, auditing is off** and nftui behaves
+exactly as before — there is no file I/O on the mutation path. When set, every
+applied change (create / delete / rename table, chain and set; add / insert /
+move / delete / edit rule; add / delete set element; delete / reset named
+object; `--config` load; ruleset flush) appends one JSON object per line:
+
+```json
+{"time":"2026-06-19T10:30:00.12Z","uid":0,"user":"root","sudo_user":"alice","op":"delete-rule","target":"ipv4 filter input handle 7","result":"ok"}
+```
+
+Each record carries the UTC timestamp, the effective UID and user, the human
+operator behind `sudo` (`sudo_user`, from `SUDO_USER`), the operation, the
+target object, and the outcome (`result` is `ok` or `error`, with an `error`
+field on failure — rejected attempts are logged too). Properties:
+
+- **Append-only** — nftui only ever appends; it never rotates, truncates, or
+  reads the file back. Rotate it with `logrotate` or ship the lines to a SIEM.
+- **0600** — the file is created owner-read/write only.
+- **Fail-open** — if the path cannot be opened nftui prints one warning and
+  continues without auditing; a broken audit path never blocks firewall
+  management. Ensure the path is writable by the nftui process.
+
 ## Key bindings
 
 ### Main tree view (tables + chains)

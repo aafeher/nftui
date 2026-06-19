@@ -556,8 +556,10 @@ func CreateSet(table *nftables.Table, spec CreateSetSpec) error {
 	if err := conn.AddSet(s, nil); err != nil {
 		return fmt.Errorf("failed to stage set: %v", err)
 	}
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to create set: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("create-set", chainTarget(table, spec.Name), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to create set: %v", flushErr)
 	}
 	return nil
 }
@@ -570,8 +572,10 @@ func DeleteSet(set *nftables.Set) error {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
 	}
 	conn.DelSet(set)
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to delete set: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("delete-set", chainTarget(set.Table, set.Name), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to delete set: %v", flushErr)
 	}
 	return nil
 }
@@ -606,8 +610,10 @@ func AddSetElement(set *nftables.Set, key, keyEnd, val []byte, verdict *expr.Ver
 	if err := conn.SetAddElements(set, elements); err != nil {
 		return fmt.Errorf("failed to stage element: %v", err)
 	}
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to add set element: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("add-set-element", chainTarget(set.Table, set.Name), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to add set element: %v", flushErr)
 	}
 	return nil
 }
@@ -694,8 +700,10 @@ func DeleteSetElement(set *nftables.Set, key, keyEnd []byte) error {
 	if err := conn.SetDeleteElements(set, elements); err != nil {
 		return fmt.Errorf("failed to stage delete: %v", err)
 	}
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to delete set element: %v", err)
+	flushErr := conn.Flush()
+	auditEvent("delete-set-element", chainTarget(set.Table, set.Name), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to delete set element: %v", flushErr)
 	}
 	return nil
 }

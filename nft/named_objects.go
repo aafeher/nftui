@@ -103,8 +103,10 @@ func DeleteNamedObject(obj NamedObject) error {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
 	}
 	conn.DeleteObject(obj.Raw)
-	if err := conn.Flush(); err != nil {
-		return fmt.Errorf("failed to delete %s %q: %v", obj.TypeStr, obj.Name, err)
+	flushErr := conn.Flush()
+	auditEvent("delete-object", fmt.Sprintf("%s %s", obj.TypeStr, obj.Name), flushErr)
+	if flushErr != nil {
+		return fmt.Errorf("failed to delete %s %q: %v", obj.TypeStr, obj.Name, flushErr)
 	}
 	return nil
 }
@@ -125,8 +127,10 @@ func ResetNamedObject(obj NamedObject) error {
 	if err != nil {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
 	}
-	if _, err := conn.ResetObject(obj.Raw); err != nil {
-		return fmt.Errorf("failed to reset %s %q: %v", obj.TypeStr, obj.Name, err)
+	_, resetErr := conn.ResetObject(obj.Raw)
+	auditEvent("reset-object", fmt.Sprintf("%s %s", obj.TypeStr, obj.Name), resetErr)
+	if resetErr != nil {
+		return fmt.Errorf("failed to reset %s %q: %v", obj.TypeStr, obj.Name, resetErr)
 	}
 	return nil
 }
