@@ -53,4 +53,5 @@ Out of scope:
 - needing root / `CAP_NET_ADMIN` to change the firewall — that is by design;
 - a `setcap`-granted binary being runnable by any local user — restrict that
   with your own `sudoers` or file-permission policy; nftui does not add its own
-  access control.
+  access control. See the README's "Privilege model & deployment hardening"
+  section for the recommended `sudoers` / `setcap` / PAM setup.

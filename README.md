@@ -155,6 +155,73 @@ sudo ./nftui --config new.conf --table filter            # apply new.conf, then 
 
 Without `--config`, the running ruleset is left untouched. Without `--table`, every table is shown. Without `--read-only`, every CRUD action is available.
 
+## Privilege model & deployment hardening
+
+nftui reads and writes the kernel's nftables ruleset over netlink, which needs
+the **`CAP_NET_ADMIN`** capability. It has **no authentication or authorization
+of its own**: any user who can launch nftui with that capability can rewrite the
+firewall. nftui is therefore only as safe as the way you grant that privilege —
+grant it too broadly and the binary becomes a *confused deputy*. Enforce access
+at the OS layer. Two patterns are recommended.
+
+### Recommended: `sudo` with a restricted rule
+
+Run nftui through `sudo` and limit who may do so. Create a dedicated group
+(e.g. `nftadm`), add the trusted operators, and add a rule with `visudo`:
+
+```sudoers
+# /etc/sudoers.d/nftui  (edit with: visudo -f /etc/sudoers.d/nftui)
+# Let the nftadm group run nftui as root — and nothing else.
+%nftadm ALL=(root) /usr/local/bin/nftui
+```
+
+- Use the **absolute path** so a different `nftui` earlier on `PATH` can't be
+  substituted.
+- Keep password prompts on (no `NOPASSWD`) for interactive use: `sudo` writes an
+  auth-log entry for every invocation, giving you a who-and-when record.
+- Operators then run `sudo nftui`. nftui reads `SUDO_USER`, so with the
+  [audit log](#audit-logging) enabled, every applied change records the human
+  behind `sudo`, not just `root`.
+
+For a read-only/browse role, grant a wider group the `--read-only` form only.
+`sudo` matches the command **and** its arguments exactly, so this rule permits
+`sudo nftui --read-only` but not the unrestricted `sudo nftui`:
+
+```sudoers
+%nftview ALL=(root) /usr/local/bin/nftui --read-only
+```
+
+### Alternative: a group-restricted `setcap` binary
+
+If you must run without `sudo` (e.g. automation), grant the capability to the
+file but restrict **who can execute it** — never leave it world-executable:
+
+```bash
+sudo chown root:nftadm /usr/local/bin/nftui
+sudo chmod 750         /usr/local/bin/nftui   # root: rwx, nftadm: r-x, others: none
+sudo setcap cap_net_admin+ep /usr/local/bin/nftui
+```
+
+- The capability rides with the **file**, not the user, so `chmod 755` + `setcap`
+  effectively hands firewall-rewrite power to every local account. `chmod 750`
+  with a dedicated group is what keeps it contained.
+- A `setcap` binary bypasses `sudo`, so there is **no sudo auth-log entry** and
+  `SUDO_USER` is empty — rely on `NFTUI_AUDIT_LOG` for the change record (it
+  still captures the real UID/user).
+- Keep the binary and its parent directories writable only by `root` so the
+  capability-bearing file can't be swapped.
+
+### Defense in depth
+
+- Turn on the [audit log](#audit-logging) (`NFTUI_AUDIT_LOG`) so every mutation
+  is attributed and timestamped — the OS controls *who can run* nftui; the audit
+  log records *what they changed*.
+- Use `--read-only` for inspection/audit roles that should never mutate state.
+- `sudo` integrates with **PAM**, so re-authentication, MFA, or time/host
+  restrictions (`pam_time`, `pam_access`) are configured at the PAM layer — this
+  is the "PAM wrapping" for nftui; the tool deliberately adds no access control
+  of its own.
+
 ## Audit logging
 
 For change-management and compliance (e.g. SOC 2 / PCI-DSS), nftui can record
