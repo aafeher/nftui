@@ -74,6 +74,9 @@ nfpms:
     formats:
       - deb
       - rpm
+      - apk
+      - archlinux
+      - ipk
     maintainer: "Ákos Fehér <aafeher@users.noreply.github.com>"
     homepage: "https://github.com/aafeher/nftui"
     description: "Terminal user interface for managing the Linux nftables firewall."

@@ -87,18 +87,32 @@ cd nftui
 go build -o nftui .
 ```
 
-### Debian / RPM packages
+### Prebuilt packages
 
-Each [release](https://github.com/aafeher/nftui/releases) attaches `.deb` and
-`.rpm` packages for `amd64` and `arm64`, built from the same binary as the
-archives and listed in `checksums.txt`. They install `nftui` to `/usr/bin`, the
-man page to `/usr/share/man/man1`, and declare the `nftables` runtime
-dependency:
+Each [release](https://github.com/aafeher/nftui/releases) attaches native
+packages for `amd64` and `arm64`, all built from the same binary as the
+archives and listed in `checksums.txt` (so the cosign signature covers them):
 
-```bash
-sudo apt install ./nftui_<version>_linux_amd64.deb     # Debian / Ubuntu
-sudo dnf install ./nftui_<version>_linux_amd64.rpm     # Fedora / RHEL
-```
+| Format | Distros | Install |
+|--------|---------|---------|
+| `.deb` | Debian / Ubuntu | `sudo apt install ./nftui_<ver>_linux_amd64.deb` |
+| `.rpm` | Fedora / RHEL / openSUSE | `sudo dnf install ./nftui_<ver>_linux_amd64.rpm` |
+| `.apk` | Alpine | `sudo apk add --allow-untrusted ./nftui_<ver>_linux_amd64.apk` |
+| `.pkg.tar.zst` | Arch | `sudo pacman -U ./nftui_<ver>_linux_amd64.pkg.tar.zst` |
+| `.ipk` | OpenWrt (opkg) | `opkg install ./nftui_<ver>_linux_amd64.ipk` |
+
+Every package installs `nftui` to `/usr/bin`, the man page to
+`/usr/share/man/man1`, and declares the `nftables` runtime dependency. The
+binaries are static (CGO-free), so they run on glibc and musl systems alike.
+OpenWrt is migrating from `opkg` to `apk`, so on matching architectures the
+`.apk` should serve newer apk-based OpenWrt while the `.ipk` covers the existing
+opkg releases. Routers on other architectures (mips, armv7) are out of scope —
+build from source there.
+
+**Arch / AUR:** the release `.pkg.tar.zst` installs directly with `pacman -U`,
+no AUR needed. nftui does not publish to the AUR itself; a community maintainer
+is welcome to adopt the reference [`packaging/aur/PKGBUILD`](packaging/aur/PKGBUILD)
+(a `-bin` package over the release tarball).
 
 ### Nix flake
 
@@ -420,9 +434,10 @@ workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml)):
    `amd64` / `arm64` binaries (`CGO_ENABLED=0 -trimpath -ldflags='-s -w'`,
    `mod_timestamp` pinned to the commit time), bundles each with `LICENSE`,
    `README.md`, `CHANGELOG.md`, and `man/nftui.1` into a `tar.gz`, also emits
-   `.deb` / `.rpm` packages (nfpm, same binary), writes a SHA-256
-   `checksums.txt` covering every artifact, and publishes the GitHub Release
-   with the curated notes as the body.
+   `.deb` / `.rpm` / `.apk` / Arch `.pkg.tar.zst` / OpenWrt `.ipk` packages
+   (nfpm, same binary), writes a SHA-256 `checksums.txt` covering every
+   artifact, and publishes the GitHub Release with the curated notes as the
+   body.
 4. The release is hardened with supply-chain attestation: `checksums.txt` is
    signed with **cosign** (keyless — the signature is bound to the workflow's
    OIDC identity via Fulcio/Rekor, no stored private key), a **Syft SBOM** is
