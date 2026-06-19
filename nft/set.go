@@ -520,6 +520,9 @@ type CreateSetSpec struct {
 // For maps (spec.IsMap=true) the DataType is mandatory; it sets the value
 // datatype. Anonymous / dynamic flags are not exposed in the UI form yet.
 func CreateSet(table *nftables.Table, spec CreateSetSpec) error {
+	if err := ValidateIdentifier(spec.Name); err != nil {
+		return fmt.Errorf("invalid set name: %w", err)
+	}
 	conn, err := nftables.New()
 	if err != nil {
 		return fmt.Errorf("failed to connect to nftables: %v", err)

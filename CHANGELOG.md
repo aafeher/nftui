@@ -55,6 +55,7 @@ The release-infrastructure milestone: integration test harness for the live netl
 ### Security
 
 - Bumped `github.com/mdlayher/netlink` off the upstream-**retracted** `v1.11.1` to the suggested `v1.11.2`. A retracted version is one the author flagged "do not use"; the bump is the only `go.mod` change (the netlink transport sits under every kernel read/write, so the change was validated against the full `-race` suite and the root integration run). Surfaced by the enterprise-readiness audit (supply-chain, finding E-13).
+- Defense-in-depth identifier validation inside the `nft` package (audit E-12). `CreateTable`, `RenameTable`, `CreateChain`, `UpdateChain`, and `CreateSet` now call `nft.ValidateIdentifier` on the caller-supplied name as their first step — returning an error rather than touching the kernel or building an `nft -f -` script when the name carries script metacharacters. This complements the E-2 dialog-level validation: the guard now also covers any future caller (a new dialog, a config-import path, a programmatic API consumer) that reaches the name-interpolating mutators without going through a validated input field. Existing kernel-sourced names are not re-validated (they may be legitimately quoted identifiers); only the new, caller-chosen name is checked. Unit tests drive each mutator with an injection identifier and assert it is rejected pre-kernel; the root integration suite (valid names) stays green.
 
 ## [0.8.0] - 2026-05-30 — CLI surface, release polish, deep feature & async load
 

@@ -201,6 +201,9 @@ func CountRulesByType(rules []*nftables.Rule) (accept int, drop int, other int) 
 
 // CreateTable creates a new empty table in the kernel with the given family and name.
 func CreateTable(family nftables.TableFamily, name string) error {
+	if err := ValidateIdentifier(name); err != nil {
+		return fmt.Errorf("invalid table name: %w", err)
+	}
 	conn, err := nftables.New()
 	if err != nil {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
@@ -266,6 +269,9 @@ func RenameTable(table *nftables.Table, newName string) error {
 	if newName == table.Name {
 		return nil
 	}
+	if err := ValidateIdentifier(newName); err != nil {
+		return fmt.Errorf("invalid new table name: %w", err)
+	}
 
 	family := nftCLIFamily(table.Family)
 
@@ -327,6 +333,9 @@ func CreateChain(table *nftables.Table, spec *nftables.Chain) error {
 	if spec == nil || spec.Name == "" {
 		return fmt.Errorf("CreateChain: spec or its Name is empty")
 	}
+	if err := ValidateIdentifier(spec.Name); err != nil {
+		return fmt.Errorf("invalid chain name: %w", err)
+	}
 	conn, err := nftables.New()
 	if err != nil {
 		return fmt.Errorf("failed to connect to nftables: %v", err)
@@ -370,6 +379,9 @@ func UpdateChain(oldChain *nftables.Chain, newSpec *nftables.Chain) error {
 	}
 	if newSpec == nil {
 		return fmt.Errorf("UpdateChain: newSpec is nil")
+	}
+	if err := ValidateIdentifier(newSpec.Name); err != nil {
+		return fmt.Errorf("invalid chain name: %w", err)
 	}
 
 	if oldChain.Name != newSpec.Name {
