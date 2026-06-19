@@ -85,7 +85,7 @@ jobs:
           cat "$notes_file"
 
       - name: Run Goreleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           # Track the v2 major series — pulls the latest v2.x at run time but
