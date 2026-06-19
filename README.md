@@ -416,9 +416,15 @@ workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml)):
 Verifying a downloaded release:
 
 ```bash
-# 1. signature over the checksum file (keyless cosign)
+# 1. signature over the checksum file (keyless cosign). Pin the signer to this
+#    repo's release workflow AND GitHub's OIDC issuer — a wildcard identity/issuer
+#    ('.*') only proves the signature is internally valid, not that *we* produced
+#    it, so it would accept a signature from any Fulcio identity and defeat the
+#    purpose of keyless verification.
 cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig \
-  --certificate-identity-regexp '.*' --certificate-oidc-issuer-regexp '.*' checksums.txt
+  --certificate-identity-regexp '^https://github\.com/aafeher/nftui/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+  checksums.txt
 # 2. the archive against the trusted checksums
 sha256sum --check --ignore-missing checksums.txt
 # 3. build provenance (binds the bytes to this repo's release workflow)
