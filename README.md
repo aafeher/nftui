@@ -1,6 +1,7 @@
 # nftui
 
 [![CI](https://img.shields.io/github/actions/workflow/status/aafeher/nftui/ci.yml?branch=main&label=CI)](https://github.com/aafeher/nftui/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/aafeher/nftui/graph/badge.svg)](https://codecov.io/gh/aafeher/nftui)
 [![Latest release](https://img.shields.io/github/v/release/aafeher/nftui)](https://github.com/aafeher/nftui/releases/latest)
 [![License: MIT](https://img.shields.io/github/license/aafeher/nftui)](LICENSE)
 [![Go version](https://img.shields.io/github/go-mod/go-version/aafeher/nftui)](go.mod)

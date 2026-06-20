@@ -1,13 +1,15 @@
 # CI pipeline. Five stages:
 #
 #   1. build-and-test — gofmt, go vet (default + integration tag), go build,
-#      go test -race ./...  Runs on every push / PR; fast, no privileges.
+#      go test -race ./... with a coverage profile uploaded to Codecov (flag
+#      "unit"). Runs on every push / PR; fast, no privileges.
 #   2. integration-test — sudo -E go test -tags=integration ./nft/ -v after
 #      installing the nftables package. Needs CAP_NET_ADMIN (provided by sudo)
 #      because the harness applies / reads back a live ruleset. Writes a
-#      coverage profile (-coverpkg=./nft/...) and prints the total, so the
-#      live netlink path's coverage — invisible to the unit profile — stays
-#      observable in the job log.
+#      coverage profile (-coverpkg=./nft/...), prints the total, and uploads it
+#      to Codecov (flag "integration"), so the live netlink path's coverage —
+#      invisible to the unit profile — stays observable in the job log and on
+#      Codecov.
 #   3. govulncheck — scans the module + stdlib against the Go vulnerability DB
 #      (audit E-7). Independent of build-and-test so a CVE surfaces as its own
 #      check; fails only on a vulnerability reachable from nftui's own call
@@ -78,7 +80,19 @@ jobs:
         run: go build ./...
 
       - name: Unit tests
-        run: go test -race ./...
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+      # Upload the unit coverage profile to Codecov (flagged "unit" so it can be
+      # tracked separately from the integration profile). Uses CODECOV_TOKEN
+      # (repo secret); a missing token or transient upload error is non-fatal so
+      # coverage reporting never blocks the build gate.
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.out
+          flags: unit
+          fail_ci_if_error: false
 
   integration-test:
     name: Integration tests (CAP_NET_ADMIN)
@@ -118,6 +132,19 @@ jobs:
 
       - name: Integration coverage summary
         run: go tool cover -func=integration-cover.out | tail -1
+
+      # The profile is written by the sudo'd test process; make it readable by
+      # the runner user before the uploader picks it up.
+      - name: Make integration coverage readable
+        run: sudo chmod 0644 integration-cover.out
+
+      - name: Upload integration coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: integration-cover.out
+          flags: integration
+          fail_ci_if_error: false
 
   govulncheck:
     name: Vulnerability scan (govulncheck)
