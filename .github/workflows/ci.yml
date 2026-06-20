@@ -165,8 +165,13 @@ jobs:
           go-version-file: go.mod
           check-latest: true
 
+      # Pinned to a release version (not @latest) so the CI tool is reproducible
+      # and Scorecard's Pinned-Dependencies check is satisfied. The vulnerability
+      # database is fetched fresh at run time regardless of this binary version,
+      # so pinning costs no detection currency. Bump manually on new releases —
+      # Dependabot tracks `uses:` actions, not `go install` in a run step.
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.4.0
 
       - name: Run govulncheck
         run: govulncheck ./...
