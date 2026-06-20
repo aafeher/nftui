@@ -7,10 +7,10 @@
 # binary from the GitHub release rather than compiling from source.
 #
 # To use it from a local overlay, place it as:
-#   net-firewall/nftui-bin/nftui-bin-0.9.0.ebuild
+#   net-firewall/nftui-bin/nftui-bin-1.0.0.ebuild
 # then generate the Manifest (Gentoo records distfile digests there, not in the
 # ebuild) and merge:
-#   pkgdev manifest        # or: ebuild nftui-bin-0.9.0.ebuild manifest
+#   pkgdev manifest        # or: ebuild nftui-bin-1.0.0.ebuild manifest
 #   emerge net-firewall/nftui-bin
 #
 # Gentoo users who prefer building from source can skip this entirely — the repo
