@@ -69,6 +69,20 @@ Conventions:
 - Explain *what* changed and *why* in the body or PR description.
 - Reference the issue a PR closes, if any.
 
+## Branches and merging
+
+`develop` is the integration branch; `main` holds released history and is
+**protected**:
+
+- Changes reach `main` through a **pull request** (normally `develop` → `main`)
+  — direct pushes are blocked. No approving review is required, so a solo
+  maintainer can self-merge once the checks are green.
+- All required CI checks must pass before a PR can merge — **Build & unit
+  tests**, **Integration tests (CAP_NET_ADMIN)**, **Vulnerability scan
+  (govulncheck)**, **Reproducible build check**, **Nix flake build**, and
+  **CodeQL (Analyze (Go))** — and the PR branch must be up to date with `main`.
+- Force-pushes and deletion of `main` are disabled.
+
 ## Licensing
 
 nftui is released under the MIT License (see [LICENSE](LICENSE)). By
