@@ -10,6 +10,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 ### Added
 
 - Code coverage reporting via Codecov. The CI `build-and-test` job now writes a unit coverage profile (`go test -race -covermode=atomic -coverprofile`) and uploads it to Codecov (flag `unit`); the `integration-test` job uploads its live-netlink coverage profile too (flag `integration`). Uploads use the `CODECOV_TOKEN` repo secret and are non-fatal (`fail_ci_if_error: false`), so a Codecov hiccup never blocks the build gate. A coverage badge was added to the README header.
+- OpenSSF Scorecard supply-chain security analysis (`.github/workflows/scorecard.yml`). The `ossf/scorecard-action` scores the repo against security best-practice checks (pinned dependencies, signed releases, token-permission hygiene, dangerous-workflow patterns, SAST, branch protection, …), uploads a SARIF report to the GitHub code-scanning (Security) tab, and publishes the result to the OpenSSF API (`publish_results: true`) that backs the new README Scorecard badge. Runs on pushes to `main`, a weekly schedule, and branch-protection-rule changes.
 
 ## [1.0.0] - 2026-06-20 — Stable release
 
