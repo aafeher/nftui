@@ -1,5 +1,12 @@
 # nftui
 
+[![CI](https://img.shields.io/github/actions/workflow/status/aafeher/nftui/ci.yml?branch=main&label=CI)](https://github.com/aafeher/nftui/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/aafeher/nftui)](https://github.com/aafeher/nftui/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/aafeher/nftui)](LICENSE)
+[![Go version](https://img.shields.io/github/go-mod/go-version/aafeher/nftui)](go.mod)
+[![Platform: Linux](https://img.shields.io/badge/platform-linux-blue)](#requirements)
+[![Downloads](https://img.shields.io/github/downloads/aafeher/nftui/total)](https://github.com/aafeher/nftui/releases)
+
 `nftui` is a Terminal User Interface for managing `nftables` on Linux. Browse
 the live ruleset, edit rules with full structured editors for every condition
 and action type, and apply changes back to the kernel — without ever touching
