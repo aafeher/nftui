@@ -116,9 +116,9 @@ is welcome to adopt the reference [`packaging/aur/PKGBUILD`](packaging/aur/PKGBU
 
 **Gentoo:** the repo is a standard Go module, so `go build -o nftui .` is the
 simplest path. Two community-maintainable reference ebuilds are provided for a
-local overlay: [`nftui-0.9.0.ebuild`](packaging/gentoo/nftui-0.9.0.ebuild)
+local overlay: [`nftui-1.0.0.ebuild`](packaging/gentoo/nftui-1.0.0.ebuild)
 builds from source via `go-module.eclass`, and
-[`nftui-bin-0.9.0.ebuild`](packaging/gentoo/nftui-bin-0.9.0.ebuild) installs the
+[`nftui-bin-1.0.0.ebuild`](packaging/gentoo/nftui-bin-1.0.0.ebuild) installs the
 prebuilt release binary; install one or the other (they share `/usr/bin/nftui`
 and block each other). See
 [`packaging/gentoo/README.md`](packaging/gentoo/README.md) for overlay setup.
@@ -556,6 +556,11 @@ to date:
   optional mutation audit log, defense-in-depth identifier validation, and
   governance & deployment docs (`SECURITY.md`, `CONTRIBUTING.md`,
   `CODE_OF_CONDUCT.md`).
+- **v1.0.0** (2026-06-20) — first stable release: broadened install paths
+  (Debian / RPM, Alpine / Arch / OpenWrt packages, a Docker image, community
+  Gentoo / AUR references), proven reproducibility and Nix-flake CI lanes, the
+  `--version` flag, a Go-module dependency tarball for offline source builds, and
+  IPv6 source / destination address rendering.
 
 ## License
 

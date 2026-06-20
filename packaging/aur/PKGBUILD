@@ -16,7 +16,7 @@
 #   sudo pacman -U nftui_<version>_linux_x86_64.pkg.tar.zst
 
 pkgname=nftui-bin
-pkgver=0.9.0
+pkgver=1.0.0
 pkgrel=1
 pkgdesc="Terminal user interface for managing the Linux nftables firewall"
 arch=('x86_64' 'aarch64')
@@ -27,8 +27,11 @@ provides=('nftui')
 conflicts=('nftui')
 source_x86_64=("nftui-${pkgver}-x86_64.tar.gz::${url}/releases/download/v${pkgver}/nftui_${pkgver}_linux_amd64.tar.gz")
 source_aarch64=("nftui-${pkgver}-aarch64.tar.gz::${url}/releases/download/v${pkgver}/nftui_${pkgver}_linux_arm64.tar.gz")
-sha256sums_x86_64=('8365f83dd5bc33872a1222a727d88b136c70f1bdbb3fa9066436a611b875c32b')
-sha256sums_aarch64=('4167e0acc1088f73e20785bb64bdae596045a64104b2a9cb49c444ef111b7879')
+# Pin these to the published v1.0.0 release artifacts with `updpkgsums` (step 2
+# above); the digests cannot be known before the release publishes, so they are
+# left as SKIP in this reference. Do NOT publish to the AUR while they read SKIP.
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
 
 package() {
 	install -Dm755 nftui "${pkgdir}/usr/bin/nftui"
