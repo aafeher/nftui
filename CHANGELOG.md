@@ -16,6 +16,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 ### Security
 
 - Hardened GitHub Actions token permissions in the release workflow: the workflow level now defaults to read-only (`contents: read`) and the write scopes (`contents` / `id-token` / `attestations`) are granted only on the `goreleaser` job that needs them, shrinking the token blast radius. No behavior change — the single release job still gets exactly the scopes it requires (closes the OpenSSF Scorecard Token-Permissions finding).
+- Pinned all build dependencies by digest. Every GitHub Action across `ci.yml` / `release.yml` / `scorecard.yml` / `codeql.yml` is now referenced by full commit SHA with a `# vN` comment (so a moving tag can no longer change what runs), and the Dockerfile base images are pinned by digest (`golang:1.25.8-alpine@sha256:…`, `alpine:3.22@sha256:…`). Dependabot gains a `docker` ecosystem so the digest pins still receive update PRs (it already bumps the SHA-pinned actions via the `github-actions` ecosystem). Closes the OpenSSF Scorecard Pinned-Dependencies finding.
 
 ## [1.0.0] - 2026-06-20 — Stable release
 

@@ -2,7 +2,8 @@
 # pull requests (audit E-7), complementing the govulncheck job in ci.yml. Two
 # ecosystems are watched:
 #   - gomod          — the Go module dependencies (go.mod / go.sum).
-#   - github-actions — the action versions pinned in .github/workflows/*.
+#   - github-actions — the SHA-pinned action versions in .github/workflows/*.
+#   - docker         — the digest-pinned base images in the Dockerfile.
 #
 # github.com/google/nftables is intentionally held at a post-v0.3.0 snapshot
 # (see the comment on its require line in go.mod, audit E-5) and there is no
@@ -18,6 +19,12 @@ updates:
       - dependency-name: "github.com/google/nftables"
 
   - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "docker"
     directory: "/"
     schedule:
       interval: "weekly"
