@@ -12,6 +12,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - Code coverage reporting via Codecov. The CI `build-and-test` job now writes a unit coverage profile (`go test -race -covermode=atomic -coverprofile`) and uploads it to Codecov (flag `unit`); the `integration-test` job uploads its live-netlink coverage profile too (flag `integration`). Uploads use the `CODECOV_TOKEN` repo secret and are non-fatal (`fail_ci_if_error: false`), so a Codecov hiccup never blocks the build gate. A coverage badge was added to the README header.
 - OpenSSF Scorecard supply-chain security analysis (`.github/workflows/scorecard.yml`). The `ossf/scorecard-action` scores the repo against security best-practice checks (pinned dependencies, signed releases, token-permission hygiene, dangerous-workflow patterns, SAST, branch protection, …), uploads a SARIF report to the GitHub code-scanning (Security) tab, and publishes the result to the OpenSSF API (`publish_results: true`) that backs the new README Scorecard badge. Runs on pushes to `main`, a weekly schedule, and branch-protection-rule changes.
 
+### Security
+
+- Hardened GitHub Actions token permissions in the release workflow: the workflow level now defaults to read-only (`contents: read`) and the write scopes (`contents` / `id-token` / `attestations`) are granted only on the `goreleaser` job that needs them, shrinking the token blast radius. No behavior change — the single release job still gets exactly the scopes it requires (closes the OpenSSF Scorecard Token-Permissions finding).
+
 ## [1.0.0] - 2026-06-20 — Stable release
 
 The first stable release. Broadens the installation paths (Debian / RPM, Alpine / Arch / OpenWrt packages, a Docker image, plus community Gentoo / AUR references), **proves** the reproducibility and Nix-flake claims v0.9.0 only asserted with dedicated CI lanes, makes the binary self-identifying (`--version`), ships a Go-module dependency tarball for offline source builds, and closes the last renderer gap (IPv6 source / destination addresses). Everything in v0.9.0 plus the full post-v0.9.0 candidate pool.

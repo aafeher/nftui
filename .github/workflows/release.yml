@@ -14,21 +14,26 @@ on:
     tags:
       - 'v*'
 
-# Releases create artifacts and a GitHub Release object (contents: write).
-# Supply-chain attestation (audit E-6) needs two more scopes:
-#   - id-token: write      OIDC token for keyless cosign signing (Fulcio/Rekor)
-#                          and for the build-provenance attestation.
-#   - attestations: write  lets actions/attest-build-provenance record the
-#                          signed SLSA provenance for the built artifacts.
+# Default to read-only at the workflow level; the single release job below
+# elevates only the write scopes it needs. Keeping write off the top level is
+# the minimal-token-permissions posture (OpenSSF Scorecard checks for this).
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 jobs:
   goreleaser:
     name: Goreleaser
     runs-on: ubuntu-latest
+    # Releases create artifacts and a GitHub Release object (contents: write).
+    # Supply-chain attestation (audit E-6) needs two more scopes:
+    #   - id-token: write      OIDC token for keyless cosign signing (Fulcio/Rekor)
+    #                          and for the build-provenance attestation.
+    #   - attestations: write  lets actions/attest-build-provenance record the
+    #                          signed SLSA provenance for the built artifacts.
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     # 30 min is generous for a 2-arch Go static build; a stalled goreleaser
     # invocation will fail fast instead of pinning a runner for the default
     # six hours.
