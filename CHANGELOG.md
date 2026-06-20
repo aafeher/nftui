@@ -7,6 +7,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-06-20 — Stable release
+
+The first stable release. Broadens the installation paths (Debian / RPM, Alpine / Arch / OpenWrt packages, a Docker image, plus community Gentoo / AUR references), **proves** the reproducibility and Nix-flake claims v0.9.0 only asserted with dedicated CI lanes, makes the binary self-identifying (`--version`), ships a Go-module dependency tarball for offline source builds, and closes the last renderer gap (IPv6 source / destination addresses). Everything in v0.9.0 plus the full post-v0.9.0 candidate pool.
+
 ### Added
 
 - `--version` CLI flag (v1.0.0 item V-1): `nftui --version` prints `nftui <version>` to stdout and exits 0. The release version is injected at build time via Goreleaser `-ldflags '-X main.version={{ .Version }}'`; a source build falls back to the Go build-info module version (set for `go install <module>@vX.Y.Z`), and finally to `dev` for a plain `go build`. Pre-scanned before `flag.Parse` (like `--help`), so it works regardless of other flags; surfaced in `--help` output and the man page OPTIONS. Pure `resolveVersion` / `writeVersion` seams in `flags.go` are unit-tested.
@@ -224,7 +228,8 @@ IP6 Matches, TCP & UDP Transport Matches.
 - Footer help line always lists every available key binding in the current view — the "footer-completeness" invariant.
 - Custom UI components: `NumberInput` (numeric textinput with min/max bounds), `Select` (horizontal single-select), `MultiSelect` (horizontal checkboxes).
 
-[Unreleased]: https://github.com/aafeher/nftui/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/aafeher/nftui/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/aafeher/nftui/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/aafeher/nftui/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/aafeher/nftui/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/aafeher/nftui/compare/v0.6.0...v0.7.0
