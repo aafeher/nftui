@@ -5,9 +5,11 @@
 Please report security vulnerabilities **privately** — do not open a public
 issue, pull request, or discussion that describes the problem.
 
-Use GitHub's private vulnerability reporting: open the repository's **Security**
-tab and choose **"Report a vulnerability"**. That creates an advisory visible
-only to you and the maintainers.
+Use GitHub's private vulnerability reporting:
+**[Report a vulnerability](https://github.com/aafeher/nftui/security/advisories/new)**
+(also reachable from the repository's **Security** tab → **"Report a
+vulnerability"**). That opens an advisory visible only to you and the
+maintainers.
 
 Please include:
 
@@ -18,18 +20,25 @@ Please include:
 
 What to expect:
 
-- acknowledgement of your report within a reasonable time,
-- a triage decision and, once confirmed, a fix or mitigation plan,
-- coordinated disclosure — a fixed release plus an advisory that credits you,
-  unless you ask to remain anonymous.
+- **Acknowledgement** within **3 business days** of your report.
+- A **triage decision** within **7 days**; once confirmed, we share a fix or
+  mitigation plan and a target date.
+- **Coordinated disclosure** — a fixed release plus a published
+  [GitHub Security Advisory](https://github.com/aafeher/nftui/security/advisories)
+  that credits you unless you ask to remain anonymous.
 
-Please allow a reasonable window to address the issue before any public
-disclosure.
+Please allow up to **90 days** from your report before any public disclosure
+(sooner once a fix has shipped).
 
 ## Supported Versions
 
-nftui is pre-1.0; security fixes target the **most recent release**. Older tags
-do not receive backported fixes — upgrade to the latest version.
+Security fixes target the **most recent release**. Older releases do not receive
+backported fixes — upgrade to the latest version.
+
+| Version | Supported          |
+|---------|--------------------|
+| 1.0.x   | :white_check_mark: |
+| < 1.0   | :x:                |
 
 ## Security Model & Scope
 
@@ -53,5 +62,6 @@ Out of scope:
 - needing root / `CAP_NET_ADMIN` to change the firewall — that is by design;
 - a `setcap`-granted binary being runnable by any local user — restrict that
   with your own `sudoers` or file-permission policy; nftui does not add its own
-  access control. See the README's "Privilege model & deployment hardening"
+  access control. See the README's
+  [Privilege model & deployment hardening](README.md#privilege-model--deployment-hardening)
   section for the recommended `sudoers` / `setcap` / PAM setup.
