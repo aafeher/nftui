@@ -14,7 +14,7 @@
 # See docker-compose.yml for the Compose equivalent.
 
 # ---- build stage ----------------------------------------------------------
-FROM golang:1.25.8-alpine@sha256:8e02eb337d9e0ea459e041f1ee5eece41cbb61f1d83e7d883a3e2fb4862063fa AS build
+FROM golang:1.26.4-alpine@sha256:3ad57304ad93bbec8548a0437ad9e06a455660655d9af011d58b993f6f615648 AS build
 
 # Version string baked into `nftui --version`; override with
 # --build-arg VERSION=<tag>. Defaults to "dev" for local builds.
