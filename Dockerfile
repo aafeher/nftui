@@ -14,7 +14,7 @@
 # See docker-compose.yml for the Compose equivalent.
 
 # ---- build stage ----------------------------------------------------------
-FROM golang:1.25.8-alpine@sha256:8e02eb337d9e0ea459e041f1ee5eece41cbb61f1d83e7d883a3e2fb4862063fa AS build
+FROM golang:1.26.4-alpine@sha256:3ad57304ad93bbec8548a0437ad9e06a455660655d9af011d58b993f6f615648 AS build
 
 # Version string baked into `nftui --version`; override with
 # --build-arg VERSION=<tag>. Defaults to "dev" for local builds.
@@ -34,7 +34,7 @@ ENV CGO_ENABLED=0
 RUN go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o /out/nftui .
 
 # ---- runtime stage --------------------------------------------------------
-FROM alpine:3.22@sha256:310c62b5e7ca5b08167e4384c68db0fd2905dd9c7493756d356e893909057601
+FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 
 # nftui shells out to the nft(8) binary, so the runtime image must ship the
 # nftables userspace tools.
