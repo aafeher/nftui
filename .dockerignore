@@ -1,0 +1,21 @@
+# Keep the build context small — only Go sources, go.mod/go.sum, and man/ are
+# needed by the Dockerfile.
+.git
+.github
+.gitignore
+.junie
+.claude
+dist
+result
+docs
+scripts
+packaging
+examples
+flake.nix
+.goreleaser.yaml
+Dockerfile
+docker-compose.yml
+.dockerignore
+*.md
+LICENSE
+*_test.go

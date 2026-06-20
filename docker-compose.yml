@@ -1,0 +1,37 @@
+# Example Compose file for running nftui in a container.
+#
+# nftui is a TUI that manages the HOST nftables ruleset, so it needs the host
+# network namespace, the NET_ADMIN capability, and an interactive TTY. The
+# canonical way to launch an interactive TUI under Compose is `run`, not `up`:
+#
+#   docker compose run --rm nftui
+#
+# Build a versioned image:
+#   docker compose build --build-arg VERSION=1.0.0
+#
+# Pass nftui flags after the service name:
+#   docker compose run --rm nftui --read-only
+#   docker compose run --rm nftui --version
+
+services:
+  nftui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: dev
+    image: nftui:local
+    # Share the host network namespace so nft(8) operates on the host ruleset,
+    # not an isolated container netns.
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    # Interactive TTY for the Bubble Tea UI (equivalent to `docker run -it`).
+    stdin_open: true
+    tty: true
+    # Optional: persist a mutation audit log on the host (see README "Audit
+    # logging"). Uncomment both blocks to enable.
+    # environment:
+    #   NFTUI_AUDIT_LOG: /var/log/nftui-audit.log
+    # volumes:
+    #   - /var/log/nftui-audit.log:/var/log/nftui-audit.log

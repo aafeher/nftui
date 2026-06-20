@@ -142,6 +142,38 @@ pastes it into `flake.nix` (re-pin whenever `go.sum` changes). This keeps
 binary releases (Goreleaser) and Nix builds independent: the Nix path does
 not block release publishing.
 
+### Docker
+
+A [`Dockerfile`](Dockerfile) builds a small (~17 MB) image that bundles the
+`nft(8)` CLI nftui needs at runtime:
+
+```bash
+docker build -t nftui:local .
+# versioned build (sets `nftui --version`):
+docker build -t nftui:1.0.0 --build-arg VERSION=1.0.0 .
+```
+
+nftui manages the **host** ruleset, so the container needs the host network
+namespace, the `NET_ADMIN` capability, and an interactive TTY:
+
+```bash
+docker run --rm -it --network host --cap-add NET_ADMIN nftui:local
+```
+
+Flags pass straight through, e.g. `… nftui:local --read-only`.
+
+A [`docker-compose.yml`](docker-compose.yml) wires the same options up. Use
+`run` (not `up`) so the TUI gets a real TTY:
+
+```bash
+docker compose run --rm nftui
+```
+
+The container runs as root and relies on `--cap-add NET_ADMIN` plus the
+container boundary for isolation; with `--network host` it edits the host's
+nftables — the same privilege footprint as running the binary on the host (see
+[Privilege model & deployment hardening](#privilege-model--deployment-hardening)).
+
 ### Running
 
 Either with `sudo`:
