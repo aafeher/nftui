@@ -1,0 +1,61 @@
+# CodeQL — static analysis (SAST) for the Go code.
+#
+# Runs GitHub's CodeQL engine over the module and uploads findings to the
+# code-scanning (Security) tab. Complements the govulncheck job in ci.yml:
+# govulncheck flags known-vulnerable dependency calls, CodeQL flags bug /
+# security patterns in nftui's own source. Closes the OpenSSF Scorecard SAST
+# finding.
+#
+# Go uses the "autobuild" mode (CodeQL builds the module to trace it). Go is set
+# up from go.mod before the init step so autobuild uses the project toolchain.
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    - cron: '30 7 * * 2'
+
+# Read-only at the workflow level; the analysis job elevates only what it needs.
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (Go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # Upload the analysis results to the code-scanning (Security) tab.
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # Install the go.mod toolchain before init so CodeQL's autobuild uses it.
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:go"
