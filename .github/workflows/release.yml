@@ -38,6 +38,10 @@ jobs:
     # invocation will fail fast instead of pinning a runner for the default
     # six hours.
     timeout-minutes: 30
+    # sha256 subjects (base64) of every published artifact, consumed by the
+    # `provenance` job below to generate the SLSA `.intoto.jsonl` asset.
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -119,6 +123,18 @@ jobs:
           bash scripts/gen-deps-tarball.sh "$out" "$epoch"
           gh release upload "${GITHUB_REF_NAME}" "$out" --clobber
 
+      # Collect the sha256 of every published artifact as a base64 subjects
+      # blob for the SLSA provenance job. checksums.txt already lists every
+      # Goreleaser artifact (archives + deb/rpm/apk/Arch/ipk); the deps tarball
+      # is appended since it's uploaded after Goreleaser. Names are basenames so
+      # they match the release asset names the provenance attests.
+      - name: Compute provenance subjects
+        id: hash
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          ( cd dist && { cat checksums.txt; sha256sum "nftui-${ver}-deps.tar.xz"; } ) > /tmp/subjects.txt
+          echo "hashes=$(base64 -w0 < /tmp/subjects.txt)" >> "$GITHUB_OUTPUT"
+
       # SLSA build provenance for the published archives + checksums (audit
       # E-6). GitHub-native attestation: signs a provenance statement with the
       # workflow's OIDC identity and records it so `gh attestation verify` (or
@@ -131,3 +147,24 @@ jobs:
             dist/*.tar.gz
             dist/checksums.txt
             dist/nftui-*-deps.tar.xz
+
+  # SLSA build provenance as a release asset (`*.intoto.jsonl`). This is in
+  # addition to the GitHub-native attestation above: the attestation lives in
+  # GitHub's attestation store (verify with `gh attestation verify`), whereas
+  # this attaches a portable, verifiable-with-`slsa-verifier` provenance file to
+  # the release — the form release-asset consumers and OpenSSF Scorecard's
+  # Signed-Releases check look for. The SLSA generic generator is the canonical
+  # producer; it is SHA-pinned (its detect-workflow step resolves the matching
+  # v2.1.0 tag for the provenance builder id, so SLSA verification still works).
+  provenance:
+    name: SLSA provenance
+    needs: [goreleaser]
+    permissions:
+      actions: read # read the workflow run to assemble the provenance
+      id-token: write # OIDC token to sign the provenance (keyless)
+      contents: write # upload the .intoto.jsonl to the release
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
+    with:
+      base64-subjects: "${{ needs.goreleaser.outputs.hashes }}"
+      provenance-name: nftui.intoto.jsonl
+      upload-assets: true
