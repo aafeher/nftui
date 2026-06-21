@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 )
 
@@ -206,4 +207,80 @@ func TestMainWindow_ViewStates(t *testing.T) {
 			t.Error("quit confirm overlay missing from View()")
 		}
 	})
+}
+
+// TestMainWindow_TooSmallGuard: below the supported minimum (80x24) the view is
+// a resize prompt, not a broken top-clipped layout; at the minimum it is not.
+func TestMainWindow_TooSmallGuard(t *testing.T) {
+	m := sizedMainWindow(t)
+
+	m, _ = route(t, m, tea.WindowSizeMsg{Width: 70, Height: 20})
+	v := m.View()
+	if !strings.Contains(v, "Terminal too small") || !strings.Contains(v, "80x24") {
+		t.Errorf("small terminal did not show the resize prompt:\n%s", v)
+	}
+
+	m, _ = route(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	if strings.Contains(m.View(), "Terminal too small") {
+		t.Error("80x24 (the supported minimum) wrongly showed the resize prompt")
+	}
+}
+
+// TestMainWindow_FrameFitsTerminal: the View clamps to the terminal height so an
+// over-tall sub-view (here a 20-rule chain view, which renders ~27 lines at
+// height 24) can never scroll its top off-screen.
+func TestMainWindow_FrameFitsTerminal(t *testing.T) {
+	cv := chainViewFixture(20, false)
+	cv.width, cv.height = 80, 24
+	m := sizedMainWindow(t)
+	m, _ = route(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
+	m.activeView = "chain"
+	m.chainView = &cv
+
+	if h := lipgloss.Height(m.View()); h > 24 {
+		t.Errorf("frame is %d lines tall at height 24 — top would scroll off", h)
+	}
+}
+
+// TestMainWindow_QuitConfirmVisible pins the regression where the frame clamp
+// hid the quit dialog (the old base+"\n"+overlay frame was two screens tall, so
+// clamping to the terminal height kept only the base and dropped the dialog —
+// making `q` appear to do nothing). The dialog must be present and the frame
+// must fit the terminal, at both a roomy and a minimum size.
+func TestMainWindow_QuitConfirmVisible(t *testing.T) {
+	for _, sz := range []struct{ w, h int }{{110, 40}, {80, 24}} {
+		m := sizedMainWindow(t)
+		m, _ = route(t, m, tea.WindowSizeMsg{Width: sz.w, Height: sz.h})
+		m.showQuitConfirm = true
+
+		v := m.View()
+		if !strings.Contains(v, "Are you sure you want to quit?") {
+			t.Errorf("%dx%d: quit dialog not visible", sz.w, sz.h)
+		}
+		if hgt := lipgloss.Height(v); hgt > sz.h {
+			t.Errorf("%dx%d: quit frame is %d lines — dialog would be clipped", sz.w, sz.h, hgt)
+		}
+	}
+}
+
+// TestMainWindow_QuitDoesNotFlush pins bug B-2: confirming the quit dialog used
+// to call nft.FlushRules() — wiping the live kernel ruleset on exit. Confirming
+// must simply quit: return tea.Quit, touch no netlink, set no error. (This test
+// is safe to run as root precisely because the fix removed the flush; before the
+// fix it would have flushed the host's ruleset, so it must never be run red.)
+func TestMainWindow_QuitDoesNotFlush(t *testing.T) {
+	m := sizedMainWindow(t) // activeView "main"
+	m.showQuitConfirm = true
+
+	m, cmd := route(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+
+	if m.err != nil {
+		t.Fatalf("quit set an error (flush attempted?): %v", m.err)
+	}
+	if cmd == nil {
+		t.Fatal("quit-confirm 'y' returned nil cmd, want tea.Quit")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal("quit-confirm 'y' did not return tea.Quit")
+	}
 }

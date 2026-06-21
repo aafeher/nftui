@@ -586,11 +586,8 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.showQuitConfirm {
 			switch msg.String() {
 			case "y", "Y":
-				if err := nft.FlushRules(); err != nil {
-					m.showQuitConfirm = false
-					m.err = err
-					return m, nil
-				}
+				// Just quit. nftui never mutates the ruleset the user didn't
+				// explicitly change — exit must not touch the kernel state.
 				return m, tea.Quit
 			case "n", "N", "esc":
 				m.showQuitConfirm = false
@@ -799,112 +796,93 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// Minimum terminal size nftui supports. Below this the layout cannot fit its
+// chrome, so a resize prompt is shown instead of a broken, top-clipped view.
+const (
+	minTermWidth  = 80
+	minTermHeight = 24
+)
+
+// View renders the active view and then clamps the frame to the terminal size.
+// nftui does not use the alternate screen, so an over-tall frame would otherwise
+// make the terminal scroll and push the top (title / header / tabs) off-screen.
+// MaxHeight keeps the first m.height lines — the top always wins.
 func (m MainWindow) View() string {
+	out := m.viewInner()
+	if m.width <= 0 || m.height <= 0 {
+		return out
+	}
+	return lipgloss.NewStyle().MaxWidth(m.width).MaxHeight(m.height).Render(out)
+}
+
+// terminalTooSmallView returns a centered resize prompt when the terminal is
+// below the supported minimum (minTermWidth x minTermHeight), or "" otherwise.
+func terminalTooSmallView(width, height int) string {
+	if width <= 0 || height <= 0 || (width >= minTermWidth && height >= minTermHeight) {
+		return ""
+	}
+	msg := fmt.Sprintf(
+		"Terminal too small\n\nnftui needs at least %dx%d.\nCurrent size: %dx%d - please resize.",
+		minTermWidth, minTermHeight, width, height,
+	)
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center,
+		redBoldStyle.Render(msg))
+}
+
+// quitConfirmView renders the centered "quit?" dialog on a terminal-sized canvas.
+// It is a self-contained, height-correct frame so the View clamp can never
+// truncate it. (The previous per-view base+"\n"+overlay form was two screens
+// tall; once View started clamping to the terminal height, the clamp kept only
+// the top — the base — and hid the dialog, so the user couldn't see or answer
+// the quit prompt and `q` appeared to do nothing.)
+func quitConfirmView(width, height int) string {
+	confirmBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("220")).
+		Padding(1, 2).
+		Width(40).
+		Align(lipgloss.Center).
+		Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, confirmBox)
+}
+
+func (m MainWindow) viewInner() string {
 	if !m.ready {
 		return "Initializing...\n"
 	}
 
+	if v := terminalTooSmallView(m.width, m.height); v != "" {
+		return v
+	}
+
+	// Quit confirmation is global and rendered as its own full-screen frame so
+	// the View clamp can't truncate it (see quitConfirmView).
+	if m.showQuitConfirm {
+		return quitConfirmView(m.width, m.height)
+	}
+
 	if m.activeView == "tableEdit" && m.tableEdit != nil {
-		teContent := m.tableEdit.View()
-		if m.showQuitConfirm {
-			confirmBox := lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("220")).
-				Padding(1, 2).
-				Width(40).
-				Align(lipgloss.Center).
-				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
-			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
-			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, teContent+"\n"+overlay)
-		}
-		return teContent
+		return m.tableEdit.View()
 	}
 
 	if m.activeView == "tableCreate" && m.tableCreate != nil {
-		tcContent := m.tableCreate.View()
-		if m.showQuitConfirm {
-			confirmBox := lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("220")).
-				Padding(1, 2).
-				Width(40).
-				Align(lipgloss.Center).
-				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
-			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
-			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, tcContent+"\n"+overlay)
-		}
-		return tcContent
+		return m.tableCreate.View()
 	}
 
 	if m.activeView == "chainEdit" && m.chainEdit != nil {
-		ceContent := m.chainEdit.View()
-		if m.showQuitConfirm {
-			confirmBox := lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("220")).
-				Padding(1, 2).
-				Width(40).
-				Align(lipgloss.Center).
-				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
-			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
-			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, ceContent+"\n"+overlay)
-		}
-		return ceContent
+		return m.chainEdit.View()
 	}
 
 	if m.activeView == "chainCreate" && m.chainCreate != nil {
-		ccContent := m.chainCreate.View()
-		if m.showQuitConfirm {
-			confirmBox := lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("220")).
-				Padding(1, 2).
-				Width(40).
-				Align(lipgloss.Center).
-				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
-			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
-			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, ccContent+"\n"+overlay)
-		}
-		return ccContent
+		return m.chainCreate.View()
 	}
 
 	if m.activeView == "setCreate" && m.setCreate != nil {
-		scContent := m.setCreate.View()
-		if m.showQuitConfirm {
-			confirmBox := lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("220")).
-				Padding(1, 2).
-				Width(40).
-				Align(lipgloss.Center).
-				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
-			overlay := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, confirmBox)
-			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, scContent+"\n"+overlay)
-		}
-		return scContent
+		return m.setCreate.View()
 	}
 
 	if m.activeView == "chain" && m.chainView != nil {
-		chainViewContent := m.chainView.View()
-
-		if m.showQuitConfirm {
-			confirmBox := lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("220")).
-				Padding(1, 2).
-				Width(40).
-				Align(lipgloss.Center).
-				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
-
-			overlay := lipgloss.Place(m.width, m.height,
-				lipgloss.Center, lipgloss.Center,
-				confirmBox,
-			)
-
-			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, chainViewContent+"\n"+overlay)
-		}
-
-		return chainViewContent
+		return m.chainView.View()
 	}
 
 	if m.activeView == "set" && m.setView != nil {
@@ -912,49 +890,11 @@ func (m MainWindow) View() string {
 	}
 
 	if m.activeView == "ruleView" && m.ruleView != nil {
-		ruleViewContent := m.ruleView.View()
-
-		if m.showQuitConfirm {
-			confirmBox := lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("220")).
-				Padding(1, 2).
-				Width(40).
-				Align(lipgloss.Center).
-				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
-
-			overlay := lipgloss.Place(m.width, m.height,
-				lipgloss.Center, lipgloss.Center,
-				confirmBox,
-			)
-
-			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, ruleViewContent+"\n"+overlay)
-		}
-
-		return ruleViewContent
+		return m.ruleView.View()
 	}
 
 	if m.activeView == "ruleEdit" && m.ruleEdit != nil {
-		ruleEditContent := m.ruleEdit.View()
-
-		if m.showQuitConfirm {
-			confirmBox := lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("220")).
-				Padding(1, 2).
-				Width(40).
-				Align(lipgloss.Center).
-				Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
-
-			overlay := lipgloss.Place(m.width, m.height,
-				lipgloss.Center, lipgloss.Center,
-				confirmBox,
-			)
-
-			return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, ruleEditContent+"\n"+overlay)
-		}
-
-		return ruleEditContent
+		return m.ruleEdit.View()
 	}
 
 	header := blueBoldStyle.Render("nftui nftables manager") + readOnlyBanner(m.readOnly)
@@ -1040,25 +980,5 @@ func (m MainWindow) View() string {
 		footer,
 	)
 
-	baseView := defaultStyle.Render(content)
-
-	if m.showQuitConfirm {
-		confirmBox := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("220")).
-			Padding(1, 2).
-			Width(40).
-			Align(lipgloss.Center).
-			Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
-
-		overlay := lipgloss.Place(m.width, m.height,
-			lipgloss.Center, lipgloss.Center,
-			confirmBox,
-		)
-
-		return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Top, baseView+"\n"+overlay)
-	}
-
-	// no overlay layers visible — return the base view as-is
-	return baseView
+	return defaultStyle.Render(content)
 }

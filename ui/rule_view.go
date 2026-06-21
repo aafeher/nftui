@@ -15,28 +15,31 @@ import (
 )
 
 type ruleView struct {
-	rule      *nftables.Rule
-	activeTab int
-	width     int
-	height    int
-	help      help.Model
-	keys      ruleViewKeyMap
+	rule         *nftables.Rule
+	activeTab    int
+	scrollOffset int // first visible line of the (read-only) tab body
+	width        int
+	height       int
+	help         help.Model
+	keys         ruleViewKeyMap
 }
 
 type ruleViewKeyMap struct {
-	PrevTab key.Binding
-	NextTab key.Binding
-	Back    key.Binding
-	Quit    key.Binding
+	PrevTab    key.Binding
+	NextTab    key.Binding
+	ScrollUp   key.Binding
+	ScrollDown key.Binding
+	Back       key.Binding
+	Quit       key.Binding
 }
 
 func (k ruleViewKeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.PrevTab, k.NextTab, k.Back, k.Quit}
+	return []key.Binding{k.PrevTab, k.NextTab, k.ScrollUp, k.ScrollDown, k.Back, k.Quit}
 }
 
 func (k ruleViewKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.PrevTab, k.NextTab, k.Back, k.Quit},
+		{k.PrevTab, k.NextTab, k.ScrollUp, k.ScrollDown, k.Back, k.Quit},
 	}
 }
 
@@ -51,6 +54,14 @@ func newRuleView(rule *nftables.Rule) ruleView {
 		NextTab: key.NewBinding(
 			key.WithKeys("f6"),
 			key.WithHelp("f6", "next tab"),
+		),
+		ScrollUp: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "scroll up"),
+		),
+		ScrollDown: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓/j", "scroll down"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "f3"),
@@ -78,8 +89,18 @@ func (r ruleView) Update(msg tea.Msg) (ruleView, tea.Cmd) {
 		switch {
 		case key.Matches(msg, r.keys.PrevTab):
 			r.activeTab = (r.activeTab - 1 + ruleViewTabCount) % ruleViewTabCount
+			r.scrollOffset = 0
 		case key.Matches(msg, r.keys.NextTab):
 			r.activeTab = (r.activeTab + 1) % ruleViewTabCount
+			r.scrollOffset = 0
+		case key.Matches(msg, r.keys.ScrollUp):
+			if r.scrollOffset > 0 {
+				r.scrollOffset--
+			}
+		case key.Matches(msg, r.keys.ScrollDown):
+			if r.scrollOffset < r.maxScroll() {
+				r.scrollOffset++
+			}
 		}
 	}
 	return r, nil
@@ -748,6 +769,56 @@ func (r ruleView) renderLimitTab(rd *nft.Rule) string {
 	return sb.String()
 }
 
+// topPart is the fixed header rendered above the scrollable body: the
+// "| View rule |" title, the tab bar, and the tab-bar divider.
+func (r ruleView) topPart() string {
+	var b strings.Builder
+	b.WriteString(blueStyle.Render("| View rule |"))
+	b.WriteString("\n\n")
+	b.WriteString(r.renderTabBar())
+	b.WriteString("\n")
+	tabBarDivider := r.width - 4
+	if tabBarDivider < 1 {
+		tabBarDivider = 1
+	}
+	b.WriteString(grayStyle.Render(strings.Repeat("─", tabBarDivider)))
+	return b.String()
+}
+
+// body is the active tab's read-only content (the scrollable area).
+func (r ruleView) body() string {
+	ruleDefinition, _ := nft.NftablesToRuleDefinition(r.rule)
+	switch r.activeTab {
+	case 0:
+		return r.renderGeneralTab(ruleDefinition)
+	case 1:
+		return r.renderCTTab(ruleDefinition)
+	case 2:
+		return r.renderNetworkTab(ruleDefinition)
+	case 3:
+		return r.renderLimitTab(ruleDefinition)
+	}
+	return ""
+}
+
+// bodyWindow is how many body lines fit below the fixed top inside the box.
+func (r ruleView) bodyWindow() int {
+	w := (r.height - 8) - lipgloss.Height(r.topPart())
+	if w < 1 {
+		w = 1
+	}
+	return w
+}
+
+// maxScroll is the largest valid scrollOffset for the current body and window.
+func (r ruleView) maxScroll() int {
+	m := (strings.Count(r.body(), "\n") + 1) - r.bodyWindow()
+	if m < 0 {
+		m = 0
+	}
+	return m
+}
+
 func (r ruleView) View() string {
 	header := blueBoldStyle.Render("nftui nftables manager")
 
@@ -755,39 +826,31 @@ func (r ruleView) View() string {
 		Width(r.width).
 		Render(strings.Repeat("─", r.width))
 
-	ruleDefinition, _ := nft.NftablesToRuleDefinition(r.rule)
+	topPart := r.topPart()
+	bodyLines := strings.Split(r.body(), "\n")
+	window := r.bodyWindow()
 
-	var content strings.Builder
-	content.WriteString(blueStyle.Render("| View rule |"))
-	content.WriteString("\n\n")
-
-	// Tab bar
-	content.WriteString(r.renderTabBar())
-	content.WriteString("\n")
-	tabBarDivider := r.width - 4
-	if tabBarDivider < 1 {
-		tabBarDivider = 1
+	// Window the body around the user's scroll offset (clamped). The top part
+	// stays fixed so the title/tab bar are always visible; Up/Down scroll the
+	// fields for rules taller than the screen.
+	scroll := r.scrollOffset
+	if maxScroll := len(bodyLines) - window; scroll > maxScroll {
+		scroll = maxScroll
 	}
-	content.WriteString(grayStyle.Render(strings.Repeat("─", tabBarDivider)))
-	content.WriteString("\n")
-
-	// Active tab content
-	switch r.activeTab {
-	case 0:
-		content.WriteString(r.renderGeneralTab(ruleDefinition))
-	case 1:
-		content.WriteString(r.renderCTTab(ruleDefinition))
-	case 2:
-		content.WriteString(r.renderNetworkTab(ruleDefinition))
-	case 3:
-		content.WriteString(r.renderLimitTab(ruleDefinition))
+	if scroll < 0 {
+		scroll = 0
 	}
+	end := scroll + window
+	if end > len(bodyLines) {
+		end = len(bodyLines)
+	}
+	visible := strings.Join(bodyLines[scroll:end], "\n")
 
 	contentBox := normalGrayBorder.
 		Width(r.width-2).
 		Height(r.height-8).
 		Padding(0, 1).
-		Render(content.String())
+		Render(topPart + "\n" + visible)
 
 	footer := r.help.View(r.keys)
 

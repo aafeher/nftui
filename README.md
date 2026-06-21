@@ -82,6 +82,8 @@ framework. Talks to the kernel over netlink via the
 - **Go 1.25+** to build from source.
 - **`CAP_NET_ADMIN`** at runtime (run via `sudo` or grant the capability with
   `setcap`).
+- A terminal at least **80x24** characters. Below that nftui shows a resize
+  prompt instead of a cramped layout.
 
 The runtime does **not** require the `nft` CLI for the core read / edit /
 write path — communication is direct over netlink. The `nft` binary is only
@@ -388,8 +390,11 @@ clears the filter.
 
 `examples/example-nftables-01.conf` is the canonical manual-test fixture. It
 covers every feature documented above and is verified with `nft -c -f` against
-the host kernel. Load it explicitly only on a system where overwriting the
-nftables state is OK:
+the host kernel. For a realistic, good-practice starting point rather than a
+feature showcase, `examples/example-host-firewall.conf` is a hardened
+single-host firewall (default-deny inbound except SSH/HTTP/HTTPS, unrestricted
+outbound, forwarding denied). Load either explicitly only on a system where
+overwriting the nftables state is OK:
 
 ```bash
 sudo nft -c -f examples/example-nftables-01.conf       # syntax check

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 )
@@ -214,5 +215,46 @@ func TestChainView_ViewRenders(t *testing.T) {
 	empty := chainView{}
 	if v := empty.View(); v != "" {
 		t.Errorf("nil-chain View() = %q, want empty", v)
+	}
+}
+
+// TestChainView_FitsTerminal pins ROADMAP B-3 Phase 2b: the compact chain
+// header keeps the whole frame within the terminal height at the 80x24 minimum,
+// so the footer is no longer clipped.
+func TestChainView_FitsTerminal(t *testing.T) {
+	cv := chainViewFixture(12, false)
+	cv.width, cv.height = 80, 24
+	if h := lipgloss.Height(cv.View()); h > cv.height {
+		t.Errorf("chain view frame is %d lines at height 24, want <= 24 (footer would clip)", h)
+	}
+}
+
+// TestChainView_RuleRenderedOnce pins bug B-1: the view loop used to print each
+// rule twice (once via RuleToHumanReadable, once via nftserializer.SerializeRule).
+// A rule with a distinctive position must appear on exactly one line.
+func TestChainView_RuleRenderedOnce(t *testing.T) {
+	table := &nftables.Table{Name: "t", Family: nftables.TableFamilyINet}
+	accept := nftables.ChainPolicyAccept
+	chain := &nftables.Chain{
+		Name: "input", Table: table, Type: nftables.ChainTypeFilter,
+		Hooknum: nftables.ChainHookInput, Priority: nftables.ChainPriorityFilter, Policy: &accept,
+	}
+	node := &tableNode{Table: *table}
+	mk := func(pos, handle uint64) *nftables.Rule {
+		return &nftables.Rule{
+			Table: table, Chain: chain, Handle: handle, Position: pos,
+			Exprs: []expr.Any{&expr.Counter{}, &expr.Verdict{Kind: expr.VerdictAccept}},
+		}
+	}
+	// Rule 0 is under the cursor (styled); rule 99 is plain text, so counting its
+	// position prefix is unaffected by cursor ANSI styling.
+	rules := []*nftables.Rule{mk(0, 1), mk(99, 2)}
+	cv := newChainViewWithRules(chain, node, rules, false)
+	cv.width = 100
+	cv.height = 40
+
+	v := cv.View()
+	if n := strings.Count(v, "99."); n != 1 {
+		t.Fatalf("rule at position 99 rendered %d times, want exactly 1", n)
 	}
 }

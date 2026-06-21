@@ -50,7 +50,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(ui.InitialMainWindow(opts))
+	// Alt-screen: a full-screen TUI that restores the terminal (and the user's
+	// scrollback) on exit instead of leaving its last frame behind. Frames are
+	// clamped to the terminal size in MainWindow.View, so nothing overflows the
+	// alternate buffer.
+	p := tea.NewProgram(ui.InitialMainWindow(opts), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Println("Error:", err)
 		os.Exit(1)

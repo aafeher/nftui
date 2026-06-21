@@ -5,9 +5,45 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 )
+
+// TestRuleEdit_ScrollToFocus pins ROADMAP B-3 Phase 2: the General tab is taller
+// than a small terminal, so Tab-ing to the bottom field must scroll it into view
+// while the frame still fits the terminal height.
+func TestRuleEdit_ScrollToFocus(t *testing.T) {
+	re := newRuleEdit(harnessRule(), false)
+	re.width, re.height = 100, 24
+
+	// First field focused: its label shows and the frame fits the terminal.
+	v0 := re.View()
+	if !strings.Contains(v0, "Position") {
+		t.Fatalf("first-field view missing the Position label")
+	}
+	if h := lipgloss.Height(v0); h > re.height {
+		t.Fatalf("frame is %d lines at the top, want <= %d", h, re.height)
+	}
+
+	// Tab to the last slot of the General tab (the Quota editor, the bottom field).
+	total := editTabTotalSlots(re.tabs[0])
+	for i := 0; i < total-1; i++ {
+		re, _ = re.Update(keyMsg(tea.KeyTab))
+	}
+
+	v := re.View()
+	if h := lipgloss.Height(v); h > re.height {
+		t.Fatalf("frame is %d lines after scrolling to the bottom field, want <= %d", h, re.height)
+	}
+	if !strings.Contains(v, "Quota") {
+		t.Fatalf("bottom field (Quota) did not scroll into view:\n%s", v)
+	}
+	if strings.Contains(v, "Position") {
+		t.Error("the top field (Position) should have scrolled off when focus is at the bottom")
+	}
+}
 
 func TestParseDuration(t *testing.T) {
 	tests := []struct {
