@@ -27,11 +27,10 @@ provides=('nftui')
 conflicts=('nftui')
 source_x86_64=("nftui-${pkgver}-x86_64.tar.gz::${url}/releases/download/v${pkgver}/nftui_${pkgver}_linux_amd64.tar.gz")
 source_aarch64=("nftui-${pkgver}-aarch64.tar.gz::${url}/releases/download/v${pkgver}/nftui_${pkgver}_linux_arm64.tar.gz")
-# Pin these to the published v1.1.0 release tarballs with `updpkgsums` once the
-# release exists; the digests cannot be known before it publishes. Do NOT publish
-# to the AUR while they read SKIP.
-sha256sums_x86_64=('SKIP')
-sha256sums_aarch64=('SKIP')
+# Pinned to the published v1.1.0 release tarballs (verified against checksums.txt;
+# equivalently produced by `updpkgsums`). Re-run updpkgsums on every pkgver bump.
+sha256sums_x86_64=('ae108430033fd167bd3200702b5ef6aac5aeb7dc779fbed4572b9d057a3ec940')
+sha256sums_aarch64=('2b532a82528d127827e1ffd9d4d09e85b59f5323c34fa8d6fb4c0f7ffbd93ec9')
 
 package() {
 	install -Dm755 nftui "${pkgdir}/usr/bin/nftui"
