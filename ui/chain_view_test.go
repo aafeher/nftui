@@ -23,19 +23,22 @@ func TestChainView_MaxVisibleRules(t *testing.T) {
 		filterMode bool
 		want       int
 	}{
-		// inner = 10-10 = 0, headerLines = 11, avail = -11 < 3 → clamp to 1
+		// Compact header: headerLines = 4 (title + metadata line + rules-by-type
+		// line + blank), +2 in filter mode. inner = height - 9.
+		// inner = 10-9 = 1, avail = 1-4 = -3 < 3 → clamp to 1
 		{"tiny terminal clamps to 1", 10, &nftables.Chain{Name: "x"}, false, 1},
-		// inner=20, header=11, avail=9, 9/3=3
-		{"no optional fields, height 30", 30, &nftables.Chain{Name: "x"}, false, 3},
-		// headerLines = 2+2+3+1+4+2 = 14, inner=20, avail=6, 6/3=2
+		// inner=21, header=4, avail=17, 17/3=5
+		{"no optional fields, height 30", 30, &nftables.Chain{Name: "x"}, false, 5},
+		// metadata is one line now, so optional fields don't add header lines:
+		// inner=21, header=4, avail=17, 17/3=5
 		{"all optional fields, height 30", 30,
-			&nftables.Chain{Name: "x", Hooknum: hook, Priority: &prio, Policy: &accept}, false, 2},
-		// inner=40, header=11, avail=29, 29/3=9
-		{"no optional, height 50", 50, &nftables.Chain{Name: "x"}, false, 9},
-		// filterMode adds 2 to header. inner=40, header=13, avail=27, 27/3=9
-		{"filter mode reduces visible rules", 50, &nftables.Chain{Name: "x"}, true, 9},
-		// inner=90, header=11, avail=79, 79/3=26 — large terminal scales linearly
-		{"large terminal", 100, &nftables.Chain{Name: "x"}, false, 26},
+			&nftables.Chain{Name: "x", Hooknum: hook, Priority: &prio, Policy: &accept}, false, 5},
+		// inner=41, header=4, avail=37, 37/3=12
+		{"no optional, height 50", 50, &nftables.Chain{Name: "x"}, false, 12},
+		// filterMode adds 2 to header. inner=41, header=6, avail=35, 35/3=11
+		{"filter mode reduces visible rules", 50, &nftables.Chain{Name: "x"}, true, 11},
+		// inner=91, header=4, avail=87, 87/3=29 — large terminal scales linearly
+		{"large terminal", 100, &nftables.Chain{Name: "x"}, false, 29},
 	}
 
 	for _, tt := range tests {
@@ -128,11 +131,13 @@ func TestChainView_HeaderLines(t *testing.T) {
 		filterMode bool
 		want       int
 	}{
-		{"none optional", &nftables.Chain{Name: "x"}, false, 11},
-		{"none optional, filter mode", &nftables.Chain{Name: "x"}, true, 13},
-		{"all optional", &nftables.Chain{Name: "x", Hooknum: hook, Priority: &prio, Policy: &accept}, false, 14},
-		{"all optional, filter mode", &nftables.Chain{Name: "x", Hooknum: hook, Priority: &prio, Policy: &accept}, true, 16},
-		{"nil chain", nil, false, 11},
+		// Compact header is a fixed 4 lines (metadata is one line, so optional
+		// fields don't add height); filter mode adds 2.
+		{"none optional", &nftables.Chain{Name: "x"}, false, 4},
+		{"none optional, filter mode", &nftables.Chain{Name: "x"}, true, 6},
+		{"all optional", &nftables.Chain{Name: "x", Hooknum: hook, Priority: &prio, Policy: &accept}, false, 4},
+		{"all optional, filter mode", &nftables.Chain{Name: "x", Hooknum: hook, Priority: &prio, Policy: &accept}, true, 6},
+		{"nil chain", nil, false, 4},
 	}
 
 	for _, tt := range tests {

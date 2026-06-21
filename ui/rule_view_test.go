@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 
@@ -63,6 +64,44 @@ func TestRuleView_TabCyclingAndView(t *testing.T) {
 
 	bar := r.renderTabBar()
 	assertContainsAll(t, bar, []string{"General", "CT", "Network", "Limit"})
+}
+
+// TestRuleView_Scroll pins ROADMAP B-3 Phase 2b rule-view scrolling: on a short
+// terminal the read-only body scrolls with Up/Down, the frame stays within the
+// terminal, the offset clamps at both ends, and switching tabs resets it.
+func TestRuleView_Scroll(t *testing.T) {
+	r := ruleViewFixture()
+	r, _ = r.Update(tea.WindowSizeMsg{Width: 80, Height: 13}) // tiny → body overflows
+	if r.maxScroll() <= 0 {
+		t.Fatalf("expected the body to overflow at height 13, got maxScroll=%d", r.maxScroll())
+	}
+	max := r.maxScroll()
+
+	// Scrolling down past the end clamps at maxScroll, and the frame still fits.
+	for i := 0; i < max+5; i++ {
+		r, _ = r.Update(tea.KeyMsg{Type: tea.KeyDown})
+	}
+	if r.scrollOffset != max {
+		t.Errorf("scrollOffset = %d after scrolling down, want clamp at %d", r.scrollOffset, max)
+	}
+	if h := lipgloss.Height(r.View()); h > 13 {
+		t.Errorf("frame is %d lines at height 13, want <= 13", h)
+	}
+
+	// Scrolling back up clamps at 0.
+	for i := 0; i < max+5; i++ {
+		r, _ = r.Update(tea.KeyMsg{Type: tea.KeyUp})
+	}
+	if r.scrollOffset != 0 {
+		t.Errorf("scrollOffset = %d after scrolling up, want 0", r.scrollOffset)
+	}
+
+	// Switching tabs resets the scroll.
+	r, _ = r.Update(tea.KeyMsg{Type: tea.KeyDown})
+	r, _ = r.Update(tea.KeyMsg{Type: tea.KeyF6})
+	if r.scrollOffset != 0 {
+		t.Errorf("scrollOffset = %d after tab switch, want 0 (reset)", r.scrollOffset)
+	}
 }
 
 func TestRenderGeneralTab(t *testing.T) {

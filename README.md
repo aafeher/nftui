@@ -82,6 +82,8 @@ framework. Talks to the kernel over netlink via the
 - **Go 1.25+** to build from source.
 - **`CAP_NET_ADMIN`** at runtime (run via `sudo` or grant the capability with
   `setcap`).
+- A terminal at least **80x24** characters. Below that nftui shows a resize
+  prompt instead of a cramped layout.
 
 The runtime does **not** require the `nft` CLI for the core read / edit /
 write path — communication is direct over netlink. The `nft` binary is only

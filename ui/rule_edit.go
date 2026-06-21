@@ -96,6 +96,25 @@ func (r ruleEdit) fieldAtTabSlot(tabIdx, slot int) (FieldEditor, int) {
 	return nil, 0
 }
 
+// focusSentinel is a zero-width space prepended to the focused field's rendered
+// output by fview. View finds the line carrying it to scroll the focused field
+// into view; it is invisible (width 0) and stripped before display.
+const focusSentinel = "​"
+
+// fview renders field [tabIdx][fieldIdx], marking it with focusSentinel when it
+// is the currently focused field, so View can locate it and scroll it into view.
+func (r ruleEdit) fview(tabIdx, fieldIdx int) string {
+	v := r.tabs[tabIdx].fields[fieldIdx].View()
+	if tabIdx != r.activeTab {
+		return v
+	}
+	focused, _ := r.fieldAtTabSlot(r.activeTab, r.tabFocusSlot[r.activeTab])
+	if focused != nil && focused == r.tabs[tabIdx].fields[fieldIdx] {
+		return focusSentinel + v
+	}
+	return v
+}
+
 // newRuleEdit initializes and returns a ruleEdit structure for editing nftables rules.
 func newRuleEdit(rule *nftables.Rule, readOnly bool) ruleEdit {
 	km := ruleEditKeyMap{
@@ -507,8 +526,8 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	var sb strings.Builder
 
 	// Position + Comment side by side
-	posView := r.tabs[0].fields[0].View()
-	comView := r.tabs[0].fields[1].View()
+	posView := r.fview(0, 0)
+	comView := r.fview(0, 1)
 	posWidth := 24
 	comWidth := r.width - posWidth - 6
 	if comWidth < 20 {
@@ -521,39 +540,39 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 	sb.WriteString("\n")
 
 	// Verdict editor (full width — switches kind and optional target chain).
-	sb.WriteString(r.tabs[0].fields[2].View())
+	sb.WriteString(r.fview(0, 2))
 	sb.WriteString("\n")
 
 	// Reject editor (full width — switches type and optional ICMP code).
-	sb.WriteString(r.tabs[0].fields[3].View())
+	sb.WriteString(r.fview(0, 3))
 	sb.WriteString("\n")
 
 	// Log editor (full width — prefix, level, NFLOG group/snaplen/queue-threshold).
-	sb.WriteString(r.tabs[0].fields[4].View())
+	sb.WriteString(r.fview(0, 4))
 	sb.WriteString("\n")
 
 	// Counter editor (full width — Packets + Bytes; typical use is reset to 0).
-	sb.WriteString(r.tabs[0].fields[5].View())
+	sb.WriteString(r.fview(0, 5))
 	sb.WriteString("\n")
 
 	// Masquerade editor (full width — enable + flags).
-	sb.WriteString(r.tabs[0].fields[6].View())
+	sb.WriteString(r.fview(0, 6))
 	sb.WriteString("\n")
 
 	// SNAT editor (full width — enable + addr + port + flags).
-	sb.WriteString(r.tabs[0].fields[7].View())
+	sb.WriteString(r.fview(0, 7))
 	sb.WriteString("\n")
 
 	// DNAT editor (full width — enable + addr + port + flags).
-	sb.WriteString(r.tabs[0].fields[8].View())
+	sb.WriteString(r.fview(0, 8))
 	sb.WriteString("\n")
 
 	// Queue editor (full width — enable + num + range + flags).
-	sb.WriteString(r.tabs[0].fields[9].View())
+	sb.WriteString(r.fview(0, 9))
 	sb.WriteString("\n")
 
 	// Quota editor (full width — enable + amount + unit + over).
-	sb.WriteString(r.tabs[0].fields[10].View())
+	sb.WriteString(r.fview(0, 10))
 	sb.WriteString("\n")
 
 	// Remaining actions (read-only — verdict, reject, log, counter, masquerade, snat, dnat, queue, quota are handled by the editors above).
@@ -620,44 +639,43 @@ func (r ruleEdit) renderCTTab() string {
 	// 4=State, 5=Direction, 6=Status, 7=Labels, 8=Eventmask,
 	// 9=Mark, 10=Secmark, 11=Expiration, 12=Helper,
 	// 13=Zone, 14=Bytes, 15=Pkts, 16=Avgpkt, 17=Count
-	f := r.tabs[1].fields
 	var sb strings.Builder
 
 	// Row 1: L3Proto | Protocol
-	sb.WriteString(r.row2(f[0].View(), f[1].View()))
+	sb.WriteString(r.row2(r.fview(1, 0), r.fview(1, 1)))
 	sb.WriteString("\n")
 
 	// Row 2: proto-src | proto-dst
-	sb.WriteString(r.row2(f[2].View(), f[3].View()))
+	sb.WriteString(r.row2(r.fview(1, 2), r.fview(1, 3)))
 	sb.WriteString("\n")
 
 	// Row 3: State (full width — multiselect with many options)
-	sb.WriteString(f[4].View())
+	sb.WriteString(r.fview(1, 4))
 
 	// Row 4: Direction | Status
-	sb.WriteString(r.row2(f[5].View(), f[6].View()))
+	sb.WriteString(r.row2(r.fview(1, 5), r.fview(1, 6)))
 	sb.WriteString("\n")
 
 	// Row 4b: Labels (full width — comma-separated bit indices)
-	sb.WriteString(f[7].View())
+	sb.WriteString(r.fview(1, 7))
 
 	// Row 4c: Eventmask (full width — multiselect of 12 IPCT_* bits)
-	sb.WriteString(f[8].View())
+	sb.WriteString(r.fview(1, 8))
 
 	// Row 5: Mark | Secmark | Expiration
-	sb.WriteString(r.row3(f[9].View(), f[10].View(), f[11].View()))
+	sb.WriteString(r.row3(r.fview(1, 9), r.fview(1, 10), r.fview(1, 11)))
 	sb.WriteString("\n")
 
 	// Row 6: Helper | Zone
-	sb.WriteString(r.row2(f[12].View(), f[13].View()))
+	sb.WriteString(r.row2(r.fview(1, 12), r.fview(1, 13)))
 	sb.WriteString("\n")
 
 	// Row 7: Bytes | Pkts | Avgpkt
-	sb.WriteString(r.row3(f[14].View(), f[15].View(), f[16].View()))
+	sb.WriteString(r.row3(r.fview(1, 14), r.fview(1, 15), r.fview(1, 16)))
 	sb.WriteString("\n")
 
 	// Row 8: Count (over + value)
-	sb.WriteString(r.row2(f[17].View(), ""))
+	sb.WriteString(r.row2(r.fview(1, 17), ""))
 	sb.WriteString("\n")
 
 	return sb.String()
@@ -668,30 +686,29 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 	// tabs[2].fields: 0=IPSaddr, 1=IPDaddr, 2=MetaIifname, 3=MetaOifname,
 	//                 4=MetaIif, 5=MetaOif, 6=EtherSaddr, 7=EtherDaddr,
 	//                 8=EtherType, 9=VlanId, 10=VlanCfi, 11=VlanPcp
-	f := r.tabs[2].fields
 	var sb strings.Builder
 
-	sb.WriteString(f[0].View())
-	sb.WriteString(f[1].View())
-	sb.WriteString(f[2].View())
-	sb.WriteString(f[3].View())
-	sb.WriteString(f[4].View())
-	sb.WriteString(f[5].View())
-	sb.WriteString(f[6].View())
-	sb.WriteString(f[7].View())
-	sb.WriteString(f[8].View())
+	sb.WriteString(r.fview(2, 0))
+	sb.WriteString(r.fview(2, 1))
+	sb.WriteString(r.fview(2, 2))
+	sb.WriteString(r.fview(2, 3))
+	sb.WriteString(r.fview(2, 4))
+	sb.WriteString(r.fview(2, 5))
+	sb.WriteString(r.fview(2, 6))
+	sb.WriteString(r.fview(2, 7))
+	sb.WriteString(r.fview(2, 8))
 	sb.WriteString(grayBoldStyle.Render("VLAN tag"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row3(f[9].View(), f[10].View(), f[11].View()))
+	sb.WriteString(r.row3(r.fview(2, 9), r.fview(2, 10), r.fview(2, 11)))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("ARP"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[12].View(), f[13].View()))
+	sb.WriteString(r.row2(r.fview(2, 12), r.fview(2, 13)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[14].View(), f[15].View()))
+	sb.WriteString(r.row2(r.fview(2, 14), r.fview(2, 15)))
 	sb.WriteString("\n")
-	sb.WriteString(f[16].View())
+	sb.WriteString(r.fview(2, 16))
 
 	// Read-only conditions (meta — excluding the ones we render above —
 	// plus set lookup and custom).
@@ -749,53 +766,52 @@ func (r ruleEdit) renderIPTab() string {
 	//         6=Id, 7=FragOff, 8=Checksum
 	//   IPv6: 9=Saddr, 10=Daddr, 11=Length, 12=Nexthdr, 13=Hoplimit,
 	//         14=Version, 15=Dscp, 16=Flowlabel
-	f := r.tabs[3].fields
 	var sb strings.Builder
 
 	sb.WriteString(grayBoldStyle.Render("IPv4 header"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row3(f[0].View(), f[1].View(), f[2].View()))
+	sb.WriteString(r.row3(r.fview(3, 0), r.fview(3, 1), r.fview(3, 2)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row3(f[3].View(), f[4].View(), f[5].View()))
+	sb.WriteString(r.row3(r.fview(3, 3), r.fview(3, 4), r.fview(3, 5)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row3(f[6].View(), f[7].View(), f[8].View()))
+	sb.WriteString(r.row3(r.fview(3, 6), r.fview(3, 7), r.fview(3, 8)))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("IPv6 header"))
 	sb.WriteString("\n")
-	sb.WriteString(f[9].View())
-	sb.WriteString(f[10].View())
-	sb.WriteString(r.row3(f[11].View(), f[12].View(), f[13].View()))
+	sb.WriteString(r.fview(3, 9))
+	sb.WriteString(r.fview(3, 10))
+	sb.WriteString(r.row3(r.fview(3, 11), r.fview(3, 12), r.fview(3, 13)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row3(f[14].View(), f[15].View(), f[16].View()))
+	sb.WriteString(r.row3(r.fview(3, 14), r.fview(3, 15), r.fview(3, 16)))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("IPv6 ext: Frag"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row3(f[17].View(), f[18].View(), f[19].View()))
+	sb.WriteString(r.row3(r.fview(3, 17), r.fview(3, 18), r.fview(3, 19)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[20].View(), f[21].View()))
+	sb.WriteString(r.row2(r.fview(3, 20), r.fview(3, 21)))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("IPv6 ext: HBH / Dst"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[22].View(), f[23].View()))
+	sb.WriteString(r.row2(r.fview(3, 22), r.fview(3, 23)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[24].View(), f[25].View()))
+	sb.WriteString(r.row2(r.fview(3, 24), r.fview(3, 25)))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("IPv6 ext: MH"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row3(f[26].View(), f[27].View(), f[28].View()))
+	sb.WriteString(r.row3(r.fview(3, 26), r.fview(3, 27), r.fview(3, 28)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[29].View(), f[30].View()))
+	sb.WriteString(r.row2(r.fview(3, 29), r.fview(3, 30)))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("IPv6 ext: Rt"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[31].View(), f[32].View()))
+	sb.WriteString(r.row2(r.fview(3, 31), r.fview(3, 32)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[33].View(), f[34].View()))
+	sb.WriteString(r.row2(r.fview(3, 33), r.fview(3, 34)))
 	sb.WriteString("\n")
 
 	return sb.String()
@@ -809,74 +825,73 @@ func (r ruleEdit) renderTransportTab() string {
 	//   9=UdpLength, 10=UdpChecksum,
 	//   11=IcmpType, 12=IcmpCode, 13=IcmpChecksum, 14=IcmpId,
 	//   15=IcmpSequence, 16=IcmpMtu, 17=IcmpGateway
-	f := r.tabs[4].fields
 	var sb strings.Builder
 
 	sb.WriteString(grayBoldStyle.Render("TCP"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[0].View(), f[1].View()))
+	sb.WriteString(r.row2(r.fview(4, 0), r.fview(4, 1)))
 	sb.WriteString("\n")
-	sb.WriteString(f[2].View())
-	sb.WriteString(r.row2(f[3].View(), f[4].View()))
+	sb.WriteString(r.fview(4, 2))
+	sb.WriteString(r.row2(r.fview(4, 3), r.fview(4, 4)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row3(f[5].View(), f[6].View(), f[7].View()))
+	sb.WriteString(r.row3(r.fview(4, 5), r.fview(4, 6), r.fview(4, 7)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[8].View(), ""))
+	sb.WriteString(r.row2(r.fview(4, 8), ""))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("UDP / UDPLITE"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[9].View(), f[10].View()))
+	sb.WriteString(r.row2(r.fview(4, 9), r.fview(4, 10)))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("ICMP"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[11].View(), f[12].View()))
+	sb.WriteString(r.row2(r.fview(4, 11), r.fview(4, 12)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row3(f[13].View(), f[14].View(), f[15].View()))
+	sb.WriteString(r.row3(r.fview(4, 13), r.fview(4, 14), r.fview(4, 15)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[16].View(), f[17].View()))
+	sb.WriteString(r.row2(r.fview(4, 16), r.fview(4, 17)))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("ICMPv6"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[18].View(), f[19].View()))
+	sb.WriteString(r.row2(r.fview(4, 18), r.fview(4, 19)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row3(f[20].View(), f[21].View(), f[22].View()))
+	sb.WriteString(r.row3(r.fview(4, 20), r.fview(4, 21), r.fview(4, 22)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[23].View(), f[24].View()))
+	sb.WriteString(r.row2(r.fview(4, 23), r.fview(4, 24)))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("SCTP"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[25].View(), f[26].View()))
+	sb.WriteString(r.row2(r.fview(4, 25), r.fview(4, 26)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[27].View(), f[28].View()))
+	sb.WriteString(r.row2(r.fview(4, 27), r.fview(4, 28)))
 	sb.WriteString("\n")
-	sb.WriteString(f[29].View()) // SctpChunkField — chunk-type Select
+	sb.WriteString(r.fview(4, 29)) // SctpChunkField — chunk-type Select
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("DCCP"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[30].View(), f[31].View()))
+	sb.WriteString(r.row2(r.fview(4, 30), r.fview(4, 31)))
 	sb.WriteString("\n")
-	sb.WriteString(f[32].View())
+	sb.WriteString(r.fview(4, 32))
 
 	sb.WriteString(grayBoldStyle.Render("AH"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[33].View(), f[34].View()))
+	sb.WriteString(r.row2(r.fview(4, 33), r.fview(4, 34)))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[35].View(), f[36].View()))
+	sb.WriteString(r.row2(r.fview(4, 35), r.fview(4, 36)))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("ESP"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row2(f[37].View(), f[38].View()))
+	sb.WriteString(r.row2(r.fview(4, 37), r.fview(4, 38)))
 	sb.WriteString("\n")
 
 	sb.WriteString(grayBoldStyle.Render("COMP"))
 	sb.WriteString("\n")
-	sb.WriteString(r.row3(f[39].View(), f[40].View(), f[41].View()))
+	sb.WriteString(r.row3(r.fview(4, 39), r.fview(4, 40), r.fview(4, 41)))
 	sb.WriteString("\n")
 
 	return sb.String()
@@ -887,26 +902,25 @@ func (r ruleEdit) renderMetaTab() string {
 	// tabs[5].fields: 0=Iiftype, 1=Oiftype, 2=Nfproto, 3=L4proto, 4=Protocol,
 	//   5=Length, 6=Mark, 7=Priority, 8=Rtclassid, 9=Skuid, 10=Skgid,
 	//   11=Cgroup, 12=Cpu, 13=Iifgroup, 14=Oifgroup, 15=Pkttype
-	f := r.tabs[5].fields
 	var sb strings.Builder
 
 	// Row 1: iiftype | oiftype | nfproto
-	sb.WriteString(r.row3(f[0].View(), f[1].View(), f[2].View()))
+	sb.WriteString(r.row3(r.fview(5, 0), r.fview(5, 1), r.fview(5, 2)))
 	sb.WriteString("\n")
 	// Row 2: l4proto | protocol | length
-	sb.WriteString(r.row3(f[3].View(), f[4].View(), f[5].View()))
+	sb.WriteString(r.row3(r.fview(5, 3), r.fview(5, 4), r.fview(5, 5)))
 	sb.WriteString("\n")
 	// Row 3: mark | priority | rtclassid
-	sb.WriteString(r.row3(f[6].View(), f[7].View(), f[8].View()))
+	sb.WriteString(r.row3(r.fview(5, 6), r.fview(5, 7), r.fview(5, 8)))
 	sb.WriteString("\n")
 	// Row 4: skuid | skgid | cgroup
-	sb.WriteString(r.row3(f[9].View(), f[10].View(), f[11].View()))
+	sb.WriteString(r.row3(r.fview(5, 9), r.fview(5, 10), r.fview(5, 11)))
 	sb.WriteString("\n")
 	// Row 5: cpu | iifgroup | oifgroup
-	sb.WriteString(r.row3(f[12].View(), f[13].View(), f[14].View()))
+	sb.WriteString(r.row3(r.fview(5, 12), r.fview(5, 13), r.fview(5, 14)))
 	sb.WriteString("\n")
 	// Row 6: pkttype (full row)
-	sb.WriteString(r.row2(f[15].View(), ""))
+	sb.WriteString(r.row2(r.fview(5, 15), ""))
 	sb.WriteString("\n")
 
 	return sb.String()
@@ -933,15 +947,14 @@ func isMetaKeyHandledByEditor(k nft.MetaKey) bool {
 // renderLimitTab renders the Limit tab content.
 func (r ruleEdit) renderLimitTab() string {
 	// tabs[6].fields: 0=Over, 1=Rate, 2=Unit, 3=Burst, 4=Type
-	f := r.tabs[6].fields
 	var sb strings.Builder
 
 	// Row 1: Over | Rate | Unit
-	sb.WriteString(r.row3(f[0].View(), f[1].View(), f[2].View()))
+	sb.WriteString(r.row3(r.fview(6, 0), r.fview(6, 1), r.fview(6, 2)))
 	sb.WriteString("\n")
 
 	// Row 2: Burst | Type
-	sb.WriteString(r.row2(f[3].View(), f[4].View()))
+	sb.WriteString(r.row2(r.fview(6, 3), r.fview(6, 4)))
 	sb.WriteString("\n")
 
 	return sb.String()
@@ -957,43 +970,87 @@ func (r ruleEdit) View() string {
 
 	ruleDefinition, _ := nft.NftablesToRuleDefinition(r.rule)
 
-	var content strings.Builder
-	content.WriteString(blueStyle.Render("| Edit rule |"))
-	content.WriteString("\n\n")
-
-	// Tab bar
-	content.WriteString(r.renderTabBar())
-	content.WriteString("\n")
+	// Fixed top: title, tab bar, and its divider — these never scroll.
+	var top strings.Builder
+	top.WriteString(blueStyle.Render("| Edit rule |"))
+	top.WriteString("\n\n")
+	top.WriteString(r.renderTabBar())
+	top.WriteString("\n")
 	tabBarDivider := r.width - 4
 	if tabBarDivider < 1 {
 		tabBarDivider = 1
 	}
-	content.WriteString(grayStyle.Render(strings.Repeat("─", tabBarDivider)))
-	content.WriteString("\n")
+	top.WriteString(grayStyle.Render(strings.Repeat("─", tabBarDivider)))
+	topPart := top.String()
 
-	// Active tab content
+	// Scrollable body: the active tab's field area.
+	var body string
 	switch r.activeTab {
 	case 0:
-		content.WriteString(r.renderGeneralTab(ruleDefinition))
+		body = r.renderGeneralTab(ruleDefinition)
 	case 1:
-		content.WriteString(r.renderCTTab())
+		body = r.renderCTTab()
 	case 2:
-		content.WriteString(r.renderNetworkTab(ruleDefinition))
+		body = r.renderNetworkTab(ruleDefinition)
 	case 3:
-		content.WriteString(r.renderIPTab())
+		body = r.renderIPTab()
 	case 4:
-		content.WriteString(r.renderTransportTab())
+		body = r.renderTransportTab()
 	case 5:
-		content.WriteString(r.renderMetaTab())
+		body = r.renderMetaTab()
 	case 6:
-		content.WriteString(r.renderLimitTab())
+		body = r.renderLimitTab()
 	}
+
+	// Window the body so the Tab/Shift+Tab-focused field stays visible. The top
+	// part is fixed, so the fields get the remaining height inside the box. The
+	// focused field is located by focusSentinel (injected by fview); scroll the
+	// minimum needed to keep its full height on screen.
+	boxInner := r.height - 8
+	if boxInner < 1 {
+		boxInner = 1
+	}
+	bodyWindow := boxInner - lipgloss.Height(topPart)
+	if bodyWindow < 1 {
+		bodyWindow = 1
+	}
+	bodyLines := strings.Split(body, "\n")
+
+	focusLine := 0
+	for i, line := range bodyLines {
+		if strings.Contains(line, focusSentinel) {
+			focusLine = i
+			break
+		}
+	}
+	focusH := 1
+	if focused, _ := r.fieldAtTabSlot(r.activeTab, r.tabFocusSlot[r.activeTab]); focused != nil {
+		focusH = lipgloss.Height(focused.View())
+	}
+
+	scroll := 0
+	if focusLine+focusH > bodyWindow {
+		scroll = focusLine + focusH - bodyWindow
+	}
+	if maxScroll := len(bodyLines) - bodyWindow; scroll > maxScroll {
+		scroll = maxScroll
+	}
+	if scroll < 0 {
+		scroll = 0
+	}
+	end := scroll + bodyWindow
+	if end > len(bodyLines) {
+		end = len(bodyLines)
+	}
+	visible := strings.Join(bodyLines[scroll:end], "\n")
+
+	innerContent := strings.ReplaceAll(topPart+"\n"+visible, focusSentinel, "")
 
 	contentBox := normalGrayBorder.
 		Width(r.width-2).
 		Height(r.height-8).
 		Padding(0, 1).
-		Render(content.String())
+		Render(innerContent)
 
 	footer := r.help.View(r.keys)
 	if r.errStr != "" {

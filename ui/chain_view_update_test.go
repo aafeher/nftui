@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 )
@@ -214,6 +215,17 @@ func TestChainView_ViewRenders(t *testing.T) {
 	empty := chainView{}
 	if v := empty.View(); v != "" {
 		t.Errorf("nil-chain View() = %q, want empty", v)
+	}
+}
+
+// TestChainView_FitsTerminal pins ROADMAP B-3 Phase 2b: the compact chain
+// header keeps the whole frame within the terminal height at the 80x24 minimum,
+// so the footer is no longer clipped.
+func TestChainView_FitsTerminal(t *testing.T) {
+	cv := chainViewFixture(12, false)
+	cv.width, cv.height = 80, 24
+	if h := lipgloss.Height(cv.View()); h > cv.height {
+		t.Errorf("chain view frame is %d lines at height 24, want <= 24 (footer would clip)", h)
 	}
 }
 

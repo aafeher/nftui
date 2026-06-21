@@ -173,25 +173,12 @@ func newChainViewWithRules(chain *nftables.Chain, table *tableNode, rules []*nft
 // dynamically because the optional fields shift the budget for the rule
 // list, and so does turning the filter prompt on or off.
 func (c chainView) headerLines() int {
-	n := 2 // "Chain: <name>" + blank
-	n += 2 // "Table: ..." + "Type: ..."
-	if c.chain != nil {
-		if c.chain.Hooknum != nil {
-			n++
-		}
-		if c.chain.Priority != nil {
-			n++
-		}
-		if c.chain.Policy != nil {
-			n++
-		}
-	}
-	n++    // blank line
-	n += 4 // "Rules by type:" + ACCEPT + DROP + etc
+	// Compact header: "Chain: <name>" + one metadata line (table/type/hook/
+	// priority/policy) + one "Rules by type" line + a trailing blank.
+	n := 4
 	if c.filterMode {
 		n += 2 // filter prompt line + trailing blank
 	}
-	n += 2 // "Rules:" + blank
 	return n
 }
 
@@ -202,7 +189,7 @@ func (c chainView) headerLines() int {
 // O(N). Clamped to at least 1 so a tiny terminal still scrolls one rule at
 // a time instead of locking the cursor.
 func (c chainView) maxVisibleRules() int {
-	inner := c.height - 10 // contentBox outer is c.height-8; minus 2 for the box border
+	inner := c.height - 9 // contentBox content height (must match View's Height(c.height-9))
 	avail := inner - c.headerLines()
 	if avail < ruleEntryLines {
 		return 1
@@ -507,50 +494,37 @@ func (c chainView) View() string {
 
 	title := fmt.Sprintf("Chain"+": %s", yellowBoldStyle.Render(c.chain.Name))
 	content.WriteString(defaultBoldStyle.Render(title))
-	content.WriteString("\n\n")
-
-	content.WriteString(grayStyle.Render("Table" + ": "))
-	content.WriteString(blueStyle.Render(c.table.Table.Name))
-	content.WriteString(grayStyle.Render(" ("))
-	content.WriteString(nft.TableFamilyToString(c.table.Table.Family))
-	content.WriteString(grayStyle.Render(")"))
 	content.WriteString("\n")
 
-	content.WriteString(grayStyle.Render("Type" + ": "))
-	content.WriteString(whiteStyle.Render(fmt.Sprintf("%s", c.chain.Type)))
-	content.WriteString("\n")
-
+	// Metadata on one compact line so small terminals keep room for rules.
+	meta := grayStyle.Render("Table"+": ") + blueStyle.Render(c.table.Table.Name) +
+		grayStyle.Render(" ("+nft.TableFamilyToString(c.table.Table.Family)+")") +
+		grayStyle.Render("   Type"+": ") + whiteStyle.Render(fmt.Sprintf("%s", c.chain.Type))
 	if c.chain.Hooknum != nil {
-		content.WriteString(grayStyle.Render("Hook" + ": "))
-		content.WriteString(whiteStyle.Render(nft.ChainHookNumToString(*c.chain.Hooknum)))
-		content.WriteString("\n")
+		meta += grayStyle.Render("   Hook"+": ") + whiteStyle.Render(nft.ChainHookNumToString(*c.chain.Hooknum))
 	}
-
 	if c.chain.Priority != nil {
-		content.WriteString(grayStyle.Render("Priority" + ": "))
-		content.WriteString(whiteStyle.Render(fmt.Sprintf("%d", *c.chain.Priority)))
-		content.WriteString("\n")
+		meta += grayStyle.Render("   Priority"+": ") + whiteStyle.Render(fmt.Sprintf("%d", *c.chain.Priority))
 	}
-
 	if c.chain.Policy != nil {
-		content.WriteString(grayStyle.Render("Default policy" + ": "))
+		pol := nft.ChainPolicyToString(*c.chain.Policy)
+		polStyled := whiteStyle.Render(pol)
 		if *c.chain.Policy == nftables.ChainPolicyAccept {
-			content.WriteString(greenStyle.Render(nft.ChainPolicyToString(*c.chain.Policy)))
+			polStyled = greenStyle.Render(pol)
 		} else if *c.chain.Policy == nftables.ChainPolicyDrop {
-			content.WriteString(redStyle.Render(nft.ChainPolicyToString(*c.chain.Policy)))
+			polStyled = redStyle.Render(pol)
 		}
-		content.WriteString("\n")
+		meta += grayStyle.Render("   Policy"+": ") + polStyled
 	}
-
+	content.WriteString(meta)
 	content.WriteString("\n")
 
 	acceptCount, dropCount, otherCount := nft.CountRulesByType(c.rules)
-
-	content.WriteString(grayStyle.Render("Rules by type" + ":"))
-	content.WriteString("\n")
-	content.WriteString(fmt.Sprintf("  - ACCEPT: %s\n", greenStyle.Render(fmt.Sprintf("%d", acceptCount))))
-	content.WriteString(fmt.Sprintf("  - DROP: %s\n", redStyle.Render(fmt.Sprintf("%d", dropCount))))
-	content.WriteString(fmt.Sprintf("  - etc: %s\n", whiteStyle.Render(fmt.Sprintf("%d", otherCount))))
+	content.WriteString(grayStyle.Render("Rules by type"+": ") +
+		greenStyle.Render(fmt.Sprintf("ACCEPT %d", acceptCount)) + grayStyle.Render("   ") +
+		redStyle.Render(fmt.Sprintf("DROP %d", dropCount)) + grayStyle.Render("   ") +
+		whiteStyle.Render(fmt.Sprintf("etc %d", otherCount)))
+	content.WriteString("\n\n")
 
 	if c.filterMode {
 		// Filter prompt line — trailing "_" stands in for the input cursor,
@@ -570,9 +544,6 @@ func (c chainView) View() string {
 
 	rules := c.activeRules()
 	if len(rules) > 0 {
-		content.WriteString(defaultBoldStyle.Render("Rules:"))
-		content.WriteString("\n\n")
-
 		// Render list with cursor. The window cap is computed from the live
 		// terminal height so the loop iterates O(window), not O(N) — a chain
 		// with 1000 rules costs the same to render as one with 10.
@@ -602,7 +573,7 @@ func (c chainView) View() string {
 
 	contentBox := normalGrayBorder.
 		Width(c.width-2).
-		Height(c.height-8).
+		Height(c.height-9).
 		Padding(0, 1).
 		Render(content.String())
 
