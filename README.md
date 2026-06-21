@@ -508,6 +508,12 @@ workflow ([`.github/workflows/release.yml`](.github/workflows/release.yml)):
    the Gentoo source ebuild, whose `go-module.eclass` forbids network access at
    build time. Its contents are pinned by `go.sum`, so it rides on the
    build-provenance attestation rather than `checksums.txt` (already signed).
+6. A portable **SLSA provenance** file (`nftui.intoto.jsonl`, from the
+   [slsa-github-generator](https://github.com/slsa-framework/slsa-github-generator))
+   covering every published artifact is attached to the release. This is in
+   addition to the GitHub-native attestation in step 4: the attestation is
+   verified with `gh attestation verify`, while the `.intoto.jsonl` is verified
+   offline with `slsa-verifier` and is the form release-asset consumers expect.
 
 Verifying a downloaded release:
 
@@ -525,6 +531,10 @@ cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig
 sha256sum --check --ignore-missing checksums.txt
 # 3. build provenance (binds the bytes to this repo's release workflow)
 gh attestation verify nftui_<ver>_linux_amd64.tar.gz --repo <owner>/nftui
+# 4. or verify the portable SLSA provenance asset offline
+slsa-verifier verify-artifact nftui_<ver>_linux_amd64.tar.gz \
+  --provenance-path nftui.intoto.jsonl \
+  --source-uri github.com/aafeher/nftui
 ```
 
 To validate the config locally without publishing:
