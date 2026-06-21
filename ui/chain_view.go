@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"nftui/nft"
-	"nftui/nft/nftserializer"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -48,10 +47,10 @@ type chainView struct {
 }
 
 // ruleEntryLines is the visual height of one rule entry in the chain view:
-// human-readable line, serialized line, and two trailing blank lines (so the
-// next rule has breathing room). Used by maxVisibleRules to translate the
-// content-box pixel budget into a rule count.
-const ruleEntryLines = 4
+// the human-readable rule line plus two trailing blank lines (so the next rule
+// has breathing room). Used by maxVisibleRules to translate the content-box
+// pixel budget into a rule count.
+const ruleEntryLines = 3
 
 type chainViewKeyMap struct {
 	Up           key.Binding
@@ -592,7 +591,6 @@ func (c chainView) View() string {
 			}
 
 			ruleText := fmt.Sprintf("%s%d. %s\n", cursor, rule.Position, nft.RuleToHumanReadable(rule))
-			ruleText += fmt.Sprintf("  %d. %s\n", rule.Position, nftserializer.SerializeRule(rule))
 			if i == c.cursor {
 				ruleText = blueBackgroundStyle.Render(ruleText)
 			}

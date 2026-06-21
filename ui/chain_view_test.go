@@ -23,19 +23,19 @@ func TestChainView_MaxVisibleRules(t *testing.T) {
 		filterMode bool
 		want       int
 	}{
-		// inner = 10-10 = 0, headerLines = 11, avail = -11 < 4 → clamp to 1
+		// inner = 10-10 = 0, headerLines = 11, avail = -11 < 3 → clamp to 1
 		{"tiny terminal clamps to 1", 10, &nftables.Chain{Name: "x"}, false, 1},
-		// inner=20, header=11, avail=9, 9/4=2
-		{"no optional fields, height 30", 30, &nftables.Chain{Name: "x"}, false, 2},
-		// headerLines = 2+2+3+1+4+2 = 14, inner=20, avail=6, 6/4=1
+		// inner=20, header=11, avail=9, 9/3=3
+		{"no optional fields, height 30", 30, &nftables.Chain{Name: "x"}, false, 3},
+		// headerLines = 2+2+3+1+4+2 = 14, inner=20, avail=6, 6/3=2
 		{"all optional fields, height 30", 30,
-			&nftables.Chain{Name: "x", Hooknum: hook, Priority: &prio, Policy: &accept}, false, 1},
-		// inner=40, header=11, avail=29, 29/4=7
-		{"no optional, height 50", 50, &nftables.Chain{Name: "x"}, false, 7},
-		// filterMode adds 2 to header. inner=40, header=13, avail=27, 27/4=6
-		{"filter mode reduces visible rules", 50, &nftables.Chain{Name: "x"}, true, 6},
-		// inner=90, header=11, avail=79, 79/4=19 — large terminal scales linearly
-		{"large terminal", 100, &nftables.Chain{Name: "x"}, false, 19},
+			&nftables.Chain{Name: "x", Hooknum: hook, Priority: &prio, Policy: &accept}, false, 2},
+		// inner=40, header=11, avail=29, 29/3=9
+		{"no optional, height 50", 50, &nftables.Chain{Name: "x"}, false, 9},
+		// filterMode adds 2 to header. inner=40, header=13, avail=27, 27/3=9
+		{"filter mode reduces visible rules", 50, &nftables.Chain{Name: "x"}, true, 9},
+		// inner=90, header=11, avail=79, 79/3=26 — large terminal scales linearly
+		{"large terminal", 100, &nftables.Chain{Name: "x"}, false, 26},
 	}
 
 	for _, tt := range tests {

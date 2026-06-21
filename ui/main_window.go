@@ -586,11 +586,8 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.showQuitConfirm {
 			switch msg.String() {
 			case "y", "Y":
-				if err := nft.FlushRules(); err != nil {
-					m.showQuitConfirm = false
-					m.err = err
-					return m, nil
-				}
+				// Just quit. nftui never mutates the ruleset the user didn't
+				// explicitly change — exit must not touch the kernel state.
 				return m, tea.Quit
 			case "n", "N", "esc":
 				m.showQuitConfirm = false

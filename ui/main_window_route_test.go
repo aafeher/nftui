@@ -207,3 +207,25 @@ func TestMainWindow_ViewStates(t *testing.T) {
 		}
 	})
 }
+
+// TestMainWindow_QuitDoesNotFlush pins bug B-2: confirming the quit dialog used
+// to call nft.FlushRules() — wiping the live kernel ruleset on exit. Confirming
+// must simply quit: return tea.Quit, touch no netlink, set no error. (This test
+// is safe to run as root precisely because the fix removed the flush; before the
+// fix it would have flushed the host's ruleset, so it must never be run red.)
+func TestMainWindow_QuitDoesNotFlush(t *testing.T) {
+	m := sizedMainWindow(t) // activeView "main"
+	m.showQuitConfirm = true
+
+	m, cmd := route(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+
+	if m.err != nil {
+		t.Fatalf("quit set an error (flush attempted?): %v", m.err)
+	}
+	if cmd == nil {
+		t.Fatal("quit-confirm 'y' returned nil cmd, want tea.Quit")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatal("quit-confirm 'y' did not return tea.Quit")
+	}
+}

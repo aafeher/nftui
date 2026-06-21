@@ -388,8 +388,11 @@ clears the filter.
 
 `examples/example-nftables-01.conf` is the canonical manual-test fixture. It
 covers every feature documented above and is verified with `nft -c -f` against
-the host kernel. Load it explicitly only on a system where overwriting the
-nftables state is OK:
+the host kernel. For a realistic, good-practice starting point rather than a
+feature showcase, `examples/example-host-firewall.conf` is a hardened
+single-host firewall (default-deny inbound except SSH/HTTP/HTTPS, unrestricted
+outbound, forwarding denied). Load either explicitly only on a system where
+overwriting the nftables state is OK:
 
 ```bash
 sudo nft -c -f examples/example-nftables-01.conf       # syntax check
