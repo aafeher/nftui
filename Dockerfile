@@ -5,7 +5,7 @@
 #
 # Build:
 #   docker build -t nftui:local .
-#   docker build -t nftui:1.0.0 --build-arg VERSION=1.0.0 .
+#   docker build -t nftui:1.1.0 --build-arg VERSION=1.1.0 .
 #
 # Run (manages the HOST ruleset — needs the host network namespace, the
 # NET_ADMIN capability, and an interactive TTY for the TUI):

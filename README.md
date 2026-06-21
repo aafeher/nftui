@@ -128,9 +128,9 @@ is welcome to adopt the reference [`packaging/aur/PKGBUILD`](packaging/aur/PKGBU
 
 **Gentoo:** the repo is a standard Go module, so `go build -o nftui .` is the
 simplest path. Two community-maintainable reference ebuilds are provided for a
-local overlay: [`nftui-1.0.0.ebuild`](packaging/gentoo/nftui-1.0.0.ebuild)
+local overlay: [`nftui-1.1.0.ebuild`](packaging/gentoo/nftui-1.1.0.ebuild)
 builds from source via `go-module.eclass`, and
-[`nftui-bin-1.0.0.ebuild`](packaging/gentoo/nftui-bin-1.0.0.ebuild) installs the
+[`nftui-bin-1.1.0.ebuild`](packaging/gentoo/nftui-bin-1.1.0.ebuild) installs the
 prebuilt release binary; install one or the other (they share `/usr/bin/nftui`
 and block each other). See
 [`packaging/gentoo/README.md`](packaging/gentoo/README.md) for overlay setup.
@@ -162,7 +162,7 @@ A [`Dockerfile`](Dockerfile) builds a small (~17 MB) image that bundles the
 ```bash
 docker build -t nftui:local .
 # versioned build (sets `nftui --version`):
-docker build -t nftui:1.0.0 --build-arg VERSION=1.0.0 .
+docker build -t nftui:1.1.0 --build-arg VERSION=1.1.0 .
 ```
 
 nftui manages the **host** ruleset, so the container needs the host network
@@ -586,6 +586,12 @@ to date:
   Gentoo / AUR references), proven reproducibility and Nix-flake CI lanes, the
   `--version` flag, a Go-module dependency tarball for offline source builds, and
   IPv6 source / destination address rendering.
+- **v1.1.0** (2026-06-21) — terminal-fit & navigation UX plus a security/CI
+  hardening wave: an 80x24 minimum with frame clamping and a resize prompt,
+  alternate-screen rendering, scroll-to-focus in the rule editor and scrolling
+  in the rule view, a compact chain header; fixes for quit flushing the ruleset
+  and rules rendering twice; OpenSSF Scorecard / CodeQL / Codecov, Go fuzz
+  targets, SLSA provenance release asset, and SHA-pinned actions.
 
 ## License
 

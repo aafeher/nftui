@@ -7,7 +7,7 @@
 #   docker compose run --rm nftui
 #
 # Build a versioned image:
-#   docker compose build --build-arg VERSION=1.0.0
+#   docker compose build --build-arg VERSION=1.1.0
 #
 # Pass nftui flags after the service name:
 #   docker compose run --rm nftui --read-only

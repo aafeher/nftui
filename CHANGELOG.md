@@ -7,6 +7,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-06-21 — Terminal-fit UX & security hardening
+
+Makes the TUI usable on small terminals and hardens the supply chain. Adds an 80x24 minimum with frame clamping and a resize prompt, alternate-screen rendering, scroll-to-focus in the rule editor and scrolling in the rule view, and a compact chain header; fixes quitting flushing the live ruleset and the rule list rendering every rule twice; and lands a security/CI wave — OpenSSF Scorecard, CodeQL, Codecov, Go fuzz targets, a SLSA provenance release asset, SHA-pinned actions, and hardened workflow token permissions.
+
 ### Added
 
 - Code coverage reporting via Codecov. The CI `build-and-test` job now writes a unit coverage profile (`go test -race -covermode=atomic -coverprofile`) and uploads it to Codecov (flag `unit`); the `integration-test` job uploads its live-netlink coverage profile too (flag `integration`). Uploads use the `CODECOV_TOKEN` repo secret and are non-fatal (`fail_ci_if_error: false`), so a Codecov hiccup never blocks the build gate. A coverage badge was added to the README header.
@@ -253,7 +257,8 @@ IP6 Matches, TCP & UDP Transport Matches.
 - Footer help line always lists every available key binding in the current view — the "footer-completeness" invariant.
 - Custom UI components: `NumberInput` (numeric textinput with min/max bounds), `Select` (horizontal single-select), `MultiSelect` (horizontal checkboxes).
 
-[Unreleased]: https://github.com/aafeher/nftui/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/aafeher/nftui/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/aafeher/nftui/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/aafeher/nftui/compare/v0.9.0...v1.0.0
 [0.9.0]: https://github.com/aafeher/nftui/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/aafeher/nftui/compare/v0.7.0...v0.8.0
