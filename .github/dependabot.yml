@@ -23,6 +23,12 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # cosign-installer v4 (cosign 4.x) broke Goreleaser's `signs:` block at the
+      # v1.1.0 tag; held at v3 in release.yml until the signs block is cosign-4
+      # ready. Without this, Dependabot would keep re-proposing the v4 bump.
+      - dependency-name: "sigstore/cosign-installer"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "docker"
     directory: "/"

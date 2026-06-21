@@ -59,8 +59,15 @@ jobs:
       # Supply-chain tooling Goreleaser shells out to (audit E-6): cosign for
       # the keyless checksum signature, syft for the per-archive SBOM. Both
       # must be on PATH before `goreleaser release` runs.
+      #
+      # Pinned to cosign-installer v3 on purpose: v4 installs cosign 4.x, whose
+      # `sign-blob` defaults broke this Goreleaser `signs:` block at the v1.1.0
+      # tag ("create bundle file: open : no such file or directory"). v3 (cosign
+      # v2.x) is the last version Goreleaser ~> v2 signs cleanly. Dependabot is
+      # told to leave this action alone (.github/dependabot.yml); revisit when
+      # Goreleaser's signs block is made cosign-4 compatible.
       - name: Install cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
 
       - name: Install syft (SBOM generator)
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0
