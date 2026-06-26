@@ -140,6 +140,28 @@ func TestNumberInput_GetValue(t *testing.T) {
 			inputValue:    "",
 			expectedValue: 0,
 		},
+		{
+			name:          "negative input is preserved",
+			inputValue:    "-300",
+			expectedValue: -300,
+		},
+		{
+			// 10 digits, the most CharLimit (10) admits, and exactly the
+			// int32 ceiling: must round-trip, not overflow.
+			name:          "MaxInt32 boundary is preserved",
+			inputValue:    "2147483647",
+			expectedValue: 2147483647,
+		},
+		{
+			// Also 10 digits but above int32 range: ParseInt(..,32)
+			// overflows, so GetValue returns 0 rather than a value that
+			// would corrupt a later int32 conversion (e.g.
+			// nftables.ChainPriority). Guards the CodeQL "incorrect
+			// integer conversion" fix.
+			name:          "above int32 range overflows to 0",
+			inputValue:    "9999999999",
+			expectedValue: 0,
+		},
 	}
 
 	for _, tt := range tests {
