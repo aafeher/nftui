@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"strings"
 
 	"nftui/nft"
@@ -248,7 +249,15 @@ func (cc chainCreate) buildSpec(name string) *nftables.Chain {
 	}
 	spec.Type = nft.ChainTypeFromString(cc.typeSelect.Value())
 	spec.Hooknum = nft.ChainHookFromString(cc.hookSelect.Value())
-	prio := nftables.ChainPriority(cc.prioInput.GetValue())
+
+	prioVal := cc.prioInput.GetValue()
+	if prioVal < math.MinInt32 {
+		prioVal = math.MinInt32
+	} else if prioVal > math.MaxInt32 {
+		prioVal = math.MaxInt32
+	}
+	prio := nftables.ChainPriority(prioVal)
+
 	spec.Priority = &prio
 	if pol, ok := nft.ChainPolicyFromString(cc.policySelect.Value()); ok {
 		spec.Policy = &pol
