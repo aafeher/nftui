@@ -57,8 +57,11 @@ func (ni NumberInput) Update(msg tea.Msg) (NumberInput, tea.Cmd) {
 }
 
 func (ni NumberInput) GetValue() int {
-	val, _ := strconv.Atoi(ni.Value())
-	return val
+	parsed, err := strconv.ParseInt(ni.Value(), 10, 32)
+	if err != nil {
+		return 0
+	}
+	return int(parsed)
 }
 
 // GetUint64 returns the numeric value as uint64
