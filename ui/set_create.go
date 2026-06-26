@@ -254,8 +254,8 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 				spec.IsMap = true
 				spec.DataType = dt
 				if sc.showsDataWidth() {
-					w, err := strconv.Atoi(sc.dataTypeBytesSelect.Value())
-					if err != nil || w <= 0 {
+					w, err := strconv.ParseUint(sc.dataTypeBytesSelect.Value(), 10, 32)
+					if err != nil || w == 0 {
 						sc.statusMsg = "Invalid integer width."
 						return sc, nil
 					}
