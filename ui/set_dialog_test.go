@@ -310,6 +310,39 @@ func TestSetCreate_NextSlotShowsDataWidthForInteger(t *testing.T) {
 	}
 }
 
+// TestSetCreate_SaveIntegerWidth exercises the data-width parse on the F2
+// save path (CodeQL "incorrect integer conversion" fix: strconv.ParseUint
+// with a 32-bit bound replaced Atoi+uint32). A valid width must save; an
+// unparsable width must be rejected with a status message and no command.
+func TestSetCreate_SaveIntegerWidth(t *testing.T) {
+	sc := mkSetCreate()
+	sc.nameInput.SetValue("mymap")
+	sc.isMapSelect.Selected = indexOf(setOnOffOptions, "on")
+	sc.dataTypeSelect.Selected = indexOf(sc.dataTypeSelect.Options, "integer")
+	sc.dataTypeBytesSelect.Selected = indexOf(integerWidthOptions, "4")
+	if !sc.showsDataWidth() {
+		t.Fatal("showsDataWidth should be true for map+integer")
+	}
+
+	sc2, cmd := sc.Update(keyMsg(tea.KeyF2))
+	if cmd == nil {
+		t.Error("valid integer-width save returned nil cmd, want createSetCmd")
+	}
+	if sc2.statusMsg != "" {
+		t.Errorf("valid save left statusMsg = %q, want empty", sc2.statusMsg)
+	}
+
+	// Force an unparsable width (Selected out of range -> Value() == "").
+	sc.dataTypeBytesSelect.Selected = -1
+	sc3, cmd := sc.Update(keyMsg(tea.KeyF2))
+	if cmd != nil {
+		t.Error("invalid width save returned a cmd, want nil")
+	}
+	if sc3.statusMsg != "Invalid integer width." {
+		t.Errorf("invalid width statusMsg = %q, want %q", sc3.statusMsg, "Invalid integer width.")
+	}
+}
+
 func TestSetCreate_PrevSlotWrap(t *testing.T) {
 	sc := mkSetCreate()
 	got := sc.prevSlot(0)

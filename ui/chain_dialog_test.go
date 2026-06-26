@@ -172,6 +172,27 @@ func TestChainCreate_BuildSpec(t *testing.T) {
 	}
 }
 
+// TestChainCreate_BuildSpecPriority guards the int->int32 conversion at the
+// priority site (CodeQL "incorrect integer conversion" fix). A real negative
+// priority must round-trip through nftables.ChainPriority, and an over-range
+// typed value must not corrupt the int32 — GetValue bounds it to 0, which the
+// clamp then leaves untouched.
+func TestChainCreate_BuildSpecPriority(t *testing.T) {
+	cc := newChainCreate(chainDialogTable())
+
+	cc.prioInput.SetValue("-300")
+	spec := cc.buildSpec("basechain")
+	if spec.Priority == nil || *spec.Priority != -300 {
+		t.Errorf("spec.Priority = %v, want -300", spec.Priority)
+	}
+
+	cc.prioInput.SetValue("9999999999") // > MaxInt32
+	spec = cc.buildSpec("basechain")
+	if spec.Priority == nil || *spec.Priority != 0 {
+		t.Errorf("over-range priority = %v, want 0 (bounded, no overflow)", spec.Priority)
+	}
+}
+
 func TestChainCreate_TypeChangeSyncsHooks(t *testing.T) {
 	cc := newChainCreate(chainDialogTable())
 
