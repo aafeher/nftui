@@ -4,13 +4,15 @@ import (
 	"fmt"
 	"strings"
 
+	"nftui/i18n"
+	"nftui/nft"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 	"golang.org/x/sys/unix"
-	"nftui/nft"
 )
 
 var verdictKindOptions = []string{"accept", "drop", "return", "jump", "goto"}
@@ -188,7 +190,7 @@ func (f *VerdictField) Save(rule *nftables.Rule) {
 func (f *VerdictField) View() string {
 	label := grayStyle.Render("Verdict")
 	if !f.hasVerdict {
-		return label + "\n" + grayStyle.Render("(no verdict in this rule)") + "\n"
+		return label + "\n" + grayStyle.Render(i18n.T("rule.field.no_verdict")) + "\n"
 	}
 
 	vSel := f.kindSelect.View()
@@ -196,7 +198,7 @@ func (f *VerdictField) View() string {
 		vSel = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vSel)
 	}
 	current := renderVerdict(nft.VerdictAction{Kind: f.currentKind(), Chain: f.chainInput.Value()})
-	left := label + "\n" + vSel + "\n" + grayStyle.Render("current: ") + current
+	left := label + "\n" + vSel + "\n" + grayStyle.Render(i18n.T("rule.field.current")) + current
 
 	if !f.needsChain() {
 		return left + "\n"

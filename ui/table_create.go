@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 
+	"nftui/i18n"
 	"nftui/nft"
 )
 
@@ -82,23 +83,23 @@ func newTableCreate() tableCreate {
 	km := tableCreateKeyMap{
 		NextField: key.NewBinding(
 			key.WithKeys("tab", "down"),
-			key.WithHelp("tab/↓", "next field"),
+			key.WithHelp("tab/↓", i18n.T("key.next_field")),
 		),
 		PrevField: key.NewBinding(
 			key.WithKeys("shift+tab", "up"),
-			key.WithHelp("shift+tab/↑", "prev field"),
+			key.WithHelp("shift+tab/↑", i18n.T("key.prev_field")),
 		),
 		Save: key.NewBinding(
 			key.WithKeys("f2"),
-			key.WithHelp("f2", "save"),
+			key.WithHelp("f2", i18n.T("key.save")),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "f3"),
-			key.WithHelp("esc/f3", "cancel"),
+			key.WithHelp("esc/f3", i18n.T("key.cancel")),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("ctrl+c"),
-			key.WithHelp("ctrl+c", "quit"),
+			key.WithHelp("ctrl+c", i18n.T("key.quit")),
 		),
 	}
 
@@ -170,19 +171,19 @@ func (tc tableCreate) View() string {
 		Render(strings.Repeat("─", tc.width))
 
 	var body strings.Builder
-	body.WriteString(defaultBoldStyle.Render("Create new table"))
+	body.WriteString(defaultBoldStyle.Render(i18n.T("table.create.title")))
 	body.WriteString("\n\n")
 
-	body.WriteString(grayStyle.Render("Family : "))
+	body.WriteString(grayStyle.Render(i18n.T("table.create.family_label")))
 	body.WriteString(tc.familySelect.View())
 	body.WriteString("\n\n")
 
-	body.WriteString(grayStyle.Render("Name   : "))
+	body.WriteString(grayStyle.Render(i18n.T("table.create.name_label")))
 	body.WriteString(tc.nameInput.View())
 
 	if tc.statusMsg != "" {
 		body.WriteString("\n\n")
-		body.WriteString(redBoldStyle.Render("Error: " + tc.statusMsg))
+		body.WriteString(redBoldStyle.Render(i18n.T("common.error") + tc.statusMsg))
 	}
 
 	contentBox := normalGrayBorder.

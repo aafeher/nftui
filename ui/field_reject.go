@@ -1,12 +1,14 @@
 package ui
 
 import (
+	"nftui/i18n"
+	"nftui/nft"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 	"golang.org/x/sys/unix"
-	"nftui/nft"
 )
 
 // Reject type display strings shown in the Select. The "tcp reset" entry uses a
@@ -348,7 +350,7 @@ func (f *RejectField) Save(rule *nftables.Rule) {
 func (f *RejectField) View() string {
 	label := grayStyle.Render("Reject")
 	if !f.hasReject {
-		return label + "\n" + grayStyle.Render("(no reject in this rule)") + "\n"
+		return label + "\n" + grayStyle.Render(i18n.T("rule.field.no_reject")) + "\n"
 	}
 
 	vType := f.typeSelect.View()
@@ -357,7 +359,7 @@ func (f *RejectField) View() string {
 		vType = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vType)
 	}
 	preview := renderReject(f.previewAction(), f.family)
-	left := label + "\n" + vType + "\n" + grayStyle.Render("current: ") + preview
+	left := label + "\n" + vType + "\n" + grayStyle.Render(i18n.T("rule.field.current")) + preview
 
 	if !f.needsCode() {
 		return left + "\n"

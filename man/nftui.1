@@ -8,7 +8,7 @@
 .\" Verify with: mandoc -Tlint man/nftui.1
 .\" Preview  with: man -l man/nftui.1
 .\"
-.TH NFTUI 1 "June 21, 2026" "nftui 1.1.0" "User Commands"
+.TH NFTUI 1 "July 18, 2026" "nftui 1.2.0" "User Commands"
 .SH NAME
 nftui \- Terminal User Interface for Linux nftables
 .SH SYNOPSIS
@@ -16,6 +16,7 @@ nftui \- Terminal User Interface for Linux nftables
 [\fB\-\-table\fR \fIname\fR]
 [\fB\-\-config\fR \fIfile\fR]
 [\fB\-\-read\-only\fR]
+[\fB\-\-lang\fR \fIcode\fR]
 [\fB\-\-help\fR]
 [\fB\-\-version\fR]
 .SH DESCRIPTION
@@ -78,6 +79,16 @@ no chain or table or set
 no counter reset. Blocked keys dim out of the footer and a red
 .B "[READ-ONLY MODE]"
 marker rides in every main view's title bar.
+.TP
+.BR \-\-lang " " \fIcode\fR
+Set the interface language (for example
+.BR en ", " hu ", " es ", " pt\-BR ", " fr ", " de " or " it ).
+Overrides the
+.BR LC_ALL / LC_MESSAGES / LANG
+locale environment. An unset or unsupported value falls back to
+auto-detection from the locale, and finally to English. Only languages
+nftui ships a catalog for are honoured (currently English, Hungarian,
+Spanish, Brazilian Portuguese, French, German and Italian).
 .TP
 .BR \-\-help ", " \-h
 Print the full flag list with one-line descriptions and usage examples
@@ -226,6 +237,19 @@ for the
 flag to work; the runtime does not otherwise depend on the
 .B nft
 binary.
+.TP
+.BR LC_ALL / LC_MESSAGES / LANG
+select the interface language when
+.B \-\-lang
+is not given, in that order of precedence (POSIX). The
+.B .codeset
+and
+.B @modifier
+suffixes are ignored; an unsupported or
+.BR C / POSIX
+locale falls back to English. Only languages nftui ships a catalog for
+are used (currently English, Hungarian, Spanish, Brazilian Portuguese,
+French, German and Italian).
 .SH FILES
 .TP
 .I examples/example\-nftables\-01.conf

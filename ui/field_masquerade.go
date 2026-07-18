@@ -3,11 +3,13 @@ package ui
 import (
 	"fmt"
 
+	"nftui/i18n"
+	"nftui/nft"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
-	"nftui/nft"
 )
 
 // MasqueradeField edits the `masquerade` statement. Two sub-inputs:
@@ -189,6 +191,6 @@ func (f *MasqueradeField) View() string {
 		vFlags = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vFlags)
 	}
 	return grayStyle.Render("Masquerade") + "\n" +
-		grayStyle.Render("enable: ") + vEnable + "\n" +
+		lipgloss.NewStyle().Width(8).Render(grayStyle.Render(i18n.T("rule.field.enable"))) + vEnable + "\n" +
 		grayStyle.Render("flags:  ") + vFlags + "\n"
 }

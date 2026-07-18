@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
+	"nftui/i18n"
 )
 
 type ruleView struct {
@@ -49,27 +50,27 @@ func newRuleView(rule *nftables.Rule) ruleView {
 	km := ruleViewKeyMap{
 		PrevTab: key.NewBinding(
 			key.WithKeys("f5"),
-			key.WithHelp("f5", "prev tab"),
+			key.WithHelp("f5", i18n.T("key.prev_tab")),
 		),
 		NextTab: key.NewBinding(
 			key.WithKeys("f6"),
-			key.WithHelp("f6", "next tab"),
+			key.WithHelp("f6", i18n.T("key.next_tab")),
 		),
 		ScrollUp: key.NewBinding(
 			key.WithKeys("up", "k"),
-			key.WithHelp("↑/k", "scroll up"),
+			key.WithHelp("↑/k", i18n.T("key.scroll_up")),
 		),
 		ScrollDown: key.NewBinding(
 			key.WithKeys("down", "j"),
-			key.WithHelp("↓/j", "scroll down"),
+			key.WithHelp("↓/j", i18n.T("key.scroll_down")),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "f3"),
-			key.WithHelp("esc/f3", "back"),
+			key.WithHelp("esc/f3", i18n.T("key.back")),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
-			key.WithHelp("q", "quit"),
+			key.WithHelp("q", i18n.T("key.quit")),
 		),
 	}
 
@@ -108,7 +109,12 @@ func (r ruleView) Update(msg tea.Msg) (ruleView, tea.Cmd) {
 
 // renderTabBar renders the horizontal tab strip.
 func (r ruleView) renderTabBar() string {
-	tabNames := []string{"General", "CT", "Network", "Limit"}
+	tabNames := []string{
+		i18n.T("rule.tab.general"),
+		i18n.T("rule.tab.ct"),
+		i18n.T("rule.tab.network"),
+		i18n.T("rule.tab.limit"),
+	}
 	var parts []string
 	for i, name := range tabNames {
 		label := "  " + name + "  "
@@ -128,17 +134,17 @@ func (r ruleView) renderTabBar() string {
 func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 	var sb strings.Builder
 
-	sb.WriteString(grayBoldStyle.Render("Position: "))
+	sb.WriteString(grayBoldStyle.Render(i18n.T("rule.general.position")))
 	sb.WriteString(fmt.Sprintf("%d\n", rd.Position))
 
 	if rd.Comment != "" {
-		sb.WriteString(grayBoldStyle.Render("Comment: "))
+		sb.WriteString(grayBoldStyle.Render(i18n.T("rule.general.comment")))
 		sb.WriteString(rd.Comment + "\n")
 	}
 
 	if len(rd.Actions) > 0 {
 		sb.WriteString("\n")
-		sb.WriteString(grayBoldStyle.Render("Actions:"))
+		sb.WriteString(grayBoldStyle.Render(i18n.T("rule.general.actions")))
 		sb.WriteString("\n")
 		for _, action := range rd.Actions {
 			switch action.Type {
@@ -204,7 +210,7 @@ func (r ruleView) renderGeneralTab(rd *nft.Rule) string {
 
 	if rd.Counter != nil {
 		sb.WriteString("\n")
-		sb.WriteString(grayBoldStyle.Render("Counter: "))
+		sb.WriteString(grayBoldStyle.Render(i18n.T("rule.general.counter")))
 		sb.WriteString(fmt.Sprintf("%d packets, %d bytes\n", rd.Counter.Packets, rd.Counter.Bytes))
 	}
 
@@ -269,7 +275,7 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 
 			var valStr string
 			if val == nil {
-				valStr = "(no value)"
+				valStr = i18n.T("common.no_value")
 			} else {
 				switch v := val.(type) {
 				case nftexpr.CtL3Proto:
@@ -373,7 +379,7 @@ func (r ruleView) renderCTTab(rd *nft.Rule) string {
 
 		if !found {
 			labelPart := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, label+":"))
-			sb.WriteString(labelPart + " " + grayStyle.Render("(empty)") + "\n")
+			sb.WriteString(labelPart + " " + grayStyle.Render(i18n.T("common.empty")) + "\n")
 		}
 	}
 
@@ -470,7 +476,7 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 	} {
 		if !addrFound[k] {
 			label := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, addrLabels[k]))
-			sb.WriteString(label + " " + grayStyle.Render("(empty)") + "\n")
+			sb.WriteString(label + " " + grayStyle.Render(i18n.T("common.empty")) + "\n")
 		}
 	}
 
@@ -501,7 +507,7 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 	for _, name := range []string{"htype", "ptype", "hlen", "plen", "operation"} {
 		if !arpFound[name] {
 			lp := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "ARP "+name+":"))
-			sb.WriteString(lp + " " + grayStyle.Render("(empty)") + "\n")
+			sb.WriteString(lp + " " + grayStyle.Render(i18n.T("common.empty")) + "\n")
 		}
 	}
 
@@ -524,7 +530,7 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 	for _, name := range []string{"id", "cfi", "pcp"} {
 		if !vlanFound[name] {
 			lp := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "VLAN "+name+":"))
-			sb.WriteString(lp + " " + grayStyle.Render("(empty)") + "\n")
+			sb.WriteString(lp + " " + grayStyle.Render(i18n.T("common.empty")) + "\n")
 		}
 	}
 
@@ -558,7 +564,7 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 	}
 	if !etherTypeFound {
 		lp := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, "Ether type:"))
-		sb.WriteString(lp + " " + grayStyle.Render("(empty)") + "\n")
+		sb.WriteString(lp + " " + grayStyle.Render(i18n.T("common.empty")) + "\n")
 	}
 
 	renderPayloadBlock := func(title string, conds []nft.Condition) {
@@ -592,8 +598,8 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 			sb.WriteString("  " + string(p.Protocol) + " " + p.Field + " " + op + valStr + "\n")
 		}
 	}
-	renderPayloadBlock("IP / IP6 header:", ipExtras)
-	renderPayloadBlock("Transport (TCP/UDP/ICMP/ICMPv6/SCTP/DCCP/AH/ESP/COMP):", transportExtras)
+	renderPayloadBlock(i18n.T("rule.net.ip_header"), ipExtras)
+	renderPayloadBlock(i18n.T("rule.net.transport"), transportExtras)
 
 	// IPv6 extension headers — grouped read-only block.
 	var exthdrConds []nft.Condition
@@ -604,7 +610,7 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 	}
 	if len(exthdrConds) > 0 {
 		sb.WriteString("\n")
-		sb.WriteString(grayBoldStyle.Render("IPv6 extension headers:"))
+		sb.WriteString(grayBoldStyle.Render(i18n.T("rule.net.ipv6_exthdr")))
 		sb.WriteString("\n")
 		for _, condition := range exthdrConds {
 			e := condition.Exthdr
@@ -630,7 +636,7 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 	}
 	if len(sctpConds) > 0 {
 		sb.WriteString("\n")
-		sb.WriteString(grayBoldStyle.Render("SCTP chunks:"))
+		sb.WriteString(grayBoldStyle.Render(i18n.T("rule.net.sctp_chunks")))
 		sb.WriteString("\n")
 		for _, condition := range sctpConds {
 			s := condition.SctpChunk
@@ -675,7 +681,7 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		}
 		if !found {
 			lp := grayStyle.Render(fmt.Sprintf("%-*s", labelWidth, label))
-			sb.WriteString(lp + " " + grayStyle.Render("(empty)") + "\n")
+			sb.WriteString(lp + " " + grayStyle.Render(i18n.T("common.empty")) + "\n")
 		}
 	}
 	dedicatedLine(nft.MetaKeyIIfName, "Meta iifname:", true)
@@ -697,7 +703,7 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		}
 		if !hasMeta {
 			sb.WriteString("\n")
-			sb.WriteString(grayBoldStyle.Render("Meta conditions:"))
+			sb.WriteString(grayBoldStyle.Render(i18n.T("rule.net.meta_conditions")))
 			sb.WriteString("\n")
 			hasMeta = true
 		}
@@ -745,7 +751,7 @@ func (r ruleView) renderLimitTab(rd *nft.Rule) string {
 	}
 
 	if limitCond == nil {
-		sb.WriteString(grayStyle.Render("(No limit conditions)"))
+		sb.WriteString(grayStyle.Render(i18n.T("rule.limit.none")))
 		sb.WriteString("\n")
 		return sb.String()
 	}
@@ -773,7 +779,7 @@ func (r ruleView) renderLimitTab(rd *nft.Rule) string {
 // "| View rule |" title, the tab bar, and the tab-bar divider.
 func (r ruleView) topPart() string {
 	var b strings.Builder
-	b.WriteString(blueStyle.Render("| View rule |"))
+	b.WriteString(blueStyle.Render(i18n.T("rule.view.title")))
 	b.WriteString("\n\n")
 	b.WriteString(r.renderTabBar())
 	b.WriteString("\n")

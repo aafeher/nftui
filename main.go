@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"nftui/i18n"
 	"nftui/nft"
 	"nftui/ui"
 	"os"
@@ -32,8 +33,14 @@ func main() {
 	tableFilter := flag.String("table", "", docFor("table"))
 	configFile := flag.String("config", "", docFor("config"))
 	readOnly := flag.Bool("read-only", false, docFor("read-only"))
+	lang := flag.String("lang", "", docFor("lang"))
 	flag.Usage = func() { writeUsage(os.Stderr, bin) }
 	flag.Parse()
+
+	// Resolve the interface language before anything user-facing renders:
+	// --lang wins, else the POSIX locale env (LC_ALL/LC_MESSAGES/LANG), else
+	// English. Startup-only — the language does not change while the TUI runs.
+	i18n.SetLanguage(i18n.Resolve(*lang, os.Getenv))
 
 	opts := ui.Options{
 		TableFilter: *tableFilter,

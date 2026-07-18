@@ -7,12 +7,14 @@ import (
 	"strconv"
 	"strings"
 
+	"nftui/i18n"
+	"nftui/nft"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
-	"nftui/nft"
 )
 
 // NATField backs `snat to <addr>[:<port>]` and `dnat to <addr>[:<port>]`.
@@ -320,7 +322,7 @@ func (f *NATField) View() string {
 		vFlags = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vFlags)
 	}
 	row1 := lipgloss.JoinHorizontal(lipgloss.Top,
-		lipgloss.NewStyle().Width(8).Render(grayStyle.Render("enable:")),
+		lipgloss.NewStyle().Width(8).Render(grayStyle.Render(i18n.T("rule.field.enable"))),
 		lipgloss.NewStyle().Width(8).Render(vEnable),
 		lipgloss.NewStyle().Width(8).Render(grayStyle.Render("addr:")),
 		lipgloss.NewStyle().Width(24).Render(vAddr),

@@ -6,12 +6,14 @@ import (
 	"strconv"
 	"strings"
 
+	"nftui/i18n"
+	"nftui/nft"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 	"golang.org/x/sys/unix"
-	"nftui/nft"
 )
 
 // ICMPv6 type names (RFC 4443 + NDP/MLD; what `nft` accepts in `icmpv6 type`).
@@ -197,7 +199,7 @@ func (f *Icmpv6TypeField) View() string {
 	vCustom := f.customInput.View()
 	row := lipgloss.JoinHorizontal(lipgloss.Top,
 		lipgloss.NewStyle().Width(30).Render(vSel),
-		lipgloss.NewStyle().Width(6).Render(grayStyle.Render("or:")),
+		lipgloss.NewStyle().Width(6).Render(grayStyle.Render(i18n.T("rule.field.or"))),
 		lipgloss.NewStyle().Render(vCustom),
 	)
 	return grayStyle.Render("ICMPv6 type") + "\n" + row + "\n"

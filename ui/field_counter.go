@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"strconv"
 
+	"nftui/i18n"
+	"nftui/nft"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
-	"nftui/nft"
 )
 
 // CounterField edits an anonymous counter's packet and byte values.
@@ -131,7 +133,7 @@ func (f *CounterField) Save(rule *nftables.Rule) {
 func (f *CounterField) View() string {
 	label := grayStyle.Render("Counter")
 	if !f.hasCounter {
-		return label + "\n" + grayStyle.Render("(no counter in this rule)") + "\n"
+		return label + "\n" + grayStyle.Render(i18n.T("rule.field.no_counter")) + "\n"
 	}
 
 	vPackets := f.packetsInput.View()
@@ -152,7 +154,7 @@ func (f *CounterField) View() string {
 	}
 
 	return label + "\n" +
-		grayStyle.Render("current: ") + blueStyle.Render(preview) + "\n" +
+		grayStyle.Render(i18n.T("rule.field.current")) + blueStyle.Render(preview) + "\n" +
 		lipgloss.JoinHorizontal(lipgloss.Top,
 			col(grayStyle.Render("Packets")+"\n"+vPackets),
 			col(grayStyle.Render("Bytes")+"\n"+vBytes),

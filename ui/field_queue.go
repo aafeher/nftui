@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"strconv"
 
+	"nftui/i18n"
+	"nftui/nft"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 	"golang.org/x/sys/unix"
-	"nftui/nft"
 )
 
 // QueueField edits the `queue num <n>[-<m>] [flags]` statement.
@@ -245,7 +247,7 @@ func (f *QueueField) View() string {
 		vFlags = lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Render(vFlags)
 	}
 	row1 := lipgloss.JoinHorizontal(lipgloss.Top,
-		lipgloss.NewStyle().Width(8).Render(grayStyle.Render("enable:")),
+		lipgloss.NewStyle().Width(8).Render(grayStyle.Render(i18n.T("rule.field.enable"))),
 		lipgloss.NewStyle().Width(8).Render(vEnable),
 		lipgloss.NewStyle().Width(6).Render(grayStyle.Render("num:")),
 		lipgloss.NewStyle().Width(10).Render(vNum),

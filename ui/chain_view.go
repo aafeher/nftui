@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
+	"nftui/i18n"
 )
 
 type chainView struct {
@@ -96,51 +97,51 @@ func newChainViewWithRules(chain *nftables.Chain, table *tableNode, rules []*nft
 	km := chainViewKeyMap{
 		Up: key.NewBinding(
 			key.WithKeys("up", "k"),
-			key.WithHelp("↑/k", "up"),
+			key.WithHelp("↑/k", i18n.T("key.up")),
 		),
 		Down: key.NewBinding(
 			key.WithKeys("down", "j"),
-			key.WithHelp("↓/j", "down"),
+			key.WithHelp("↓/j", i18n.T("key.down")),
 		),
 		OpenRuleView: key.NewBinding(
 			key.WithKeys("f3"),
-			key.WithHelp("f3", "view rule"),
+			key.WithHelp("f3", i18n.T("key.view_rule")),
 		),
 		OpenRuleEdit: key.NewBinding(
 			key.WithKeys("f4"),
-			key.WithHelp("f4", "edit rule"),
+			key.WithHelp("f4", i18n.T("key.edit_rule")),
 		),
 		Delete: key.NewBinding(
 			key.WithKeys("d"),
-			key.WithHelp("d", "delete rule"),
+			key.WithHelp("d", i18n.T("key.delete_rule")),
 		),
 		MoveUp: key.NewBinding(
 			key.WithKeys("K"),
-			key.WithHelp("K", "move up"),
+			key.WithHelp("K", i18n.T("key.move_up")),
 		),
 		MoveDown: key.NewBinding(
 			key.WithKeys("J"),
-			key.WithHelp("J", "move down"),
+			key.WithHelp("J", i18n.T("key.move_down")),
 		),
 		NewRule: key.NewBinding(
 			key.WithKeys("a"),
-			key.WithHelp("a", "add rule"),
+			key.WithHelp("a", i18n.T("key.add_rule")),
 		),
 		InsertRule: key.NewBinding(
 			key.WithKeys("i"),
-			key.WithHelp("i", "insert rule"),
+			key.WithHelp("i", i18n.T("key.insert_rule")),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("/"),
-			key.WithHelp("/", "filter rules"),
+			key.WithHelp("/", i18n.T("key.filter_rules")),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc"),
-			key.WithHelp("esc", "back"),
+			key.WithHelp("esc", i18n.T("key.back")),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
-			key.WithHelp("q", "quit"),
+			key.WithHelp("q", i18n.T("key.quit")),
 		),
 	}
 
@@ -334,13 +335,19 @@ func (k chainFilterKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{k.Filter, k.Next, k.Prev}, {k.Open, k.Edit, k.Exit}}
 }
 
-var chainFilterKeys = chainFilterKeyMap{
-	Filter: key.NewBinding(key.WithKeys("a-z"), key.WithHelp("type", "filter")),
-	Next:   key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "next")),
-	Prev:   key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "prev")),
-	Open:   key.NewBinding(key.WithKeys("enter", "f3"), key.WithHelp("enter/f3", "view")),
-	Edit:   key.NewBinding(key.WithKeys("f4"), key.WithHelp("f4", "edit")),
-	Exit:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "clear filter")),
+// chainFilterKeys builds the filter-mode footer keymap. It is a function, not a
+// package-level var, so its i18n.T lookups resolve against the startup-selected
+// language at render time — a package-level var would bind them at init, when
+// the catalog is still English.
+func chainFilterKeys() chainFilterKeyMap {
+	return chainFilterKeyMap{
+		Filter: key.NewBinding(key.WithKeys("a-z"), key.WithHelp("type", i18n.T("key.filter"))),
+		Next:   key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", i18n.T("key.next"))),
+		Prev:   key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", i18n.T("key.prev"))),
+		Open:   key.NewBinding(key.WithKeys("enter", "f3"), key.WithHelp("enter/f3", i18n.T("key.view"))),
+		Edit:   key.NewBinding(key.WithKeys("f4"), key.WithHelp("f4", i18n.T("key.edit"))),
+		Exit:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", i18n.T("key.clear_filter"))),
+	}
 }
 
 func (c chainView) Update(msg tea.Msg) (chainView, tea.Cmd) {
@@ -353,9 +360,15 @@ func (c chainView) Update(msg tea.Msg) (chainView, tea.Cmd) {
 		c.statusMsg = "" // clear previous status on any key press
 
 		// While the delete confirmation is shown, intercept y/n/esc only.
+		// "i"/"s"/"o" are the localized yes-mnemonics (hu [I]gen, es [S]í,
+		// pt [S]im, fr [O]ui); German "[J]a" is language-gated via confirmYesJ.
 		if c.showDeleteConfirm {
-			switch msg.String() {
-			case "y", "Y":
+			key := msg.String()
+			if confirmYesJ(key) {
+				key = "y"
+			}
+			switch key {
+			case "y", "Y", "i", "I", "s", "S", "o", "O":
 				c.showDeleteConfirm = false
 				if c.cursor >= 0 && c.cursor < len(c.rules) {
 					rule := c.rules[c.cursor]
@@ -450,14 +463,14 @@ func (c chainView) View() string {
 	}
 
 	// Chain name
-	chainNameContent := yellowBoldStyle.Render(c.chain.Name) + " chain details"
+	chainNameContent := yellowBoldStyle.Render(c.chain.Name) + i18n.T("chain.view.box_details")
 	chainNameBox := normalGrayBorder.
 		Width(boxWidth).
 		Padding(0, 1).
 		Render(chainNameContent)
 
 	// Table name
-	tableContent := blueStyle.Render(c.table.Table.Name) + " table"
+	tableContent := blueStyle.Render(c.table.Table.Name) + i18n.T("chain.view.box_table")
 	tableBox := normalGrayBorder.
 		Width(boxWidth).
 		Padding(0, 1).
@@ -468,7 +481,7 @@ func (c chainView) View() string {
 	// full ListRulesOfChain per render and panicked the whole TUI on a
 	// transient netlink error). RefreshRules keeps c.rules current after
 	// every rule mutation.
-	rulesCount := fmt.Sprintf("%d rules", len(c.rules))
+	rulesCount := fmt.Sprintf(i18n.T("chain.view.box_rules"), len(c.rules))
 	rulesBox := normalGrayBorder.
 		Width(boxWidth).
 		Padding(0, 1).
@@ -492,7 +505,7 @@ func (c chainView) View() string {
 
 	var content strings.Builder
 
-	title := fmt.Sprintf("Chain"+": %s", yellowBoldStyle.Render(c.chain.Name))
+	title := fmt.Sprintf(i18n.T("chain.view.title"), yellowBoldStyle.Render(c.chain.Name))
 	content.WriteString(defaultBoldStyle.Render(title))
 	content.WriteString("\n")
 
@@ -520,7 +533,7 @@ func (c chainView) View() string {
 	content.WriteString("\n")
 
 	acceptCount, dropCount, otherCount := nft.CountRulesByType(c.rules)
-	content.WriteString(grayStyle.Render("Rules by type"+": ") +
+	content.WriteString(grayStyle.Render(i18n.T("chain.view.rules_by_type")) +
 		greenStyle.Render(fmt.Sprintf("ACCEPT %d", acceptCount)) + grayStyle.Render("   ") +
 		redStyle.Render(fmt.Sprintf("DROP %d", dropCount)) + grayStyle.Render("   ") +
 		whiteStyle.Render(fmt.Sprintf("etc %d", otherCount)))
@@ -533,11 +546,11 @@ func (c chainView) View() string {
 		var suffix string
 		switch {
 		case strings.TrimSpace(c.filterQuery) == "":
-			suffix = grayStyle.Render("  type to filter rules (verdict / condition / comment)")
+			suffix = grayStyle.Render(i18n.T("chain.filter.hint"))
 		case len(c.activeRules()) == 0:
-			suffix = grayStyle.Render("  no match")
+			suffix = grayStyle.Render(i18n.T("search.no_match"))
 		default:
-			suffix = grayStyle.Render(fmt.Sprintf("  %d match", len(c.activeRules())))
+			suffix = grayStyle.Render(fmt.Sprintf(i18n.T("chain.filter.match_count"), len(c.activeRules())))
 		}
 		content.WriteString(prompt + suffix + "\n\n")
 	}
@@ -580,12 +593,12 @@ func (c chainView) View() string {
 	footer := c.help.View(c.keys)
 	if c.filterMode {
 		// Filter mode swaps in its own footer (footer-completeness invariant).
-		footer = c.help.View(chainFilterKeys)
+		footer = c.help.View(chainFilterKeys())
 	}
 
 	parts := []string{header, divider, statBoxes, contentBox}
 	if c.statusMsg != "" {
-		parts = append(parts, redBoldStyle.Render("Error: "+c.statusMsg))
+		parts = append(parts, redBoldStyle.Render(i18n.T("common.error")+c.statusMsg))
 	}
 	parts = append(parts, footer)
 
@@ -600,7 +613,7 @@ func (c chainView) View() string {
 			Padding(1, 2).
 			Width(50).
 			Align(lipgloss.Center).
-			Render("Are you sure you want to delete the selected rule?\n\n[Y]es / [N]o")
+			Render(i18n.T("confirm.rule"))
 
 		overlay := lipgloss.Place(c.width, c.height,
 			lipgloss.Center, lipgloss.Center,

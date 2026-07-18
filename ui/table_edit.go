@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
+	"nftui/i18n"
 )
 
 type tableEditKeyMap struct {
@@ -47,15 +48,15 @@ func newTableEdit(table *nftables.Table) tableEdit {
 	km := tableEditKeyMap{
 		Save: key.NewBinding(
 			key.WithKeys("f2"),
-			key.WithHelp("f2", "save"),
+			key.WithHelp("f2", i18n.T("key.save")),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "f3"),
-			key.WithHelp("esc/f3", "cancel"),
+			key.WithHelp("esc/f3", i18n.T("key.cancel")),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("ctrl+c"),
-			key.WithHelp("ctrl+c", "quit"),
+			key.WithHelp("ctrl+c", i18n.T("key.quit")),
 		),
 	}
 
@@ -106,20 +107,22 @@ func (te tableEdit) View() string {
 		Render(strings.Repeat("─", te.width))
 
 	var body strings.Builder
-	body.WriteString(defaultBoldStyle.Render("Edit table"))
+	body.WriteString(defaultBoldStyle.Render(i18n.T("table.edit.title")))
 	body.WriteString("\n\n")
 
-	body.WriteString(grayStyle.Render("Family : "))
+	// Family / Name are the localized identifier labels; the family *value*
+	// (ip/ip6/inet/…) stays English as an nft token.
+	body.WriteString(grayStyle.Render(i18n.T("table.create.family_label")))
 	body.WriteString(whiteStyle.Render(nft.TableFamilyToString(te.table.Family)))
-	body.WriteString(grayStyle.Render("  (read-only — cannot be changed after creation)"))
+	body.WriteString(grayStyle.Render(i18n.T("table.edit.family_readonly")))
 	body.WriteString("\n\n")
 
-	body.WriteString(grayStyle.Render("Name   : "))
+	body.WriteString(grayStyle.Render(i18n.T("table.create.name_label")))
 	body.WriteString(te.input.View())
 
 	if te.statusMsg != "" {
 		body.WriteString("\n\n")
-		body.WriteString(redBoldStyle.Render("Error: " + te.statusMsg))
+		body.WriteString(redBoldStyle.Render(i18n.T("common.error") + te.statusMsg))
 	}
 
 	contentBox := normalGrayBorder.

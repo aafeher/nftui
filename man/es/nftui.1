@@ -1,0 +1,295 @@
+.\" Página de manual de nftui(1) en español
+.\" Escrita a mano con las macros `man' de groff para que se renderice en
+.\" cualquier distribución de Linux (mdoc necesitaría mandoc estilo BSD).
+.\"
+.\" La sección OPCIONES refleja el registro flagDocs de flags.go; mantén el
+.\" texto sincronizado al añadir o renombrar un flag.
+.\" Esta traducción al español es la pareja del man/nftui.1 inglés;
+.\" actualiza los dos juntos.
+.\"
+.\" Verificación: mandoc -Tlint man/es/nftui.1
+.\" Vista previa: man -l man/es/nftui.1
+.\" Las líneas en español (acentuadas, UTF-8) pueden provocar avisos
+.\" "STYLE: line longer than 80 bytes"; son inofensivos (se excede el número
+.\" de bytes, no el de caracteres, y no afectan al renderizado).
+.TH NFTUI 1 "2026-07-18" "nftui 1.2.0" "Comandos de usuario"
+.SH NOMBRE
+nftui \- interfaz de usuario de terminal para nftables de Linux
+.SH SINOPSIS
+.B nftui
+[\fB\-\-table\fR \fInombre\fR]
+[\fB\-\-config\fR \fIarchivo\fR]
+[\fB\-\-read\-only\fR]
+[\fB\-\-lang\fR \fIcódigo\fR]
+[\fB\-\-help\fR]
+[\fB\-\-version\fR]
+.SH DESCRIPCIÓN
+.B nftui
+es una interfaz de terminal interactiva para explorar y editar el conjunto
+de reglas del cortafuegos nftables del kernel de Linux. Habla con el kernel
+directamente por netlink (sin pasar por
+.BR nft (8)
+en la ruta de lectura ni en la de edición), así que los cambios se aplican
+de forma atómica con la misma semántica que los comandos
+.BR nft .
+El binario
+.BR nft (8)
+solo se usa para aplicar el conjunto de reglas inicial del flag
+.B \-\-config
+y para unas pocas operaciones de tabla concretas donde pasar por la CLI es
+más seguro que reconstruir el estado del kernel.
+.PP
+.B nftui
+requiere la capacidad
+.B CAP_NET_ADMIN
+en tiempo de ejecución. Ejecútalo con
+.BR sudo ,
+o concede la capacidad una sola vez con
+.B "setcap cap_net_admin=ep ./nftui"
+\&.
+.SH OPCIONES
+.TP
+.BR \-\-table " " \fInombre\fR
+Restringe el árbol a una sola tabla (emparejada por nombre en todas las
+familias). Un nombre desconocido termina antes de que arranque la TUI,
+mostrando la lista de tablas disponibles. Un nombre que existe en varias
+familias
+(p.\& ej.\&
+.B filter
+tanto en
+.B ip
+como en
+.BR inet )
+devuelve todas las coincidencias.
+.TP
+.BR \-\-config " " \fIarchivo\fR
+Aplica el conjunto de reglas nftables dado mediante
+.BI "nft \-f " archivo
+antes de que arranque la TUI. Esto
+.B muta
+el conjunto de reglas en ejecución \(em el archivo puede contener
+.BR "flush ruleset" .
+Se resuelve antes que
+.BR \-\-table ,
+de modo que el estado del kernel tras la carga es lo que
+.B \-\-table
+valida.
+.TP
+.B \-\-read\-only
+Desactiva toda ruta de escritura: sin
+.RB ( add / insert / move / delete / edit / save )
+de reglas, sin
+.RB ( create / delete )
+de cadenas, tablas o conjuntos, sin reinicio de contadores. Las teclas
+bloqueadas se atenúan en el pie de pantalla y un marcador rojo
+.B "[SOLO LECTURA]"
+acompaña la barra de título de cada vista principal.
+.TP
+.BR \-\-lang " " \fIcódigo\fR
+Establece el idioma de la interfaz (por ejemplo
+.BR en ", " hu ", " es ", " pt\-BR ", " fr ", " de " o " it ).
+Anula el entorno de locale
+.BR LC_ALL / LC_MESSAGES / LANG .
+Un valor no establecido o no soportado recurre a la detección automática
+desde el locale, y finalmente al inglés. Solo se aceptan los idiomas para
+los que nftui incluye un catálogo (actualmente inglés, húngaro, español,
+portugués de Brasil, francés, alemán e italiano).
+.TP
+.BR \-\-help ", " \-h
+Imprime la lista completa de flags con descripciones de una línea y
+ejemplos de uso en la salida estándar, y termina con
+.BR 0 .
+Los flags inválidos emiten el mismo texto de uso por la salida de error y
+terminan con
+.BR 2 .
+.TP
+.B \-\-version
+Imprime
+.B "nftui <versión>"
+en la salida estándar y termina con
+.BR 0 .
+La versión se inyecta al construir la release; una build desde el código
+fuente informa la versión de módulo del build-info de Go, o
+.B dev
+para un
+.B "go build"
+simple.
+.SH "ATAJOS DE TECLADO"
+.SS "Vista principal de árbol (tablas, cadenas, conjuntos, objetos con nombre)"
+.TP
+.BR \(ua " / " k
+mueve la selección hacia arriba
+.TP
+.BR \(da " / " j
+mueve la selección hacia abajo
+.TP
+.B "Enter / \(-> / \(<-"
+expande o pliega la tabla seleccionada
+.TP
+.B F3
+abre la cadena seleccionada en la vista de lista de reglas
+.TP
+.B n
+crea una tabla nueva
+.TP
+.B c
+crea una cadena nueva en la tabla seleccionada
+.TP
+.B e
+edita la tabla o cadena seleccionada
+.TP
+.B s
+crea un conjunto nuevo en la tabla seleccionada
+.TP
+.B d
+elimina la tabla, cadena, conjunto u objeto con nombre seleccionado (con
+confirmación)
+.TP
+.B R
+reinicia a cero el contador o la cuota seleccionada
+.TP
+.B /
+entra en la búsqueda incremental por nombre. Escribe para filtrar; Enter o
+.B \(da
+avanza por las coincidencias,
+.B \(ua
+retrocede, Esc limpia.
+.TP
+.B r
+recarga el árbol desde el kernel
+.TP
+.B "q / Esc / Ctrl+C"
+salir
+.SS "Vista de cadena (lista de reglas)"
+.TP
+.BR \(ua " / " k ", " \(da " / " j
+navega por las reglas
+.TP
+.B F3
+ver la regla seleccionada (detalle de solo lectura)
+.TP
+.B F4
+editar la regla seleccionada
+.TP
+.B a
+añade una regla nueva al final de la cadena
+.TP
+.B i
+inserta una regla nueva antes de la regla seleccionada
+.TP
+.B K
+sube la regla seleccionada una posición
+.TP
+.B J
+baja la regla seleccionada una posición
+.TP
+.B d
+elimina la regla seleccionada (con confirmación)
+.TP
+.B /
+entra en el filtro en línea. Escribe para acotar las reglas visibles por
+coincidencia de subcadena en el verdict, la palabra clave de la condición o
+el comentario. Con el filtro activo,
+.BR \(ua / \(da
+navegan por la lista filtrada, Enter o
+.B F3
+abre la regla seleccionada,
+.B F4
+abre el editor, Esc limpia el filtro.
+.TP
+.B Esc
+vuelve al árbol
+.TP
+.B q
+salir
+.SS "Editor de reglas"
+.TP
+.B "F5 / F6"
+pestaña anterior / siguiente
+.TP
+.B "Tab / Shift+Tab"
+campo siguiente / anterior dentro de la pestaña actual
+.TP
+.B F2
+valida y aplica los cambios a través de netlink
+.TP
+.B "Esc / F3"
+vuelve sin guardar
+.TP
+.B "q / Ctrl+C"
+salir
+.SH EJEMPLOS
+.TP
+.B sudo nftui
+explora el conjunto de reglas activo.
+.TP
+.B sudo nftui \-\-table filter
+muestra solo la(s) tabla(s) llamada(s)
+.IR filter .
+.TP
+.B sudo nftui \-\-config examples/example\-nftables\-01.conf
+carga la fixtura de prueba manual y luego la explora.
+.TP
+.B sudo nftui \-\-read\-only
+navegación segura \(em toda tecla de escritura está atenuada e inerte.
+.TP
+.B sudo nftui \-\-config new.conf \-\-read\-only
+navegación segura de una fixtura precargada.
+.SH ENTORNO
+.TP
+.B PATH
+debe incluir
+.BR nft (8)
+para que el flag
+.B \-\-config
+funcione; por lo demás el tiempo de ejecución no depende del binario
+.BR nft .
+.TP
+.BR LC_ALL / LC_MESSAGES / LANG
+seleccionan el idioma de la interfaz cuando no se da
+.BR \-\-lang ,
+en ese orden de precedencia (POSIX). Los sufijos
+.B .codeset
+y
+.B @modifier
+se ignoran; un locale no soportado o
+.BR C / POSIX
+recurre al inglés. Solo se usan los idiomas para los que nftui incluye un
+catálogo (actualmente inglés, húngaro, español, portugués de Brasil, francés,
+alemán e italiano).
+.SH ARCHIVOS
+.TP
+.I examples/example\-nftables\-01.conf
+La fixtura canónica de prueba manual en la distribución del código fuente.
+Cada característica documentada tiene su sección correspondiente en este
+archivo; la fixtura se verifica con
+.B "nft \-c \-f examples/example\-nftables\-01.conf"
+en cada release.
+.SH "ESTADO DE SALIDA"
+.TP
+.B 0
+salida normal (también con un
+.B \-\-help
+explícito)
+.TP
+.B 1
+error de ejecución dentro de la TUI (p.\& ej.\& fallo de la conexión
+netlink a mitad de sesión, o un fallo del binario
+.B nft
+durante
+.BR \-\-config )
+.TP
+.B 2
+uso inválido de la línea de comandos (flag desconocido, valor requerido
+ausente o destino de
+.B \-\-table
+desconocido)
+.SH "VÉASE TAMBIÉN"
+.BR nft (8)
+.PP
+Documentación del proyecto en la distribución del código fuente: README.md
+(instalación y resumen de características; traducción al español en
+README.es.md) y CHANGELOG.md (notas por versión en formato Keep a
+Changelog).
+.SH AUTORES
+Escrito por Ákos Fehér.

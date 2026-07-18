@@ -7,6 +7,8 @@ import (
 	"nftui/nft"
 	"nftui/nft/nftserializer"
 
+	"nftui/i18n"
+
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -120,31 +122,31 @@ func newRuleEdit(rule *nftables.Rule, readOnly bool) ruleEdit {
 	km := ruleEditKeyMap{
 		PrevTab: key.NewBinding(
 			key.WithKeys("f5"),
-			key.WithHelp("f5", "prev tab"),
+			key.WithHelp("f5", i18n.T("key.prev_tab")),
 		),
 		NextTab: key.NewBinding(
 			key.WithKeys("f6"),
-			key.WithHelp("f6", "next tab"),
+			key.WithHelp("f6", i18n.T("key.next_tab")),
 		),
 		NextField: key.NewBinding(
 			key.WithKeys("tab"),
-			key.WithHelp("tab", "next field"),
+			key.WithHelp("tab", i18n.T("key.next_field")),
 		),
 		PrevField: key.NewBinding(
 			key.WithKeys("shift+tab"),
-			key.WithHelp("shift+tab", "prev field"),
+			key.WithHelp("shift+tab", i18n.T("key.prev_field")),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "f3"),
-			key.WithHelp("esc/f3", "back"),
+			key.WithHelp("esc/f3", i18n.T("key.back")),
 		),
 		Save: key.NewBinding(
 			key.WithKeys("f2"),
-			key.WithHelp("f2", "save"),
+			key.WithHelp("f2", i18n.T("key.save")),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
-			key.WithHelp("q", "quit"),
+			key.WithHelp("q", i18n.T("key.quit")),
 		),
 	}
 
@@ -467,11 +469,34 @@ func (r ruleEdit) Update(msg tea.Msg) (ruleEdit, tea.Cmd) {
 	}
 }
 
+// editTabLabel resolves an editor tab's localized display label. Tab names are
+// stored as their English canonical (used for indexing/debugging); the visible
+// label is translated at render time — CT/IP/Meta are kept as nft abbreviations.
+func editTabLabel(name string) string {
+	switch name {
+	case "General":
+		return i18n.T("rule.tab.general")
+	case "CT":
+		return i18n.T("rule.tab.ct")
+	case "Network":
+		return i18n.T("rule.tab.network")
+	case "IP":
+		return i18n.T("rule.tab.ip")
+	case "Transport":
+		return i18n.T("rule.tab.transport")
+	case "Meta":
+		return i18n.T("rule.tab.meta")
+	case "Limit":
+		return i18n.T("rule.tab.limit")
+	}
+	return name
+}
+
 // renderTabBar renders the horizontal tab strip.
 func (r ruleEdit) renderTabBar() string {
 	var parts []string
 	for i, tab := range r.tabs {
-		label := "  " + tab.name + "  "
+		label := "  " + editTabLabel(tab.name) + "  "
 		if i == r.activeTab {
 			parts = append(parts, whiteBoldStyle.Background(lipgloss.Color("#264f88")).Render(label))
 		} else {
@@ -593,7 +618,7 @@ func (r ruleEdit) renderGeneralTab(rd *nft.Rule) string {
 		break
 	}
 	if hasRemaining {
-		sb.WriteString(grayBoldStyle.Render("Actions:"))
+		sb.WriteString(grayBoldStyle.Render(i18n.T("rule.general.actions")))
 		sb.WriteString("\n")
 		for _, action := range rd.Actions {
 			switch action.Type {
@@ -723,7 +748,7 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 			}
 			if !hasMisc {
 				sb.WriteString("\n")
-				sb.WriteString(grayBoldStyle.Render("Other conditions:"))
+				sb.WriteString(grayBoldStyle.Render(i18n.T("rule.edit.other_conditions")))
 				sb.WriteString("\n")
 				hasMisc = true
 			}
@@ -739,7 +764,7 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 		if condition.SetLookup != nil {
 			if !hasMisc {
 				sb.WriteString("\n")
-				sb.WriteString(grayBoldStyle.Render("Other conditions:"))
+				sb.WriteString(grayBoldStyle.Render(i18n.T("rule.edit.other_conditions")))
 				sb.WriteString("\n")
 				hasMisc = true
 			}
@@ -748,7 +773,7 @@ func (r ruleEdit) renderNetworkTab(rd *nft.Rule) string {
 		if condition.Custom != nil {
 			if !hasMisc {
 				sb.WriteString("\n")
-				sb.WriteString(grayBoldStyle.Render("Other conditions:"))
+				sb.WriteString(grayBoldStyle.Render(i18n.T("rule.edit.other_conditions")))
 				sb.WriteString("\n")
 				hasMisc = true
 			}
@@ -768,7 +793,7 @@ func (r ruleEdit) renderIPTab() string {
 	//         14=Version, 15=Dscp, 16=Flowlabel
 	var sb strings.Builder
 
-	sb.WriteString(grayBoldStyle.Render("IPv4 header"))
+	sb.WriteString(grayBoldStyle.Render(i18n.T("rule.edit.ipv4_header")))
 	sb.WriteString("\n")
 	sb.WriteString(r.row3(r.fview(3, 0), r.fview(3, 1), r.fview(3, 2)))
 	sb.WriteString("\n")
@@ -777,7 +802,7 @@ func (r ruleEdit) renderIPTab() string {
 	sb.WriteString(r.row3(r.fview(3, 6), r.fview(3, 7), r.fview(3, 8)))
 	sb.WriteString("\n")
 
-	sb.WriteString(grayBoldStyle.Render("IPv6 header"))
+	sb.WriteString(grayBoldStyle.Render(i18n.T("rule.edit.ipv6_header")))
 	sb.WriteString("\n")
 	sb.WriteString(r.fview(3, 9))
 	sb.WriteString(r.fview(3, 10))
@@ -972,7 +997,7 @@ func (r ruleEdit) View() string {
 
 	// Fixed top: title, tab bar, and its divider — these never scroll.
 	var top strings.Builder
-	top.WriteString(blueStyle.Render("| Edit rule |"))
+	top.WriteString(blueStyle.Render(i18n.T("rule.edit.title")))
 	top.WriteString("\n\n")
 	top.WriteString(r.renderTabBar())
 	top.WriteString("\n")

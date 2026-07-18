@@ -6,12 +6,14 @@ import (
 	"strconv"
 	"strings"
 
+	"nftui/i18n"
+	"nftui/nft"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
-	"nftui/nft"
 )
 
 // EtherType names accepted by `nft` (matched against the wire EtherType
@@ -229,7 +231,7 @@ func (f *EtherTypeField) View() string {
 	}
 	row := lipgloss.JoinHorizontal(lipgloss.Top,
 		lipgloss.NewStyle().Width(14).Render(vSel),
-		lipgloss.NewStyle().Width(6).Render(grayStyle.Render("or:")),
+		lipgloss.NewStyle().Width(6).Render(grayStyle.Render(i18n.T("rule.field.or"))),
 		lipgloss.NewStyle().Render(vCustom),
 		hint,
 	)

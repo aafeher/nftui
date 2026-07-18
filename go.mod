@@ -15,8 +15,10 @@ require (
 	github.com/google/nftables v0.3.1-0.20251119083706-1db35da82052
 	github.com/mdlayher/netlink v1.11.2
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/sys v0.46.0
+	golang.org/x/sys v0.47.0
 )
+
+require golang.org/x/text v0.40.0
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect
@@ -31,7 +33,7 @@ require (
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
-	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/mattn/go-isatty v0.0.23 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.24 // indirect
 	github.com/mdlayher/socket v0.6.1 // indirect
@@ -41,8 +43,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

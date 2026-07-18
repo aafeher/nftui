@@ -4,12 +4,14 @@ import (
 	"strconv"
 	"strings"
 
+	"nftui/i18n"
+	"nftui/nft"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 	"golang.org/x/sys/unix"
-	"nftui/nft"
 )
 
 // DCCP sport/dport — uint16, same shape as the SCTP port editors but with
@@ -247,7 +249,7 @@ func (f *DccpTypeField) View() string {
 	vCustom := f.customInput.View()
 	row := lipgloss.JoinHorizontal(lipgloss.Top,
 		lipgloss.NewStyle().Width(18).Render(vSel),
-		lipgloss.NewStyle().Width(6).Render(grayStyle.Render("or:")),
+		lipgloss.NewStyle().Width(6).Render(grayStyle.Render(i18n.T("rule.field.or"))),
 		lipgloss.NewStyle().Render(vCustom),
 	)
 	return grayStyle.Render("DCCP type") + "\n" + row + "\n"

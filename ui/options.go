@@ -1,5 +1,7 @@
 package ui
 
+import "nftui/i18n"
+
 // readOnlyBanner is appended next to a view's title when read-only mode is
 // on, so the state is visible from every main view. Returns empty when off
 // so call sites concatenate unconditionally without an extra branch.
@@ -7,7 +9,7 @@ func readOnlyBanner(readOnly bool) string {
 	if !readOnly {
 		return ""
 	}
-	return "  " + redBoldStyle.Render("[READ-ONLY MODE]")
+	return "  " + redBoldStyle.Render(i18n.T("banner.read_only"))
 }
 
 // Options carries the values parsed from the command-line flags into the UI

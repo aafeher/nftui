@@ -1,0 +1,294 @@
+.\" Pagina di manuale nftui(1) in italiano
+.\" Scritta a mano con le macro `man' di groff perché renda su qualsiasi
+.\" distribuzione Linux (mdoc richiederebbe mandoc in stile BSD).
+.\"
+.\" La sezione OPZIONI rispecchia il registro flagDocs di flags.go; tieni il
+.\" testo sincronizzato quando aggiungi o rinomini un'opzione.
+.\" Questa traduzione italiana è la controparte del man/nftui.1 inglese;
+.\" aggiorna i due insieme.
+.\"
+.\" Verifica:   mandoc -Tlint man/it/nftui.1
+.\" Anteprima:  man -l man/it/nftui.1
+.\" Le righe italiane (accentate, UTF-8) possono produrre avvisi
+.\" "STYLE: line longer than 80 bytes"; sono innocui (a superare 80 è il
+.\" numero di byte, non di caratteri, e la resa non ne risente).
+.TH NFTUI 1 "2026-07-18" "nftui 1.2.0" "Comandi utente"
+.SH NOME
+nftui \- interfaccia utente da terminale per nftables su Linux
+.SH SINOSSI
+.B nftui
+[\fB\-\-table\fR \fInome\fR]
+[\fB\-\-config\fR \fIfile\fR]
+[\fB\-\-read\-only\fR]
+[\fB\-\-lang\fR \fIcodice\fR]
+[\fB\-\-help\fR]
+[\fB\-\-version\fR]
+.SH DESCRIZIONE
+.B nftui
+è un'interfaccia da terminale interattiva per navigare e modificare
+l'insieme di regole del firewall nftables del kernel Linux. Parla con il
+kernel direttamente via netlink (nessun passaggio per
+.BR nft (8)
+sul percorso di lettura né su quello di modifica), quindi le modifiche si
+applicano atomicamente con la stessa semantica dei comandi
+.BR nft .
+Il binario
+.BR nft (8)
+è usato solo per applicare l'insieme di regole iniziale dell'opzione
+.B \-\-config
+e per alcune operazioni mirate sulle tabelle in cui passare per la CLI è
+più sicuro che ricostruire lo stato del kernel.
+.PP
+.B nftui
+richiede la capability
+.B CAP_NET_ADMIN
+a runtime. Eseguilo con
+.BR sudo ,
+oppure concedi la capability una sola volta con
+.B "setcap cap_net_admin=ep ./nftui"
+\&.
+.SH OPZIONI
+.TP
+.BR \-\-table " " \fInome\fR
+Limita l'albero a una singola tabella (abbinata per nome in tutte le
+famiglie). Un nome sconosciuto termina prima dell'avvio della TUI,
+mostrando l'elenco delle tabelle disponibili. Un nome presente in più
+famiglie
+(p.\& es.\&
+.B filter
+sia in
+.B ip
+sia in
+.BR inet )
+restituisce tutte le corrispondenze.
+.TP
+.BR \-\-config " " \fIfile\fR
+Applica l'insieme di regole nftables dato via
+.BI "nft \-f " file
+prima dell'avvio della TUI. Questo
+.B muta
+l'insieme di regole in esecuzione \(em il file può contenere
+.BR "flush ruleset" .
+Viene risolto prima di
+.BR \-\-table ,
+così lo stato del kernel dopo il caricamento è ciò che
+.B \-\-table
+convalida.
+.TP
+.B \-\-read\-only
+Disattiva ogni percorso di scrittura: nessun
+.RB ( add / insert / move / delete / edit / save )
+di regole, nessun
+.RB ( create / delete )
+di catene, tabelle o set, nessun azzeramento di contatori. I tasti
+bloccati si attenuano nel piè di pagina e un marcatore rosso
+.B "[SOLA LETTURA]"
+accompagna la barra del titolo di ogni vista principale.
+.TP
+.BR \-\-lang " " \fIcodice\fR
+Imposta la lingua dell'interfaccia (per esempio
+.BR en ", " hu ", " es ", " pt\-BR ", " fr ", " de " o " it ).
+Scavalca l'ambiente di locale
+.BR LC_ALL / LC_MESSAGES / LANG .
+Un valore assente o non supportato ricade sul rilevamento automatico dalla
+locale e infine sull'inglese. Sono accettate solo le lingue per cui nftui
+include un catalogo (attualmente inglese, ungherese, spagnolo, portoghese
+brasiliano, francese, tedesco e italiano).
+.TP
+.BR \-\-help ", " \-h
+Stampa l'elenco completo delle opzioni con descrizioni di una riga ed
+esempi d'uso sullo standard output, poi termina con
+.BR 0 .
+Le opzioni non valide emettono lo stesso testo d'uso sullo standard error
+e terminano con
+.BR 2 .
+.TP
+.B \-\-version
+Stampa
+.B "nftui <versione>"
+sullo standard output e termina con
+.BR 0 .
+La versione viene iniettata alla build di release; una build dai sorgenti
+riporta la versione di modulo dal build-info di Go, oppure
+.B dev
+per un semplice
+.BR "go build" .
+.SH "SCORCIATOIE DA TASTIERA"
+.SS "Vista principale ad albero (tabelle, catene, set, oggetti con nome)"
+.TP
+.BR \(ua " / " k
+sposta la selezione in su
+.TP
+.BR \(da " / " j
+sposta la selezione in giù
+.TP
+.B "Enter / \(-> / \(<-"
+espande o comprime la tabella selezionata
+.TP
+.B F3
+apre la catena selezionata nella vista elenco regole
+.TP
+.B n
+crea una nuova tabella
+.TP
+.B c
+crea una nuova catena nella tabella selezionata
+.TP
+.B e
+modifica la tabella o la catena selezionata
+.TP
+.B s
+crea un nuovo set nella tabella selezionata
+.TP
+.B d
+elimina la tabella, la catena, il set o l'oggetto con nome selezionato
+(con conferma)
+.TP
+.B R
+azzera il contatore o la quota selezionata
+.TP
+.B /
+avvia la ricerca incrementale per nome. Digita per filtrare; Enter o
+.B \(da
+avanza tra le corrispondenze,
+.B \(ua
+torna indietro, Esc cancella.
+.TP
+.B r
+ricarica l'albero dal kernel
+.TP
+.B "q / Esc / Ctrl+C"
+esci
+.SS "Vista della catena (elenco delle regole)"
+.TP
+.BR \(ua " / " k ", " \(da " / " j
+naviga tra le regole
+.TP
+.B F3
+mostra la regola selezionata (dettaglio in sola lettura)
+.TP
+.B F4
+modifica la regola selezionata
+.TP
+.B a
+aggiunge una nuova regola in coda alla catena
+.TP
+.B i
+inserisce una nuova regola prima di quella selezionata
+.TP
+.B K
+sposta la regola selezionata su di una posizione
+.TP
+.B J
+sposta la regola selezionata giù di una posizione
+.TP
+.B d
+elimina la regola selezionata (con conferma)
+.TP
+.B /
+avvia il filtro in linea. Digita per restringere le regole visibili per
+corrispondenza di sottostringa su verdict, parola chiave della condizione
+o commento. Con il filtro attivo,
+.BR \(ua / \(da
+navigano l'elenco filtrato, Enter o
+.B F3
+apre la regola selezionata,
+.B F4
+apre l'editor, Esc cancella il filtro.
+.TP
+.B Esc
+torna all'albero
+.TP
+.B q
+esci
+.SS "Editor di regole"
+.TP
+.B "F5 / F6"
+scheda precedente / successiva
+.TP
+.B "Tab / Shift+Tab"
+campo successivo / precedente nella scheda corrente
+.TP
+.B F2
+convalida e applica le modifiche via netlink
+.TP
+.B "Esc / F3"
+torna senza salvare
+.TP
+.B "q / Ctrl+C"
+esci
+.SH ESEMPI
+.TP
+.B sudo nftui
+naviga l'insieme di regole attivo.
+.TP
+.B sudo nftui \-\-table filter
+mostra solo la/le tabella/e chiamata/e
+.IR filter .
+.TP
+.B sudo nftui \-\-config examples/example\-nftables\-01.conf
+carica la fixture di test manuale e poi la naviga.
+.TP
+.B sudo nftui \-\-read\-only
+navigazione sicura \(em ogni tasto di scrittura è attenuato e inerte.
+.TP
+.B sudo nftui \-\-config new.conf \-\-read\-only
+navigazione sicura di una fixture precaricata.
+.SH AMBIENTE
+.TP
+.B PATH
+deve includere
+.BR nft (8)
+perché l'opzione
+.B \-\-config
+funzioni; per il resto il runtime non dipende dal binario
+.BR nft .
+.TP
+.BR LC_ALL / LC_MESSAGES / LANG
+selezionano la lingua dell'interfaccia quando
+.B \-\-lang
+non è dato, in quest'ordine di precedenza (POSIX). I suffissi
+.B .codeset
+e
+.B @modifier
+sono ignorati; una locale non supportata o
+.BR C / POSIX
+ricade sull'inglese. Sono usate solo le lingue per cui nftui include un
+catalogo (attualmente inglese, ungherese, spagnolo, portoghese brasiliano,
+francese, tedesco e italiano).
+.SH FILE
+.TP
+.I examples/example\-nftables\-01.conf
+La fixture canonica di test manuale nella distribuzione dei sorgenti. Ogni
+funzionalità documentata ha la sua sezione corrispondente in questo file;
+la fixture è verificata con
+.B "nft \-c \-f examples/example\-nftables\-01.conf"
+a ogni release.
+.SH "STATO DI USCITA"
+.TP
+.B 0
+uscita normale (anche con un
+.B \-\-help
+esplicito)
+.TP
+.B 1
+errore di esecuzione nella TUI (p.\& es.\& caduta della connessione
+netlink a metà sessione, o un errore del binario
+.B nft
+durante
+.BR \-\-config )
+.TP
+.B 2
+uso non valido della riga di comando (opzione sconosciuta, valore
+obbligatorio mancante o destinazione
+.B \-\-table
+sconosciuta)
+.SH "VEDERE ANCHE"
+.BR nft (8)
+.PP
+Documentazione del progetto nella distribuzione dei sorgenti: README.md
+(installazione e panoramica delle funzionalità; traduzione italiana in
+README.it.md) e CHANGELOG.md (note di versione in formato Keep a
+Changelog).
+.SH AUTORI
+Scritto da Ákos Fehér.

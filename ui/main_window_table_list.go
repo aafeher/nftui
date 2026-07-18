@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
+	"nftui/i18n"
 )
 
 type tableNode struct {
@@ -102,11 +103,17 @@ func (k treeSearchKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{{k.Filter, k.Next, k.Prev, k.Exit}}
 }
 
-var treeSearchKeys = treeSearchKeyMap{
-	Filter: key.NewBinding(key.WithKeys("a-z"), key.WithHelp("type", "filter")),
-	Next:   key.NewBinding(key.WithKeys("enter", "down"), key.WithHelp("enter/↓", "next match")),
-	Prev:   key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", "prev match")),
-	Exit:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "exit search")),
+// treeSearchKeys builds the tree search-mode footer keymap. It is a function,
+// not a package-level var, so its i18n.T lookups resolve against the
+// startup-selected language at render time — a package-level var would bind them
+// at init, when the catalog is still English.
+func treeSearchKeys() treeSearchKeyMap {
+	return treeSearchKeyMap{
+		Filter: key.NewBinding(key.WithKeys("a-z"), key.WithHelp("type", i18n.T("key.filter"))),
+		Next:   key.NewBinding(key.WithKeys("enter", "down"), key.WithHelp("enter/↓", i18n.T("key.next_match"))),
+		Prev:   key.NewBinding(key.WithKeys("up"), key.WithHelp("↑", i18n.T("key.prev_match"))),
+		Exit:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", i18n.T("key.exit_search"))),
+	}
 }
 
 const statusFadeDelay = 2 * time.Second
@@ -386,8 +393,16 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if tm.showDeleteConfirm {
-			switch msg.String() {
-			case "y", "Y":
+			key := msg.String()
+			if confirmYesJ(key) { // German "[J]a" — only while German is active
+				key = "y"
+			}
+			switch key {
+			// "i"/"I" (Hungarian "[I]gen"), "s"/"S" (Spanish "[S]í",
+			// Portuguese "[S]im") and "o"/"O" (French "[O]ui") accept too,
+			// so the localized confirm prompt's highlighted key actually
+			// works.
+			case "y", "Y", "i", "I", "s", "S", "o", "O":
 				items := tm.getFlattenedItems()
 				if tm.cursor < len(items) {
 					selected := items[tm.cursor]
@@ -481,7 +496,7 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						selected.obj.Type == nftables.ObjTypeQuota) {
 					return tm, resetNamedObjectCmd(*selected.obj)
 				}
-				cmd := tm.setStatus("no resettable counter/quota under cursor")
+				cmd := tm.setStatus(i18n.T("status.no_resettable"))
 				return tm, cmd
 			}
 		case "e":
@@ -581,7 +596,7 @@ func (tm tableTreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (tm tableTreeModel) View() string {
 	var b strings.Builder
 
-	title := "| Tables and chains |"
+	title := i18n.T("tree.title")
 	b.WriteString(blueStyle.Render(title))
 	b.WriteString("\n\n")
 
@@ -913,11 +928,11 @@ func (tm tableTreeModel) View() string {
 		var suffix string
 		switch {
 		case tm.searchQuery == "":
-			suffix = grayStyle.Render("  type to filter by name")
+			suffix = grayStyle.Render(i18n.T("search.hint"))
 		case len(tm.searchMatches) == 0:
-			suffix = grayStyle.Render("  no match")
+			suffix = grayStyle.Render(i18n.T("search.no_match"))
 		default:
-			suffix = grayStyle.Render(fmt.Sprintf("  match %d/%d", tm.searchActive+1, len(tm.searchMatches)))
+			suffix = grayStyle.Render(fmt.Sprintf(i18n.T("search.match_count"), tm.searchActive+1, len(tm.searchMatches)))
 		}
 		b.WriteString(prompt + suffix)
 		b.WriteString("\n")
@@ -944,19 +959,19 @@ func (tm tableTreeModel) View() string {
 			case selected.isRoot:
 				warning := ""
 				if selected.chainsCount > 0 || selected.rulesCount > 0 {
-					warning = "\n\nWARNING: The table is not empty! Deleting it will delete all chains and rules inside."
+					warning = i18n.T("confirm.table.warn_nonempty")
 				}
-				confirmText = fmt.Sprintf("Are you sure you want to delete the '%s' table?%s\n\n[Y]es / [N]o", selected.tableName, warning)
+				confirmText = fmt.Sprintf(i18n.T("confirm.table"), selected.tableName, warning)
 			case selected.chain != nil:
 				warning := ""
 				if selected.rulesCount > 0 {
-					warning = fmt.Sprintf("\n\nWARNING: The chain has %d rule(s). Deleting it will also delete all of them.", selected.rulesCount)
+					warning = fmt.Sprintf(i18n.T("confirm.chain.warn_rules"), selected.rulesCount)
 				}
-				confirmText = fmt.Sprintf("Are you sure you want to delete the '%s' chain?%s\n\n[Y]es / [N]o", selected.chainName, warning)
+				confirmText = fmt.Sprintf(i18n.T("confirm.chain"), selected.chainName, warning)
 			case selected.isSet && selected.set != nil:
-				confirmText = fmt.Sprintf("Are you sure you want to delete the '%s' set?\n\nWARNING: Deleting a set referenced by rules will fail at kernel level.\n\n[Y]es / [N]o", selected.setName)
+				confirmText = fmt.Sprintf(i18n.T("confirm.set"), selected.setName)
 			case selected.isObj && selected.obj != nil:
-				confirmText = fmt.Sprintf("Are you sure you want to delete the '%s' %s?\n\nWARNING: Deleting an object referenced by rules will fail at kernel level (EBUSY).\n\n[Y]es / [N]o",
+				confirmText = fmt.Sprintf(i18n.T("confirm.object"),
 					selected.obj.Name, selected.obj.TypeStr)
 			default:
 				return base

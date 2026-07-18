@@ -1,5 +1,7 @@
 # nftui
 
+**English** · [Magyar](README.hu.md) · [Español](README.es.md) · [Português (BR)](README.pt-BR.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md)
+
 [![CI](https://img.shields.io/github/actions/workflow/status/aafeher/nftui/ci.yml?branch=main&label=CI)](https://github.com/aafeher/nftui/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/aafeher/nftui/codeql.yml?branch=main&label=CodeQL)](https://github.com/aafeher/nftui/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/aafeher/nftui/graph/badge.svg)](https://codecov.io/gh/aafeher/nftui)
@@ -128,9 +130,9 @@ is welcome to adopt the reference [`packaging/aur/PKGBUILD`](packaging/aur/PKGBU
 
 **Gentoo:** the repo is a standard Go module, so `go build -o nftui .` is the
 simplest path. Two community-maintainable reference ebuilds are provided for a
-local overlay: [`nftui-1.1.0.ebuild`](packaging/gentoo/nftui-1.1.0.ebuild)
+local overlay: [`nftui-1.2.0.ebuild`](packaging/gentoo/nftui-1.2.0.ebuild)
 builds from source via `go-module.eclass`, and
-[`nftui-bin-1.1.0.ebuild`](packaging/gentoo/nftui-bin-1.1.0.ebuild) installs the
+[`nftui-bin-1.2.0.ebuild`](packaging/gentoo/nftui-bin-1.2.0.ebuild) installs the
 prebuilt release binary; install one or the other (they share `/usr/bin/nftui`
 and block each other). See
 [`packaging/gentoo/README.md`](packaging/gentoo/README.md) for overlay setup.
@@ -162,7 +164,7 @@ A [`Dockerfile`](Dockerfile) builds a small (~17 MB) image that bundles the
 ```bash
 docker build -t nftui:local .
 # versioned build (sets `nftui --version`):
-docker build -t nftui:1.1.0 --build-arg VERSION=1.1.0 .
+docker build -t nftui:1.2.0 --build-arg VERSION=1.2.0 .
 ```
 
 nftui manages the **host** ruleset, so the container needs the host network
@@ -204,15 +206,29 @@ sudo setcap cap_net_admin=ep ./nftui
 ### Installing the man page (optional)
 
 ```bash
-sudo install -m 0644 man/nftui.1 /usr/share/man/man1/
+sudo install -m 0644 man/nftui.1 /usr/share/man/man1/               # English
+sudo install -m 0644 man/hu/nftui.1 /usr/share/man/hu/man1/         # Hungarian (optional)
+sudo install -m 0644 man/es/nftui.1 /usr/share/man/es/man1/         # Spanish (optional)
+sudo install -m 0644 man/pt_BR/nftui.1 /usr/share/man/pt_BR/man1/   # Brazilian Portuguese (optional)
+sudo install -m 0644 man/fr/nftui.1 /usr/share/man/fr/man1/         # French (optional)
+sudo install -m 0644 man/de/nftui.1 /usr/share/man/de/man1/         # German (optional)
+sudo install -m 0644 man/it/nftui.1 /usr/share/man/it/man1/         # Italian (optional)
 sudo mandb        # if your system uses man-db (Debian / Ubuntu / Fedora …)
 man nftui         # then it's available everywhere
 ```
 
-Preview it from the source tree without installing:
+A locale-aware `man` picks the translated page from `$LANG` / `$LC_MESSAGES`
+(e.g. `LANG=hu_HU.UTF-8 man nftui`). Preview from the source tree without
+installing:
 
 ```bash
-man -l man/nftui.1
+man -l man/nftui.1          # English
+man -l man/hu/nftui.1       # Hungarian
+man -l man/es/nftui.1       # Spanish
+man -l man/pt_BR/nftui.1    # Brazilian Portuguese
+man -l man/fr/nftui.1       # French
+man -l man/de/nftui.1       # German
+man -l man/it/nftui.1       # Italian
 ```
 
 ## Command-line flags
@@ -222,6 +238,7 @@ man -l man/nftui.1
 | `--table <name>` | Restrict the tree to a single table — its chains, sets, and named objects. The match is by name across every family, so `--table filter` will include both `inet filter` and `ip filter` if both exist. Unknown names exit before the TUI starts with the list of available tables. |
 | `--config <file>` | Apply the given nftables ruleset via `nft -f <file>` **before** the TUI starts. **This mutates the running ruleset** — the file may contain `flush ruleset`. Use to bring up a known state for testing. Resolved before `--table` so the post-load kernel state is what `--table` validates against. |
 | `--read-only` | Disable every write path: no rule add / insert / move / delete / edit / save, no chain / table / set create / delete, no counter reset. Blocked keys dim out of the footer (per the footer-completeness invariant) and a `[READ-ONLY MODE]` marker rides next to the title in every main view. Useful for safe browsing, auditing, or pairing with `--config` to inspect a fixture without risk of accidental edits. |
+| `--lang <code>` | Set the interface language, e.g. `en`, `hu`, `es`, `pt-BR`, `fr`, `de` or `it`. Overrides the locale environment (`LC_ALL` / `LC_MESSAGES` / `LANG`). An unset or unsupported value falls back to locale auto-detection, and finally to English. Only languages nftui ships a catalog for are honoured — currently **English**, **Hungarian**, **Spanish**, **Brazilian Portuguese**, **French**, **German** and **Italian**. See [Language / localization](#language--localization). |
 | `--help` (also `-h`) | Print the full flag list with one-line descriptions and usage examples, then exit. Goes to stdout (so you can pipe to `less`); explicit `--help` exits 0. Invalid flags emit the same usage to stderr and exit 2. |
 | `--version` | Print `nftui <version>` to stdout and exit 0. The version is injected at release-build time; a binary built from source reports the Go build-info module version, or `dev` for a plain `go build`. |
 
@@ -237,6 +254,31 @@ sudo ./nftui --config new.conf --table filter            # apply new.conf, then 
 ```
 
 Without `--config`, the running ruleset is left untouched. Without `--table`, every table is shown. Without `--read-only`, every CRUD action is available.
+
+## Language / localization
+
+nftui's interface is localized. The language is resolved once at startup, in this order:
+
+1. the `--lang <code>` flag (e.g. `--lang hu`);
+2. otherwise the POSIX locale environment — `LC_ALL`, then `LC_MESSAGES`, then `LANG` (the `.codeset` / `@modifier` suffixes are ignored, and `C` / `POSIX` mean English);
+3. otherwise English.
+
+An unset or unsupported code falls back to auto-detection and finally to English, so nftui always starts in a language it has a catalog for. The choice is fixed for the session — there is no in-app language switch.
+
+**Supported languages:** English (source), Hungarian (`hu`), Spanish (`es`), Brazilian Portuguese (`pt-BR`), French (`fr`), German (`de`) and Italian (`it`). English is the *source* locale: every user-facing string in the TUI resolves through the embedded message catalogs (`i18n/locales/*.json`), with English as the fallback for any missing key.
+
+**Scope:** the interactive TUI — the tree, dashboards, the rule / chain / set views, the create / edit dialogs, the rule editor, footers, and confirmations — is fully localized. nftables' own vocabulary (attribute names like `type` / `hook` / `policy`, verdicts, expression keywords, and any copy-pasteable rule syntax) stays in English in every language, so what you read still matches what `nft` accepts. The `--help` / `--version` output is English-only — it is consumed outside the TUI, and `--help` is resolved before the language is selected. The `nftui(1)` man page ships in English ([`man/nftui.1`](man/nftui.1)), Hungarian ([`man/hu/nftui.1`](man/hu/nftui.1)), Spanish ([`man/es/nftui.1`](man/es/nftui.1)), Brazilian Portuguese ([`man/pt_BR/nftui.1`](man/pt_BR/nftui.1)), French ([`man/fr/nftui.1`](man/fr/nftui.1)), German ([`man/de/nftui.1`](man/de/nftui.1)) and Italian ([`man/it/nftui.1`](man/it/nftui.1)), and this README has [Hungarian](README.hu.md), [Spanish](README.es.md), [Brazilian Portuguese](README.pt-BR.md), [French](README.fr.md), [German](README.de.md) and [Italian](README.it.md) translations.
+
+```bash
+sudo ./nftui --lang hu             # Hungarian interface
+sudo ./nftui --lang es             # Spanish interface
+sudo ./nftui --lang pt-BR          # Brazilian Portuguese interface
+sudo ./nftui --lang fr             # French interface
+sudo ./nftui --lang de             # German interface
+sudo ./nftui --lang it             # Italian interface
+LANG=hu_HU.UTF-8 sudo -E ./nftui   # Hungarian via the locale environment
+sudo ./nftui --lang en             # force English regardless of locale
+```
 
 ## Privilege model & deployment hardening
 
@@ -421,6 +463,9 @@ ui/                            Bubble Tea TUI
   rule_view.go                 rule detail (read-only)
   rule_edit.go                 rule editor with tabbed FieldEditors
   field_*.go                   one file per FieldEditor
+i18n/                          i18n / localization (embedded message catalogs)
+  i18n.go                      language detection / matching + the T() translator
+  locales/                     per-language JSON catalogs (en, hu, es, pt-BR, fr, de, it)
 examples/example-nftables-01.conf  manual-test fixture
 man/nftui.1                    man page (groff/mandoc; see "Installation")
 CHANGELOG.md                   per-version release notes (Keep a Changelog format)
@@ -583,6 +628,12 @@ to date:
   and rules rendering twice; OpenSSF Scorecard / CodeQL / Codecov, Go fuzz
   targets, and SHA-pinned actions.
 
+- **v1.2.0** (2026-07-18) — internationalization & localization: the whole
+  TUI is localized — the English source plus Hungarian, Spanish, Brazilian
+  Portuguese, French, German and Italian — via embedded, parity-tested message
+  catalogs with `--lang` / POSIX-locale selection, localized confirm mnemonics
+  (the German `j` alias is language-gated to protect vim-scroll muscle
+  memory), and a full man page + README translation pair for every language.
 ## License
 
 MIT — see [LICENSE](LICENSE).

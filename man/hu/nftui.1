@@ -1,0 +1,298 @@
+.\" nftui(1) magyar man oldal
+.\" Kézzel írott, groff `man' makrókkal, hogy minden Linux disztribúción
+.\" rendereljen (az mdoc BSD-stílusú mandoc-ot igényelne).
+.\"
+.\" Az OPTIONS (KAPCSOLÓK) szakasz a flags.go flagDocs regiszterét tükrözi;
+.\" flag hozzáadásakor / átnevezésekor tartsd szinkronban a szöveget.
+.\" Ez a magyar fordítás az angol man/nftui.1 párja; a kettőt együtt frissítsd.
+.\"
+.\" Ellenőrzés: mandoc -Tlint man/hu/nftui.1
+.\" Előnézet:   man -l man/hu/nftui.1
+.\" A magyar (ékezetes, UTF-8) prózasorok "STYLE: line longer than 80 bytes"
+.\" figyelmeztetéseket válthatnak ki; ezek ártalmatlanok (a bájtszám, nem a
+.\" karakterszám lépi túl a 80-at) és nem befolyásolják a renderelést.
+.\"
+.TH NFTUI 1 "2026-07-18" "nftui 1.2.0" "Felhasználói parancsok"
+.SH NÉV
+nftui \- Terminál felhasználói felület a Linux nftables kezeléséhez
+.SH ÁTTEKINTÉS
+.B nftui
+[\fB\-\-table\fR \fInév\fR]
+[\fB\-\-config\fR \fIfájl\fR]
+[\fB\-\-read\-only\fR]
+[\fB\-\-lang\fR \fIkód\fR]
+[\fB\-\-help\fR]
+[\fB\-\-version\fR]
+.SH LEÍRÁS
+Az
+.B nftui
+interaktív terminál felület a Linux kernel nftables tűzfal-szabálykészletének
+böngészésére és szerkesztésére. Közvetlenül a kernellel kommunikál
+netlinken keresztül (nincs
+.BR nft (8)
+oda-vissza fordítás az olvasási vagy szerkesztési úton), így a változtatások
+atomian, ugyanazzal a szemantikával lépnek életbe, mint az
+.B nft
+parancsoknál. Az
+.BR nft (8)
+binárisra csak a
+.B \-\-config
+kapcsoló induláskori szabálykészlet-alkalmazásánál, illetve néhány célzott
+tábla-műveletnél van szükség, ahol a CLI-n keresztüli oda-vissza fordítás
+biztonságosabb, mint a kernelállapot újraépítése.
+.PP
+Az
+.B nftui
+futásidőben a
+.B CAP_NET_ADMIN
+jogosultságot igényli. Futtasd
+.BR sudo -val,
+vagy add meg a jogosultságot egyszer a
+.B "setcap cap_net_admin=ep ./nftui"
+paranccsal\&.
+.SH KAPCSOLÓK
+.TP
+.BR \-\-table " " \fInév\fR
+A fanézetet egyetlen táblára szűkíti (név szerinti illesztéssel az összes
+család között). Ismeretlen név esetén a TUI indulása előtt kilép, kiírva az
+elérhető táblák listáját. Egy több családban is létező név
+(pl.\&
+.B filter
+mind
+.B ip -ben,
+mind
+.BR inet -ben)
+minden találatot visszaad.
+.TP
+.BR \-\-config " " \fIfájl\fR
+A megadott nftables szabálykészletet alkalmazza az
+.BI "nft \-f " fájl
+paranccsal a TUI indulása előtt. Ez
+.B módosítja
+a futó szabálykészletet \(em a fájl tartalmazhat
+.BR "flush ruleset" -et.
+A
+.B \-\-table
+előtt fut le, így a betöltés utáni kernelállapot az, amit a
+.B \-\-table
+ellenőriz.
+.TP
+.B \-\-read\-only
+Minden írási utat letilt: nincs szabály
+.RB ( hozzáadás / beszúrás / mozgatás / törlés / szerkesztés / mentés ),
+nincs lánc- vagy tábla- vagy halmaz-
+.RB ( létrehozás / törlés ),
+nincs számláló-nullázás. A tiltott billentyűk elhalványulnak a láblécben, és
+minden fő nézet címsorában egy piros
+.B "[CSAK OLVASHATÓ]"
+jelölés jelenik meg.
+.TP
+.BR \-\-lang " " \fIkód\fR
+Beállítja a felület nyelvét (például
+.BR en ", " hu ", " es ", " pt\-BR ", " fr ", " de " vagy " it ).
+Felülírja a
+.BR LC_ALL / LC_MESSAGES / LANG
+locale-környezetet. Beállítatlan vagy nem támogatott érték esetén a locale-ból
+való automatikus felismerésre, végül az angolra esik vissza. Csak azokat a
+nyelveket veszi figyelembe, amelyekhez az nftui katalógust szállít (jelenleg
+angol, magyar, spanyol, brazíliai portugál, francia, német és olasz).
+.TP
+.BR \-\-help ", " \-h
+A teljes kapcsolólistát egysoros leírásokkal és használati példákkal a
+szabványos kimenetre írja, majd
+.B 0
+kóddal kilép. Érvénytelen kapcsolók ugyanezt a súgót a szabványos hibakimenetre
+írják, és
+.B 2
+kóddal lépnek ki.
+.TP
+.B \-\-version
+Az
+.B "nftui <verzió>"
+sort a szabványos kimenetre írja, és
+.B 0
+kóddal kilép. A verziót a kiadási build injektálja; forrásból fordított build a
+Go build-info modulverziót írja ki, vagy
+.B dev -et
+egy sima
+.BR "go build" -nél.
+.SH "BILLENTYŰPARANCSOK"
+.SS "Fő fanézet (táblák, láncok, halmazok, nevesített objektumok)"
+.TP
+.BR \(ua " / " k
+kijelölés felfelé
+.TP
+.BR \(da " / " j
+kijelölés lefelé
+.TP
+.B "Enter / \(-> / \(<-"
+a kijelölt tábla kinyitása vagy összecsukása
+.TP
+.B F3
+a kijelölt lánc megnyitása a szabálylista-nézetben
+.TP
+.B n
+új tábla létrehozása
+.TP
+.B c
+új lánc létrehozása a kijelölt táblán
+.TP
+.B e
+a kijelölt tábla vagy lánc szerkesztése
+.TP
+.B s
+új halmaz létrehozása a kijelölt táblán
+.TP
+.B d
+a kijelölt tábla, lánc, halmaz vagy nevesített objektum törlése (megerősítéssel)
+.TP
+.B R
+a kijelölt számláló vagy kvóta nullázása
+.TP
+.B /
+inkrementális névkeresés indítása. Gépelj a szűréshez; az Enter vagy a
+.B \(da
+előre lépteti a találatokat, a
+.B \(ua
+visszafelé, az Esc törli.
+.TP
+.B r
+a fanézet frissítése a kernelből
+.TP
+.B "q / Esc / Ctrl+C"
+kilépés
+.SS "Lánc nézet (szabálylista)"
+.TP
+.BR \(ua " / " k ", " \(da " / " j
+navigálás a szabályok között
+.TP
+.B F3
+a kijelölt szabály megtekintése (csak-olvasható részletek)
+.TP
+.B F4
+a kijelölt szabály szerkesztése
+.TP
+.B a
+új szabály hozzáfűzése a lánc végéhez
+.TP
+.B i
+új szabály beszúrása a kijelölt szabály elé
+.TP
+.B K
+a kijelölt szabály egy pozícióval feljebb mozgatása
+.TP
+.B J
+a kijelölt szabály egy pozícióval lejjebb mozgatása
+.TP
+.B d
+a kijelölt szabály törlése (megerősítéssel)
+.TP
+.B /
+beépített szűrő indítása. Gépelj a látható szabályok szűkítéséhez, részlánc-
+illesztéssel a verdicten, a feltétel-kulcsszón vagy a megjegyzésen. Amíg a szűrő
+aktív, a
+.BR \(ua / \(da
+a szűrt listában navigál, az Enter vagy az
+.B F3
+megnyitja a kijelölt szabályt, az
+.B F4
+a szerkesztőt, az Esc törli a szűrőt.
+.TP
+.B Esc
+vissza a fanézetbe
+.TP
+.B q
+kilépés
+.SS "Szabályszerkesztő"
+.TP
+.B "F5 / F6"
+előző / következő fül
+.TP
+.B "Tab / Shift+Tab"
+következő / előző mező az aktuális fülön belül
+.TP
+.B F2
+a változtatások érvényesítése és alkalmazása netlinken keresztül
+.TP
+.B "Esc / F3"
+vissza mentés nélkül
+.TP
+.B "q / Ctrl+C"
+kilépés
+.SH PÉLDÁK
+.TP
+.B sudo nftui
+az élő szabálykészlet böngészése.
+.TP
+.B sudo nftui \-\-table filter
+csak a
+.I filter
+nevű tábla/táblák megjelenítése.
+.TP
+.B sudo nftui \-\-config examples/example\-nftables\-01.conf
+a kézi teszt fixtúra betöltése, majd böngészése.
+.TP
+.B sudo nftui \-\-read\-only
+biztonságos böngészés \(em minden írási billentyű halvány és inaktív.
+.TP
+.B sudo nftui \-\-config new.conf \-\-read\-only
+egy előre betöltött fixtúra biztonságos böngészése.
+.SH KÖRNYEZET
+.TP
+.B PATH
+tartalmaznia kell az
+.BR nft (8)
+binárist ahhoz, hogy a
+.B \-\-config
+kapcsoló működjön; a futásidő egyébként nem függ az
+.B nft
+bináristól.
+.TP
+.BR LC_ALL / LC_MESSAGES / LANG
+kiválasztja a felület nyelvét, ha a
+.B \-\-lang
+nincs megadva, ebben a precedencia-sorrendben (POSIX). A
+.B .codeset
+és
+.B @modifier
+utótagok figyelmen kívül maradnak; egy nem támogatott vagy
+.BR C / POSIX
+locale angolra esik vissza. Csak azokat a nyelveket használja, amelyekhez az
+nftui katalógust szállít (jelenleg angol, magyar, spanyol, brazíliai portugál,
+francia, német és olasz).
+.SH FÁJLOK
+.TP
+.I examples/example\-nftables\-01.conf
+A kanonikus kézi teszt fixtúra a forrásterjesztésben. Minden dokumentált
+funkciónak van egy megfelelő szekciója ebben a fájlban; a fixtúrát minden
+kiadásnál az
+.B "nft \-c \-f examples/example\-nftables\-01.conf"
+paranccsal ellenőrizzük.
+.SH "KILÉPÉSI KÓD"
+.TP
+.B 0
+normál kilépés (a kifejezett
+.BR \-\-help
+esetén is)
+.TP
+.B 1
+futásidejű hiba a TUI-n belül (pl.\& netlink-kapcsolat megszakadása munkamenet
+közben, vagy
+.B nft
+binárishiba a
+.BR \-\-config
+során)
+.TP
+.B 2
+érvénytelen parancssori használat (ismeretlen kapcsoló, hiányzó kötelező érték,
+vagy ismeretlen
+.B \-\-table
+cél)
+.SH "LÁSD MÉG"
+.BR nft (8)
+.PP
+Projektdokumentáció a forrásterjesztésben: README.md (telepítés és
+funkcióáttekintés) és CHANGELOG.md (verziónkénti kiadási jegyzetek Keep a
+Changelog formátumban).
+.SH SZERZŐK
+Írta: Feh\('er \('Akos.

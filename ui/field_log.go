@@ -5,13 +5,15 @@ import (
 	"strconv"
 	"strings"
 
+	"nftui/i18n"
+	"nftui/nft"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 	"golang.org/x/sys/unix"
-	"nftui/nft"
 )
 
 // Order of severities shown in the level Select — matches kernel/syslog severity
@@ -307,7 +309,7 @@ func (f *LogField) previewAction() nft.LogAction {
 func (f *LogField) View() string {
 	label := grayStyle.Render("Log")
 	if !f.hasLog {
-		return label + "\n" + grayStyle.Render("(no log in this rule)") + "\n"
+		return label + "\n" + grayStyle.Render(i18n.T("rule.field.no_log")) + "\n"
 	}
 
 	var (
@@ -336,7 +338,7 @@ func (f *LogField) View() string {
 	var sb strings.Builder
 	sb.WriteString(label)
 	sb.WriteString("\n")
-	sb.WriteString(grayStyle.Render("current: "))
+	sb.WriteString(grayStyle.Render(i18n.T("rule.field.current")))
 	sb.WriteString(renderLog(f.previewAction()))
 	sb.WriteString("\n")
 

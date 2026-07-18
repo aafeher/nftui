@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
+	"nftui/i18n"
 )
 
 type chainEditKeyMap struct {
@@ -90,23 +91,23 @@ func newChainEdit(chain *nftables.Chain) chainEdit {
 	km := chainEditKeyMap{
 		NextField: key.NewBinding(
 			key.WithKeys("tab", "down"),
-			key.WithHelp("tab/↓", "next field"),
+			key.WithHelp("tab/↓", i18n.T("key.next_field")),
 		),
 		PrevField: key.NewBinding(
 			key.WithKeys("shift+tab", "up"),
-			key.WithHelp("shift+tab/↑", "prev field"),
+			key.WithHelp("shift+tab/↑", i18n.T("key.prev_field")),
 		),
 		Save: key.NewBinding(
 			key.WithKeys("f2"),
-			key.WithHelp("f2", "save"),
+			key.WithHelp("f2", i18n.T("key.save")),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "f3"),
-			key.WithHelp("esc/f3", "cancel"),
+			key.WithHelp("esc/f3", i18n.T("key.cancel")),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("ctrl+c"),
-			key.WithHelp("ctrl+c", "quit"),
+			key.WithHelp("ctrl+c", i18n.T("key.quit")),
 		),
 	}
 
@@ -300,9 +301,12 @@ func (ce chainEdit) View() string {
 		Render(strings.Repeat("─", ce.width))
 
 	var body strings.Builder
-	body.WriteString(defaultBoldStyle.Render("Edit chain"))
+	body.WriteString(defaultBoldStyle.Render(i18n.T("chain.edit.title")))
 	body.WriteString("\n\n")
 
+	// Table / Type / Hook / Priority / Policy are literal nft keywords, kept
+	// English here exactly as in the chain view (I18N-3/5). Only the non-keyword
+	// Name label and the chrome translate.
 	body.WriteString(grayStyle.Render("Table    : "))
 	body.WriteString(blueStyle.Render(ce.chain.Table.Name))
 	body.WriteString(grayStyle.Render(" ("))
@@ -310,7 +314,7 @@ func (ce chainEdit) View() string {
 	body.WriteString(grayStyle.Render(")"))
 	body.WriteString("\n\n")
 
-	body.WriteString(grayStyle.Render("Name     : "))
+	body.WriteString(grayStyle.Render(i18n.T("chain.field.name")))
 	body.WriteString(ce.nameInput.View())
 	body.WriteString("\n")
 
@@ -333,13 +337,13 @@ func (ce chainEdit) View() string {
 		body.WriteString("\n")
 	} else {
 		body.WriteString("\n")
-		body.WriteString(grayStyle.Render("(regular chain — only the name can be edited)"))
+		body.WriteString(grayStyle.Render(i18n.T("chain.edit.regular_hint")))
 		body.WriteString("\n")
 	}
 
 	if ce.statusMsg != "" {
 		body.WriteString("\n")
-		body.WriteString(redBoldStyle.Render("Error: " + ce.statusMsg))
+		body.WriteString(redBoldStyle.Render(i18n.T("common.error") + ce.statusMsg))
 	}
 
 	contentBox := normalGrayBorder.

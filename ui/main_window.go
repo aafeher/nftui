@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
+	"nftui/i18n"
 )
 
 type errMsg error
@@ -21,18 +22,18 @@ type errMsg error
 // generic red error line.
 func loadErrorView(err error) string {
 	if !nft.IsPermissionError(err) {
-		return redBoldStyle.Render(fmt.Sprintf("Error: %v", err))
+		return redBoldStyle.Render(i18n.T("common.error") + fmt.Sprintf("%v", err))
 	}
 	bin := os.Args[0]
 	var b strings.Builder
-	b.WriteString(redBoldStyle.Render("Permission denied - cannot read the nftables ruleset."))
+	b.WriteString(redBoldStyle.Render(i18n.T("main.load.perm_denied")))
 	b.WriteString("\n\n")
-	b.WriteString(whiteStyle.Render("nftui needs the CAP_NET_ADMIN capability. Either:"))
+	b.WriteString(whiteStyle.Render(i18n.T("main.load.cap_intro")))
 	b.WriteString("\n\n")
-	b.WriteString(grayStyle.Render("  - run it with sudo:          "))
+	b.WriteString(grayStyle.Render(i18n.T("main.load.cap_sudo")))
 	b.WriteString(whiteStyle.Render("sudo " + bin))
 	b.WriteString("\n")
-	b.WriteString(grayStyle.Render("  - or grant the capability:   "))
+	b.WriteString(grayStyle.Render(i18n.T("main.load.cap_setcap")))
 	b.WriteString(whiteStyle.Render("sudo setcap cap_net_admin+ep " + bin))
 	return b.String()
 }
@@ -165,55 +166,55 @@ func InitialMainWindow(opts Options) MainWindow {
 	km := keyMap{
 		Up: key.NewBinding(
 			key.WithKeys("up", "k"),
-			key.WithHelp("↑/k", "up"),
+			key.WithHelp("↑/k", i18n.T("key.up")),
 		),
 		Down: key.NewBinding(
 			key.WithKeys("down", "j"),
-			key.WithHelp("↓/j", "down"),
+			key.WithHelp("↓/j", i18n.T("key.down")),
 		),
 		Expand: key.NewBinding(
 			key.WithKeys("enter", "right", "left"),
-			key.WithHelp("enter/→/←", "expand/collapse"),
+			key.WithHelp("enter/→/←", i18n.T("key.expand_collapse")),
 		),
 		Edit: key.NewBinding(
 			key.WithKeys("e"),
-			key.WithHelp("e", "edit"),
+			key.WithHelp("e", i18n.T("key.edit")),
 		),
 		Delete: key.NewBinding(
 			key.WithKeys("d"),
-			key.WithHelp("d", "delete"),
+			key.WithHelp("d", i18n.T("key.delete")),
 		),
 		NewTable: key.NewBinding(
 			key.WithKeys("n"),
-			key.WithHelp("n", "new table"),
+			key.WithHelp("n", i18n.T("key.new_table")),
 		),
 		NewChain: key.NewBinding(
 			key.WithKeys("c"),
-			key.WithHelp("c", "new chain"),
+			key.WithHelp("c", i18n.T("key.new_chain")),
 		),
 		NewSet: key.NewBinding(
 			key.WithKeys("s"),
-			key.WithHelp("s", "new set"),
+			key.WithHelp("s", i18n.T("key.new_set")),
 		),
 		Reset: key.NewBinding(
 			key.WithKeys("R"),
-			key.WithHelp("R", "reset counter/quota"),
+			key.WithHelp("R", i18n.T("key.reset_counter_quota")),
 		),
 		OpenChain: key.NewBinding(
 			key.WithKeys("f3"),
-			key.WithHelp("f3", "open chain"),
+			key.WithHelp("f3", i18n.T("key.open_chain")),
 		),
 		Filter: key.NewBinding(
 			key.WithKeys("/"),
-			key.WithHelp("/", "search"),
+			key.WithHelp("/", i18n.T("key.search")),
 		),
 		Refresh: key.NewBinding(
 			key.WithKeys("r"),
-			key.WithHelp("r", "refresh"),
+			key.WithHelp("r", i18n.T("key.refresh")),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "esc", "ctrl+c"),
-			key.WithHelp("q", "quit"),
+			key.WithHelp("q", i18n.T("key.quit")),
 		),
 	}
 
@@ -584,8 +585,16 @@ func (m MainWindow) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if m.showQuitConfirm {
-			switch msg.String() {
-			case "y", "Y":
+			key := msg.String()
+			if confirmYesJ(key) { // German "[J]a" — only while German is active
+				key = "y"
+			}
+			switch key {
+			// "i"/"I" (Hungarian "[I]gen"), "s"/"S" (Spanish "[S]í",
+			// Portuguese "[S]im") and "o"/"O" (French "[O]ui") accept too,
+			// so the localized confirm prompt's highlighted key actually
+			// works.
+			case "y", "Y", "i", "I", "s", "S", "o", "O":
 				// Just quit. nftui never mutates the ruleset the user didn't
 				// explicitly change — exit must not touch the kernel state.
 				return m, tea.Quit
@@ -822,7 +831,7 @@ func terminalTooSmallView(width, height int) string {
 		return ""
 	}
 	msg := fmt.Sprintf(
-		"Terminal too small\n\nnftui needs at least %dx%d.\nCurrent size: %dx%d - please resize.",
+		i18n.T("main.term_too_small"),
 		minTermWidth, minTermHeight, width, height,
 	)
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center,
@@ -842,13 +851,13 @@ func quitConfirmView(width, height int) string {
 		Padding(1, 2).
 		Width(40).
 		Align(lipgloss.Center).
-		Render("Are you sure you want to quit?\n\n[Y]es / [N]o")
+		Render(i18n.T("main.quit_confirm"))
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, confirmBox)
 }
 
 func (m MainWindow) viewInner() string {
 	if !m.ready {
-		return "Initializing...\n"
+		return i18n.T("main.initializing")
 	}
 
 	if v := terminalTooSmallView(m.width, m.height); v != "" {
@@ -910,7 +919,7 @@ func (m MainWindow) viewInner() string {
 
 	statTablesNumber := blueBoldStyle.
 		Render(fmt.Sprint(m.statTablesNumber))
-	statTablesContent := statTablesNumber + " active tables"
+	statTablesContent := statTablesNumber + i18n.T("dash.active_tables")
 
 	statTablesBox := normalGrayBorder.
 		Width(boxWidth).
@@ -919,7 +928,7 @@ func (m MainWindow) viewInner() string {
 
 	chainsNumber := yellowBoldStyle.
 		Render(fmt.Sprint(m.statChainsNumber))
-	chainsContent := chainsNumber + " active chains"
+	chainsContent := chainsNumber + i18n.T("dash.active_chains")
 
 	chainsBox := normalGrayBorder.
 		Width(boxWidth).
@@ -928,7 +937,7 @@ func (m MainWindow) viewInner() string {
 
 	acceptRulesNumber := greenBoldStyle.
 		Render(fmt.Sprint(m.statRulesAcceptNumber))
-	acceptRulesContent := acceptRulesNumber + " ACCEPT rules"
+	acceptRulesContent := acceptRulesNumber + i18n.T("dash.accept_rules")
 
 	acceptRulesBox := normalGrayBorder.
 		Width(boxWidth).
@@ -937,7 +946,7 @@ func (m MainWindow) viewInner() string {
 
 	dropRulesNumber := redBoldStyle.
 		Render(fmt.Sprint(m.statRulesDropNumber))
-	dropRulesContent := dropRulesNumber + " DROP rules"
+	dropRulesContent := dropRulesNumber + i18n.T("dash.drop_rules")
 
 	dropRulesBox := normalGrayBorder.
 		Width(boxWidth).
@@ -948,7 +957,7 @@ func (m MainWindow) viewInner() string {
 
 	var tablesBoxContent string
 	if m.loading {
-		tablesBoxContent = "Loading..."
+		tablesBoxContent = i18n.T("main.loading_box")
 	} else if m.err != nil {
 		tablesBoxContent = loadErrorView(m.err)
 	} else {
@@ -969,7 +978,7 @@ func (m MainWindow) viewInner() string {
 	if !m.loading && m.err == nil && m.tableTree.searchMode {
 		// In tree search mode the normal bindings don't apply — show the
 		// search controls instead (footer-completeness invariant).
-		footer = m.help.View(treeSearchKeys)
+		footer = m.help.View(treeSearchKeys())
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left,

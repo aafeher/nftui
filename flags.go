@@ -74,6 +74,11 @@ var flagDocs = []flagSpec{
 		arg:     "",
 		summary: "disable every write path: no rule/chain/table/set add/insert/move/delete/edit/save (footer dims the blocked keys)",
 	},
+	{
+		name:    "lang",
+		arg:     "<code>",
+		summary: "interface language code (e.g. en, hu, es, pt-BR, fr, de, it); overrides the LC_ALL/LC_MESSAGES/LANG locale (default: auto-detect, English fallback)",
+	},
 }
 
 // docFor returns the summary for a flag name. Panics if the flag isn't
@@ -91,6 +96,11 @@ func docFor(name string) string {
 // writeUsage renders the --help output. Pulled into its own io.Writer-typed
 // function so tests can capture and assert on the content without poking
 // global state (os.Args, os.Stderr).
+//
+// Intentionally English-only (not routed through i18n.T — a documented I-9
+// exception): --help is handled in main()'s pre-flag.Parse scan, before
+// i18n.SetLanguage runs, so no language is selected yet; flagDocs is also the
+// single source of truth shared with the nftui(1) man page, which is English.
 func writeUsage(w io.Writer, bin string) {
 	fmt.Fprintf(w, "nftui — a Terminal User Interface for Linux nftables\n\n")
 	fmt.Fprintf(w, "Usage:\n  %s [flags]\n\n", bin)

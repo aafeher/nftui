@@ -16,7 +16,7 @@
 #   sudo pacman -U nftui_<version>_linux_x86_64.pkg.tar.zst
 
 pkgname=nftui-bin
-pkgver=1.1.0
+pkgver=1.2.0
 pkgrel=1
 pkgdesc="Terminal user interface for managing the Linux nftables firewall"
 arch=('x86_64' 'aarch64')
@@ -27,10 +27,12 @@ provides=('nftui')
 conflicts=('nftui')
 source_x86_64=("nftui-${pkgver}-x86_64.tar.gz::${url}/releases/download/v${pkgver}/nftui_${pkgver}_linux_amd64.tar.gz")
 source_aarch64=("nftui-${pkgver}-aarch64.tar.gz::${url}/releases/download/v${pkgver}/nftui_${pkgver}_linux_arm64.tar.gz")
-# Pinned to the published v1.1.0 release tarballs (verified against checksums.txt;
-# equivalently produced by `updpkgsums`). Re-run updpkgsums on every pkgver bump.
-sha256sums_x86_64=('ae108430033fd167bd3200702b5ef6aac5aeb7dc779fbed4572b9d057a3ec940')
-sha256sums_aarch64=('2b532a82528d127827e1ffd9d4d09e85b59f5323c34fa8d6fb4c0f7ffbd93ec9')
+# SKIP placeholders: the v1.2.0 release tarballs do not exist until the tag's
+# release workflow publishes them. Immediately after the release, pin the real
+# digests with `updpkgsums` (or copy them from the release's checksums.txt) —
+# never publish to the AUR with SKIP.
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
 
 package() {
 	install -Dm755 nftui "${pkgdir}/usr/bin/nftui"

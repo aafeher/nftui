@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
+	"nftui/i18n"
 	"nftui/nft"
 )
 
@@ -82,27 +83,27 @@ func newSetViewWithElements(set *nftables.Set, table *tableNode, elements []nfta
 	km := setViewKeyMap{
 		Up: key.NewBinding(
 			key.WithKeys("up", "k"),
-			key.WithHelp("↑/k", "up"),
+			key.WithHelp("↑/k", i18n.T("key.up")),
 		),
 		Down: key.NewBinding(
 			key.WithKeys("down", "j"),
-			key.WithHelp("↓/j", "down"),
+			key.WithHelp("↓/j", i18n.T("key.down")),
 		),
 		Add: key.NewBinding(
 			key.WithKeys("a"),
-			key.WithHelp("a", "add element"),
+			key.WithHelp("a", i18n.T("key.add_element")),
 		),
 		Delete: key.NewBinding(
 			key.WithKeys("d"),
-			key.WithHelp("d", "delete element"),
+			key.WithHelp("d", i18n.T("key.delete_element")),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "f3"),
-			key.WithHelp("esc/f3", "back"),
+			key.WithHelp("esc/f3", i18n.T("key.back")),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
-			key.WithHelp("q", "quit"),
+			key.WithHelp("q", i18n.T("key.quit")),
 		),
 	}
 	if readOnly {
@@ -165,7 +166,7 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 			case "enter":
 				keyStr := strings.TrimSpace(sv.addInput.Value())
 				if keyStr == "" {
-					sv.setAddErr("key required")
+					sv.setAddErr(i18n.T("set.add.key_required"))
 					return sv, nil
 				}
 				keyBytes, keyEnd, err := nft.ParseSetElementKey(sv.set, keyStr)
@@ -179,7 +180,7 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 				if sv.set.IsMap {
 					valStr = strings.TrimSpace(sv.addValInput.Value())
 					if valStr == "" {
-						sv.setAddErr("value required")
+						sv.setAddErr(i18n.T("set.add.val_required"))
 						return sv, nil
 					}
 					if sv.set.DataType.Name == nftables.TypeVerdict.Name {
@@ -198,9 +199,9 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 				// each one if needed); Esc exits the loop.
 				sv.addErr = ""
 				if sv.set.IsMap {
-					sv.addLastHint = fmt.Sprintf("added %s → %s", keyStr, valStr)
+					sv.addLastHint = fmt.Sprintf(i18n.T("set.add.added_map"), keyStr, valStr)
 				} else {
-					sv.addLastHint = "added " + keyStr
+					sv.addLastHint = fmt.Sprintf(i18n.T("set.add.added"), keyStr)
 				}
 				sv.addInput.SetValue("")
 				sv.addValInput.SetValue("")
@@ -221,8 +222,14 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 		}
 
 		if sv.showDelete {
-			switch msg.String() {
-			case "y", "Y":
+			key := msg.String()
+			if confirmYesJ(key) { // German "[J]a" — only while German is active
+				key = "y"
+			}
+			switch key {
+			// "i"/"s"/"o" are the localized yes-mnemonics (hu [I]gen, es [S]í,
+			// pt [S]im, fr [O]ui).
+			case "y", "Y", "i", "I", "s", "S", "o", "O":
 				sv.showDelete = false
 				if sv.cursor >= 0 && sv.cursor < len(sv.elements) {
 					el := sv.elements[sv.cursor]
@@ -288,7 +295,7 @@ func (sv setView) Update(msg tea.Msg) (setView, tea.Cmd) {
 func (sv *setView) RefreshElements() {
 	elements, err := nft.GetSetElements(sv.set)
 	if err != nil {
-		sv.statusMsg = "could not refresh elements: " + err.Error()
+		sv.statusMsg = i18n.T("set.refresh_err") + err.Error()
 		return
 	}
 	sv.statusMsg = ""
@@ -448,7 +455,7 @@ func (sv setView) View() string {
 	divider := grayStyle.Width(sv.width).Render(strings.Repeat("─", maxIntSV(sv.width, 1)))
 	b.WriteString(divider)
 	b.WriteString("\n")
-	b.WriteString(blueStyle.Render("| Set |"))
+	b.WriteString(blueStyle.Render(i18n.T("set.view.title")))
 	b.WriteString("\n\n")
 
 	labelWidth := 14
@@ -470,11 +477,11 @@ func (sv setView) View() string {
 	}
 
 	b.WriteString("\n")
-	header := fmt.Sprintf("Elements (%d):", len(sv.elements))
+	header := fmt.Sprintf(i18n.T("set.view.elements"), len(sv.elements))
 	b.WriteString(grayBoldStyle.Render(header))
 	b.WriteString("\n")
 	if len(sv.elements) == 0 {
-		b.WriteString("  " + grayStyle.Render("(empty)") + "\n")
+		b.WriteString("  " + grayStyle.Render(i18n.T("common.empty")) + "\n")
 	} else {
 		for i, el := range sv.elements {
 			cursor := "  "
@@ -507,7 +514,7 @@ func (sv setView) View() string {
 
 	if sv.statusMsg != "" {
 		b.WriteString("\n")
-		b.WriteString(redBoldStyle.Render("Error: " + sv.statusMsg))
+		b.WriteString(redBoldStyle.Render(i18n.T("common.error") + sv.statusMsg))
 		b.WriteString("\n")
 	}
 
@@ -523,15 +530,15 @@ func (sv setView) View() string {
 	if sv.showAddPrompt {
 		var title, body string
 		if sv.set.IsMap {
-			title = fmt.Sprintf("Add entry to %s (%s → %s)",
+			title = fmt.Sprintf(i18n.T("set.add.map_title"),
 				sv.set.Name,
 				nft.KeyTypeToString(sv.set.KeyType),
 				nft.KeyTypeToString(sv.set.DataType))
 			body = title + "\n\n" +
-				grayStyle.Render("Key   : ") + sv.addInput.View() + "\n" +
-				grayStyle.Render("Value : ") + sv.addValInput.View()
+				grayStyle.Render(i18n.T("set.add.key_label")) + sv.addInput.View() + "\n" +
+				grayStyle.Render(i18n.T("set.add.val_label")) + sv.addValInput.View()
 		} else {
-			title = fmt.Sprintf("Add element to %s (%s)",
+			title = fmt.Sprintf(i18n.T("set.add.title"),
 				sv.set.Name, nft.KeyTypeToString(sv.set.KeyType))
 			body = title + "\n\n" + sv.addInput.View()
 		}
@@ -544,9 +551,9 @@ func (sv setView) View() string {
 			body += "\n\n" + redBoldStyle.Render(sv.addErr)
 		}
 		if sv.set.IsMap {
-			body += "\n\n" + grayStyle.Render("Tab: switch field  |  Enter: add (loop)  |  Esc: done")
+			body += "\n\n" + grayStyle.Render(i18n.T("set.add.hint_map"))
 		} else {
-			body += "\n\n" + grayStyle.Render("Enter: add (loop)  |  Esc: done")
+			body += "\n\n" + grayStyle.Render(i18n.T("set.add.hint"))
 		}
 		prompt := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -561,7 +568,7 @@ func (sv setView) View() string {
 
 	if sv.showDelete && sv.cursor >= 0 && sv.cursor < len(sv.elements) {
 		el := sv.elements[sv.cursor]
-		body := fmt.Sprintf("Delete element %s from set %s?\n\n[Y]es / [N]o",
+		body := fmt.Sprintf(i18n.T("confirm.set_element"),
 			formatSetElementKey(sv.set, el.Key), sv.set.Name)
 		confirm := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).

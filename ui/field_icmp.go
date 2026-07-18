@@ -6,12 +6,14 @@ import (
 	"strconv"
 	"strings"
 
+	"nftui/i18n"
+	"nftui/nft"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
 	"golang.org/x/sys/unix"
-	"nftui/nft"
 )
 
 // ICMP type names (RFC 792 — what `nft` accepts in `icmp type`).
@@ -207,7 +209,7 @@ func (f *IcmpTypeField) View() string {
 	vCustom := f.customInput.View()
 	row := lipgloss.JoinHorizontal(lipgloss.Top,
 		lipgloss.NewStyle().Width(28).Render(vSel),
-		lipgloss.NewStyle().Width(6).Render(grayStyle.Render("or:")),
+		lipgloss.NewStyle().Width(6).Render(grayStyle.Render(i18n.T("rule.field.or"))),
 		lipgloss.NewStyle().Render(vCustom),
 	)
 	return grayStyle.Render("ICMP type") + "\n" + row + "\n"

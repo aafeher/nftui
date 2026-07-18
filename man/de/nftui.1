@@ -1,0 +1,295 @@
+.\" Deutsche Handbuchseite nftui(1)
+.\" Von Hand geschrieben mit den groff-`man'-Makros, damit die Seite auf
+.\" jeder Linux-Distribution rendert (mdoc bräuchte mandoc im BSD-Stil).
+.\"
+.\" Der Abschnitt OPTIONEN spiegelt das flagDocs-Register in flags.go;
+.\" halten Sie den Text beim Hinzufügen oder Umbenennen eines Flags synchron.
+.\" Diese deutsche Übersetzung ist das Gegenstück zum englischen
+.\" man/nftui.1; aktualisieren Sie beide zusammen.
+.\"
+.\" Prüfung:  mandoc -Tlint man/de/nftui.1
+.\" Vorschau: man -l man/de/nftui.1
+.\" Deutsche (umlautige, UTF-8) Zeilen können Warnungen
+.\" "STYLE: line longer than 80 bytes" auslösen; sie sind harmlos (die
+.\" Byte-Zahl überschreitet 80, nicht die Zeichenzahl; das Rendering ist
+.\" nicht betroffen).
+.TH NFTUI 1 "2026-07-18" "nftui 1.2.0" "Dienstprogramme für Benutzer"
+.SH BEZEICHNUNG
+nftui \- Terminal-Benutzeroberfläche für Linux nftables
+.SH ÜBERSICHT
+.B nftui
+[\fB\-\-table\fR \fIName\fR]
+[\fB\-\-config\fR \fIDatei\fR]
+[\fB\-\-read\-only\fR]
+[\fB\-\-lang\fR \fICode\fR]
+[\fB\-\-help\fR]
+[\fB\-\-version\fR]
+.SH BESCHREIBUNG
+.B nftui
+ist eine interaktive Terminal-Oberfläche zum Durchsuchen und Bearbeiten des
+nftables-Firewall-Regelwerks des Linux-Kernels. Sie spricht direkt über
+netlink mit dem Kernel (kein Umweg über
+.BR nft (8)
+auf dem Lese- oder Bearbeitungspfad), Änderungen werden daher atomar mit
+derselben Semantik wie
+.BR nft -Befehle
+angewendet. Das
+.BR nft (8)-Binary
+wird nur zum Anwenden des Start-Regelwerks der Option
+.B \-\-config
+und für einige gezielte Tabellenoperationen verwendet, bei denen der Weg
+über die CLI sicherer ist, als den Kernel-Zustand zu rekonstruieren.
+.PP
+.B nftui
+benötigt zur Laufzeit die Capability
+.BR CAP_NET_ADMIN .
+Führen Sie es mit
+.B sudo
+aus, oder gewähren Sie die Capability einmalig mit
+.B "setcap cap_net_admin=ep ./nftui"
+\&.
+.SH OPTIONEN
+.TP
+.BR \-\-table " " \fIName\fR
+Beschränkt den Baum auf eine einzige Tabelle (Abgleich per Name über alle
+Familien hinweg). Ein unbekannter Name beendet das Programm vor dem Start
+der TUI und zeigt die Liste der verfügbaren Tabellen. Ein Name, der in
+mehreren Familien existiert
+(z.\& B.\&
+.B filter
+sowohl in
+.B ip
+als auch in
+.BR inet ),
+liefert alle Treffer.
+.TP
+.BR \-\-config " " \fIDatei\fR
+Wendet das angegebene nftables-Regelwerk via
+.BI "nft \-f " Datei
+an, bevor die TUI startet. Dies
+.B verändert
+das laufende Regelwerk \(em die Datei darf
+.B "flush ruleset"
+enthalten. Wird vor
+.B \-\-table
+aufgelöst, sodass der Kernel-Zustand nach dem Laden das ist, wogegen
+.B \-\-table
+validiert.
+.TP
+.B \-\-read\-only
+Deaktiviert jeden Schreibpfad: kein
+.RB ( add / insert / move / delete / edit / save )
+von Regeln, kein
+.RB ( create / delete )
+von Ketten, Tabellen oder Sets, kein Zurücksetzen von Zählern. Blockierte
+Tasten werden in der Fußzeile abgedunkelt und ein roter
+.B "[NUR LESEN]"
+-Marker begleitet die Titelleiste jeder Hauptansicht.
+.TP
+.BR \-\-lang " " \fICode\fR
+Legt die Sprache der Oberfläche fest (zum Beispiel
+.BR en ", " hu ", " es ", " pt\-BR ", " fr ", " de " oder " it ).
+Übersteuert die Locale-Umgebung
+.BR LC_ALL / LC_MESSAGES / LANG .
+Ein nicht gesetzter oder nicht unterstützter Wert fällt auf die
+automatische Erkennung aus der Locale und schließlich auf Englisch zurück.
+Nur Sprachen, für die nftui einen Katalog mitliefert, werden berücksichtigt
+(derzeit Englisch, Ungarisch, Spanisch, brasilianisches Portugiesisch,
+Französisch, Deutsch und Italienisch).
+.TP
+.BR \-\-help ", " \-h
+Gibt die vollständige Flag-Liste mit einzeiligen Beschreibungen und
+Anwendungsbeispielen auf der Standardausgabe aus und beendet sich mit
+.BR 0 .
+Ungültige Flags geben denselben Hilfetext auf der Fehlerausgabe aus und
+beenden sich mit
+.BR 2 .
+.TP
+.B \-\-version
+Gibt
+.B "nftui <Version>"
+auf der Standardausgabe aus und beendet sich mit
+.BR 0 .
+Die Version wird beim Release-Build injiziert; ein Build aus den Quellen
+meldet die Modulversion aus den Go-Build-Informationen, oder
+.B dev
+für ein einfaches
+.BR "go build" .
+.SH TASTENKÜRZEL
+.SS "Hauptbaumansicht (Tabellen, Ketten, Sets, benannte Objekte)"
+.TP
+.BR \(ua " / " k
+Auswahl nach oben
+.TP
+.BR \(da " / " j
+Auswahl nach unten
+.TP
+.B "Enter / \(-> / \(<-"
+klappt die ausgewählte Tabelle auf oder zu
+.TP
+.B F3
+öffnet die ausgewählte Kette in der Regellisten-Ansicht
+.TP
+.B n
+erstellt eine neue Tabelle
+.TP
+.B c
+erstellt eine neue Kette in der ausgewählten Tabelle
+.TP
+.B e
+bearbeitet die ausgewählte Tabelle oder Kette
+.TP
+.B s
+erstellt ein neues Set in der ausgewählten Tabelle
+.TP
+.B d
+löscht die ausgewählte Tabelle, Kette, das Set oder das benannte Objekt
+(mit Bestätigung)
+.TP
+.B R
+setzt den ausgewählten Zähler oder das Quota auf null zurück
+.TP
+.B /
+startet die inkrementelle Namenssuche. Tippen Sie zum Filtern; Enter oder
+.B \(da
+springt vorwärts durch die Treffer,
+.B \(ua
+rückwärts, Esc löscht.
+.TP
+.B r
+lädt den Baum neu aus dem Kernel
+.TP
+.B "q / Esc / Ctrl+C"
+beenden
+.SS "Kettenansicht (Regelliste)"
+.TP
+.BR \(ua " / " k ", " \(da " / " j
+navigiert durch die Regeln
+.TP
+.B F3
+zeigt die ausgewählte Regel (Detail, nur lesend)
+.TP
+.B F4
+bearbeitet die ausgewählte Regel
+.TP
+.B a
+hängt eine neue Regel ans Ende der Kette an
+.TP
+.B i
+fügt eine neue Regel vor der ausgewählten Regel ein
+.TP
+.B K
+verschiebt die ausgewählte Regel eine Position nach oben
+.TP
+.B J
+verschiebt die ausgewählte Regel eine Position nach unten
+.TP
+.B d
+löscht die ausgewählte Regel (mit Bestätigung)
+.TP
+.B /
+startet den Inline-Filter. Tippen Sie, um die sichtbaren Regeln per
+Teilstring-Treffer auf verdict, Bedingungs-Schlüsselwort oder Kommentar
+einzugrenzen. Bei aktivem Filter navigieren
+.BR \(ua / \(da
+durch die gefilterte Liste, Enter oder
+.B F3
+öffnet die ausgewählte Regel,
+.B F4
+öffnet den Editor, Esc löscht den Filter.
+.TP
+.B Esc
+zurück zum Baum
+.TP
+.B q
+beenden
+.SS "Regeleditor"
+.TP
+.B "F5 / F6"
+vorheriger / nächster Tab
+.TP
+.B "Tab / Shift+Tab"
+nächstes / vorheriges Feld im aktuellen Tab
+.TP
+.B F2
+validiert und wendet die Änderungen über netlink an
+.TP
+.B "Esc / F3"
+zurück, ohne zu speichern
+.TP
+.B "q / Ctrl+C"
+beenden
+.SH BEISPIELE
+.TP
+.B sudo nftui
+durchsucht das aktive Regelwerk.
+.TP
+.B sudo nftui \-\-table filter
+zeigt nur die Tabelle(n) namens
+.IR filter .
+.TP
+.B sudo nftui \-\-config examples/example\-nftables\-01.conf
+lädt die manuelle Test-Fixture und durchsucht sie.
+.TP
+.B sudo nftui \-\-read\-only
+sicheres Durchsuchen \(em jede Schreibtaste ist abgedunkelt und
+wirkungslos.
+.TP
+.B sudo nftui \-\-config new.conf \-\-read\-only
+sicheres Durchsuchen einer vorgeladenen Fixture.
+.SH UMGEBUNGSVARIABLEN
+.TP
+.B PATH
+muss
+.BR nft (8)
+enthalten, damit die Option
+.B \-\-config
+funktioniert; ansonsten hängt die Laufzeit nicht vom
+.BR nft -Binary
+ab.
+.TP
+.BR LC_ALL / LC_MESSAGES / LANG
+wählen die Sprache der Oberfläche, wenn
+.B \-\-lang
+nicht angegeben ist, in dieser Vorrangreihenfolge (POSIX). Die Suffixe
+.B .codeset
+und
+.B @modifier
+werden ignoriert; eine nicht unterstützte oder
+.BR C / POSIX -Locale
+fällt auf Englisch zurück. Nur Sprachen, für die nftui einen Katalog
+mitliefert, werden verwendet (derzeit Englisch, Ungarisch, Spanisch,
+brasilianisches Portugiesisch, Französisch, Deutsch und Italienisch).
+.SH DATEIEN
+.TP
+.I examples/example\-nftables\-01.conf
+Die kanonische manuelle Test-Fixture in der Quelldistribution. Jedes
+dokumentierte Feature hat einen entsprechenden Abschnitt in dieser Datei;
+die Fixture wird bei jedem Release mit
+.B "nft \-c \-f examples/example\-nftables\-01.conf"
+überprüft.
+.SH EXIT-STATUS
+.TP
+.B 0
+normales Beenden (auch bei explizitem
+.BR \-\-help )
+.TP
+.B 1
+Laufzeitfehler in der TUI (z.\& B.\& Ausfall der netlink-Verbindung während
+der Sitzung oder ein Fehler des
+.BR nft -Binarys
+während
+.BR \-\-config )
+.TP
+.B 2
+ungültiger Kommandozeilenaufruf (unbekanntes Flag, fehlender Pflichtwert
+oder unbekanntes
+.BR \-\-table -Ziel)
+.SH "SIEHE AUCH"
+.BR nft (8)
+.PP
+Projektdokumentation in der Quelldistribution: README.md (Installation und
+Funktionsübersicht; deutsche Übersetzung in README.de.md) und CHANGELOG.md
+(Versionshinweise im Keep-a-Changelog-Format).
+.SH AUTOREN
+Geschrieben von Ákos Fehér.

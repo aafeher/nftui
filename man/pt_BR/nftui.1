@@ -1,0 +1,294 @@
+.\" Página de manual nftui(1) em português do Brasil
+.\" Escrita à mão com as macros `man' do groff para renderizar em qualquer
+.\" distribuição Linux (mdoc exigiria mandoc no estilo BSD).
+.\"
+.\" A seção OPÇÕES espelha o registro flagDocs de flags.go; mantenha o
+.\" texto sincronizado ao adicionar ou renomear um flag.
+.\" Esta tradução em português é o par do man/nftui.1 inglês;
+.\" atualize os dois juntos.
+.\"
+.\" Verificação:   mandoc -Tlint man/pt_BR/nftui.1
+.\" Pré-visualização: man -l man/pt_BR/nftui.1
+.\" As linhas em português (acentuadas, UTF-8) podem gerar avisos
+.\" "STYLE: line longer than 80 bytes"; são inofensivos (excede-se o número
+.\" de bytes, não o de caracteres, e a renderização não é afetada).
+.TH NFTUI 1 "2026-07-18" "nftui 1.2.0" "Comandos de usuário"
+.SH NOME
+nftui \- interface de usuário de terminal para o nftables do Linux
+.SH SINOPSE
+.B nftui
+[\fB\-\-table\fR \fInome\fR]
+[\fB\-\-config\fR \fIarquivo\fR]
+[\fB\-\-read\-only\fR]
+[\fB\-\-lang\fR \fIcódigo\fR]
+[\fB\-\-help\fR]
+[\fB\-\-version\fR]
+.SH DESCRIÇÃO
+.B nftui
+é uma interface de terminal interativa para navegar e editar o conjunto de
+regras do firewall nftables do kernel Linux. Ela fala com o kernel
+diretamente via netlink (sem passar pelo
+.BR nft (8)
+no caminho de leitura nem no de edição), então as mudanças são aplicadas
+atomicamente com a mesma semântica dos comandos
+.BR nft .
+O binário
+.BR nft (8)
+é usado apenas para aplicar o conjunto de regras inicial do flag
+.B \-\-config
+e para algumas operações pontuais de tabela em que passar pela CLI é mais
+seguro do que reconstruir o estado do kernel.
+.PP
+.B nftui
+requer a capacidade
+.B CAP_NET_ADMIN
+em tempo de execução. Execute com
+.BR sudo ,
+ou conceda a capacidade uma única vez com
+.B "setcap cap_net_admin=ep ./nftui"
+\&.
+.SH OPÇÕES
+.TP
+.BR \-\-table " " \fInome\fR
+Restringe a árvore a uma única tabela (casada por nome em todas as
+famílias). Um nome desconhecido encerra antes de a TUI iniciar, mostrando a
+lista de tabelas disponíveis. Um nome que existe em várias famílias
+(p.\& ex.\&
+.B filter
+tanto em
+.B ip
+quanto em
+.BR inet )
+retorna todas as ocorrências.
+.TP
+.BR \-\-config " " \fIarquivo\fR
+Aplica o conjunto de regras nftables dado via
+.BI "nft \-f " arquivo
+antes de a TUI iniciar. Isso
+.B muta
+o conjunto de regras em execução \(em o arquivo pode conter
+.BR "flush ruleset" .
+É resolvido antes de
+.BR \-\-table ,
+de modo que o estado do kernel após a carga é o que
+.B \-\-table
+valida.
+.TP
+.B \-\-read\-only
+Desativa todo caminho de escrita: sem
+.RB ( add / insert / move / delete / edit / save )
+de regras, sem
+.RB ( create / delete )
+de cadeias, tabelas ou conjuntos, sem zerar contadores. As teclas
+bloqueadas ficam esmaecidas no rodapé e um marcador vermelho
+.B "[SOMENTE LEITURA]"
+acompanha a barra de título de cada visão principal.
+.TP
+.BR \-\-lang " " \fIcódigo\fR
+Define o idioma da interface (por exemplo
+.BR en ", " hu ", " es ", " pt\-BR ", " fr ", " de " ou " it ).
+Sobrepõe o ambiente de locale
+.BR LC_ALL / LC_MESSAGES / LANG .
+Um valor não definido ou não suportado recorre à detecção automática a
+partir do locale e, por fim, ao inglês. Apenas os idiomas para os quais o
+nftui inclui um catálogo são aceitos (atualmente inglês, húngaro, espanhol,
+português do Brasil, francês, alemão e italiano).
+.TP
+.BR \-\-help ", " \-h
+Imprime a lista completa de flags com descrições de uma linha e exemplos
+de uso na saída padrão, e encerra com
+.BR 0 .
+Flags inválidos emitem o mesmo texto de uso na saída de erro e encerram
+com
+.BR 2 .
+.TP
+.B \-\-version
+Imprime
+.B "nftui <versão>"
+na saída padrão e encerra com
+.BR 0 .
+A versão é injetada na build de release; uma build a partir do código-fonte
+informa a versão de módulo do build-info do Go, ou
+.B dev
+para um
+.B "go build"
+simples.
+.SH "ATALHOS DE TECLADO"
+.SS "Visão principal em árvore (tabelas, cadeias, conjuntos, objetos nomeados)"
+.TP
+.BR \(ua " / " k
+move a seleção para cima
+.TP
+.BR \(da " / " j
+move a seleção para baixo
+.TP
+.B "Enter / \(-> / \(<-"
+expande ou recolhe a tabela selecionada
+.TP
+.B F3
+abre a cadeia selecionada na visão de lista de regras
+.TP
+.B n
+cria uma nova tabela
+.TP
+.B c
+cria uma nova cadeia na tabela selecionada
+.TP
+.B e
+edita a tabela ou cadeia selecionada
+.TP
+.B s
+cria um novo conjunto na tabela selecionada
+.TP
+.B d
+exclui a tabela, cadeia, conjunto ou objeto nomeado selecionado (com
+confirmação)
+.TP
+.B R
+zera o contador ou a cota selecionada
+.TP
+.B /
+entra na busca incremental por nome. Digite para filtrar; Enter ou
+.B \(da
+avança pelas ocorrências,
+.B \(ua
+retrocede, Esc limpa.
+.TP
+.B r
+recarrega a árvore a partir do kernel
+.TP
+.B "q / Esc / Ctrl+C"
+sair
+.SS "Visão de cadeia (lista de regras)"
+.TP
+.BR \(ua " / " k ", " \(da " / " j
+navega pelas regras
+.TP
+.B F3
+ver a regra selecionada (detalhe somente leitura)
+.TP
+.B F4
+editar a regra selecionada
+.TP
+.B a
+acrescenta uma nova regra ao final da cadeia
+.TP
+.B i
+insere uma nova regra antes da regra selecionada
+.TP
+.B K
+move a regra selecionada uma posição para cima
+.TP
+.B J
+move a regra selecionada uma posição para baixo
+.TP
+.B d
+exclui a regra selecionada (com confirmação)
+.TP
+.B /
+entra no filtro em linha. Digite para restringir as regras visíveis por
+correspondência de substring no verdict, na palavra-chave da condição ou
+no comentário. Com o filtro ativo,
+.BR \(ua / \(da
+navegam pela lista filtrada, Enter ou
+.B F3
+abre a regra selecionada,
+.B F4
+abre o editor, Esc limpa o filtro.
+.TP
+.B Esc
+volta à árvore
+.TP
+.B q
+sair
+.SS "Editor de regras"
+.TP
+.B "F5 / F6"
+aba anterior / seguinte
+.TP
+.B "Tab / Shift+Tab"
+campo seguinte / anterior dentro da aba atual
+.TP
+.B F2
+valida e aplica as mudanças via netlink
+.TP
+.B "Esc / F3"
+volta sem salvar
+.TP
+.B "q / Ctrl+C"
+sair
+.SH EXEMPLOS
+.TP
+.B sudo nftui
+navega pelo conjunto de regras ativo.
+.TP
+.B sudo nftui \-\-table filter
+mostra apenas a(s) tabela(s) chamada(s)
+.IR filter .
+.TP
+.B sudo nftui \-\-config examples/example\-nftables\-01.conf
+carrega a fixture de teste manual e depois a navega.
+.TP
+.B sudo nftui \-\-read\-only
+navegação segura \(em toda tecla de escrita fica esmaecida e inerte.
+.TP
+.B sudo nftui \-\-config new.conf \-\-read\-only
+navegação segura de uma fixture pré-carregada.
+.SH AMBIENTE
+.TP
+.B PATH
+deve incluir o
+.BR nft (8)
+para o flag
+.B \-\-config
+funcionar; fora isso, o tempo de execução não depende do binário
+.BR nft .
+.TP
+.BR LC_ALL / LC_MESSAGES / LANG
+selecionam o idioma da interface quando
+.B \-\-lang
+não é dado, nessa ordem de precedência (POSIX). Os sufixos
+.B .codeset
+e
+.B @modifier
+são ignorados; um locale não suportado ou
+.BR C / POSIX
+recorre ao inglês. Apenas os idiomas para os quais o nftui inclui um
+catálogo são usados (atualmente inglês, húngaro, espanhol, português do
+Brasil, francês, alemão e italiano).
+.SH ARQUIVOS
+.TP
+.I examples/example\-nftables\-01.conf
+A fixture canônica de teste manual na distribuição do código-fonte. Cada
+recurso documentado tem a sua seção correspondente neste arquivo; a
+fixture é verificada com
+.B "nft \-c \-f examples/example\-nftables\-01.conf"
+a cada release.
+.SH "STATUS DE SAÍDA"
+.TP
+.B 0
+saída normal (também com um
+.B \-\-help
+explícito)
+.TP
+.B 1
+erro de execução dentro da TUI (p.\& ex.\& falha da conexão netlink no
+meio da sessão, ou falha do binário
+.B nft
+durante
+.BR \-\-config )
+.TP
+.B 2
+uso inválido da linha de comando (flag desconhecido, valor obrigatório
+ausente ou alvo de
+.B \-\-table
+desconhecido)
+.SH "VEJA TAMBÉM"
+.BR nft (8)
+.PP
+Documentação do projeto na distribuição do código-fonte: README.md
+(instalação e visão geral dos recursos; tradução em português em
+README.pt-BR.md) e CHANGELOG.md (notas por versão no formato Keep a
+Changelog).
+.SH AUTORES
+Escrito por Ákos Fehér.

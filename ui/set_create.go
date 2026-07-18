@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
+	"nftui/i18n"
 )
 
 // setCreate is the new-set / new-map dialog. Slot layout:
@@ -95,23 +96,23 @@ func newSetCreate(table *nftables.Table) setCreate {
 	km := setCreateKeyMap{
 		NextField: key.NewBinding(
 			key.WithKeys("tab", "down"),
-			key.WithHelp("tab/↓", "next field"),
+			key.WithHelp("tab/↓", i18n.T("key.next_field")),
 		),
 		PrevField: key.NewBinding(
 			key.WithKeys("shift+tab", "up"),
-			key.WithHelp("shift+tab/↑", "prev field"),
+			key.WithHelp("shift+tab/↑", i18n.T("key.prev_field")),
 		),
 		Save: key.NewBinding(
 			key.WithKeys("f2"),
-			key.WithHelp("f2", "save"),
+			key.WithHelp("f2", i18n.T("key.save")),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "f3"),
-			key.WithHelp("esc/f3", "cancel"),
+			key.WithHelp("esc/f3", i18n.T("key.cancel")),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("ctrl+c"),
-			key.WithHelp("ctrl+c", "quit"),
+			key.WithHelp("ctrl+c", i18n.T("key.quit")),
 		),
 	}
 
@@ -238,7 +239,7 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 			}
 			kt, ok := nft.KeyTypeFromString(sc.keyTypeSelect.Value())
 			if !ok {
-				sc.statusMsg = "Unknown key type."
+				sc.statusMsg = i18n.T("set.create.err_keytype")
 				return sc, nil
 			}
 			spec := nft.CreateSetSpec{
@@ -248,7 +249,7 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 			if sc.isMap() {
 				dt, ok := nft.KeyTypeFromString(sc.dataTypeSelect.Value())
 				if !ok {
-					sc.statusMsg = "Unknown data type."
+					sc.statusMsg = i18n.T("set.create.err_datatype")
 					return sc, nil
 				}
 				spec.IsMap = true
@@ -256,7 +257,7 @@ func (sc setCreate) Update(msg tea.Msg) (setCreate, tea.Cmd) {
 				if sc.showsDataWidth() {
 					w, err := strconv.ParseUint(sc.dataTypeBytesSelect.Value(), 10, 32)
 					if err != nil || w == 0 {
-						sc.statusMsg = "Invalid integer width."
+						sc.statusMsg = i18n.T("set.create.err_intwidth")
 						return sc, nil
 					}
 					spec.DataTypeBytes = uint32(w)
@@ -308,9 +309,13 @@ func (sc setCreate) View() string {
 	divider := grayStyle.Width(sc.width).Render(strings.Repeat("─", sc.width))
 
 	var body strings.Builder
-	body.WriteString(defaultBoldStyle.Render("Create new set / map"))
+	body.WriteString(defaultBoldStyle.Render(i18n.T("set.create.title")))
 	body.WriteString("\n\n")
 
+	// Table + the set-attribute labels (Key type / Is map / Data type /
+	// Data width / Constant / Interval / Timeout / Dynamic) name nft
+	// keywords/attributes and stay English exactly as in the set view (I18N-5);
+	// only the Name identifier label and the chrome translate.
 	body.WriteString(grayStyle.Render("Table     : "))
 	body.WriteString(blueStyle.Render(sc.table.Name))
 	body.WriteString(grayStyle.Render(" ("))
@@ -318,7 +323,7 @@ func (sc setCreate) View() string {
 	body.WriteString(grayStyle.Render(")"))
 	body.WriteString("\n\n")
 
-	body.WriteString(grayStyle.Render("Name      : "))
+	body.WriteString(grayStyle.Render(i18n.T("set.create.name_label")))
 	body.WriteString(sc.nameInput.View())
 	body.WriteString("\n\n")
 
@@ -361,7 +366,7 @@ func (sc setCreate) View() string {
 
 	if sc.statusMsg != "" {
 		body.WriteString("\n")
-		body.WriteString(redBoldStyle.Render("Error: " + sc.statusMsg))
+		body.WriteString(redBoldStyle.Render(i18n.T("common.error") + sc.statusMsg))
 	}
 
 	contentBox := normalGrayBorder.

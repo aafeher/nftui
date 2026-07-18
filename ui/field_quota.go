@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"strconv"
 
+	"nftui/i18n"
+	"nftui/nft"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
-	"nftui/nft"
 )
 
 // QuotaField edits the `quota [over] <n> [bytes|kbytes|mbytes]` statement.
@@ -248,7 +250,7 @@ func (f *QuotaField) View() string {
 	}
 
 	row1 := lipgloss.JoinHorizontal(lipgloss.Top,
-		lipgloss.NewStyle().Width(8).Render(grayStyle.Render("enable:")),
+		lipgloss.NewStyle().Width(8).Render(grayStyle.Render(i18n.T("rule.field.enable"))),
 		lipgloss.NewStyle().Width(8).Render(vEnable),
 		lipgloss.NewStyle().Width(8).Render(grayStyle.Render("amount:")),
 		lipgloss.NewStyle().Width(16).Render(vAmount),

@@ -6,8 +6,8 @@ point for a Gentoo (proxy-)maintainer. Both target `net-firewall/`.
 
 | File | Package | Builds |
 |------|---------|--------|
-| `nftui-1.1.0.ebuild` | `net-firewall/nftui` | from source via `go-module.eclass` |
-| `nftui-bin-1.1.0.ebuild` | `net-firewall/nftui-bin` | installs the prebuilt release binary |
+| `nftui-1.2.0.ebuild` | `net-firewall/nftui` | from source via `go-module.eclass` |
+| `nftui-bin-1.2.0.ebuild` | `net-firewall/nftui-bin` | installs the prebuilt release binary |
 | `metadata.xml` | (both) | upstream/maintainer metadata |
 
 **Pick one.** Both install `/usr/bin/nftui`, so the ebuilds block each other
@@ -19,12 +19,12 @@ be merged. The `-bin` package is fastest; the source package compiles locally.
 ```bash
 # 1. Place each ebuild in its package directory and add the metadata:
 mkdir -p <overlay>/net-firewall/nftui-bin
-cp nftui-bin-1.1.0.ebuild metadata.xml <overlay>/net-firewall/nftui-bin/
+cp nftui-bin-1.2.0.ebuild metadata.xml <overlay>/net-firewall/nftui-bin/
 
 # 2. Generate the Manifest (Gentoo records distfile digests there, not in the
 #    ebuild) and merge:
 cd <overlay>/net-firewall/nftui-bin
-pkgdev manifest          # or: ebuild nftui-bin-1.1.0.ebuild manifest
+pkgdev manifest          # or: ebuild nftui-bin-1.2.0.ebuild manifest
 emerge net-firewall/nftui-bin
 ```
 

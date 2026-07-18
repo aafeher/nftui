@@ -1,0 +1,295 @@
+.\" Page de manuel nftui(1) en français
+.\" Écrite à la main avec les macros `man' de groff pour un rendu correct
+.\" sur toute distribution Linux (mdoc exigerait mandoc de style BSD).
+.\"
+.\" La section OPTIONS reflète le registre flagDocs de flags.go ; gardez le
+.\" texte synchronisé lors de l'ajout ou du renommage d'une option.
+.\" Cette traduction française est le pendant du man/nftui.1 anglais ;
+.\" mettez les deux à jour ensemble.
+.\"
+.\" Vérification : mandoc -Tlint man/fr/nftui.1
+.\" Aperçu :      man -l man/fr/nftui.1
+.\" Les lignes françaises (accentuées, UTF-8) peuvent déclencher des
+.\" avertissements "STYLE: line longer than 80 bytes" ; ils sont inoffensifs
+.\" (c'est le nombre d'octets qui dépasse, pas le nombre de caractères, et le
+.\" rendu n'est pas affecté).
+.TH NFTUI 1 "2026-07-18" "nftui 1.2.0" "Commandes de l'utilisateur"
+.SH NOM
+nftui \- interface utilisateur de terminal pour nftables sous Linux
+.SH SYNOPSIS
+.B nftui
+[\fB\-\-table\fR \fInom\fR]
+[\fB\-\-config\fR \fIfichier\fR]
+[\fB\-\-read\-only\fR]
+[\fB\-\-lang\fR \fIcode\fR]
+[\fB\-\-help\fR]
+[\fB\-\-version\fR]
+.SH DESCRIPTION
+.B nftui
+est une interface de terminal interactive pour parcourir et modifier le jeu
+de règles du pare-feu nftables du noyau Linux. Elle parle au noyau
+directement via netlink (sans passer par
+.BR nft (8)
+sur le chemin de lecture ni sur celui d'édition), les changements
+s'appliquent donc atomiquement avec la même sémantique que les commandes
+.BR nft .
+Le binaire
+.BR nft (8)
+n'est utilisé que pour appliquer le jeu de règles initial de l'option
+.B \-\-config
+et pour quelques opérations de table ciblées où passer par la CLI est plus
+sûr que reconstruire l'état du noyau.
+.PP
+.B nftui
+nécessite la capacité
+.B CAP_NET_ADMIN
+à l'exécution. Lancez-le avec
+.BR sudo ,
+ou accordez la capacité une seule fois avec
+.B "setcap cap_net_admin=ep ./nftui"
+\&.
+.SH OPTIONS
+.TP
+.BR \-\-table " " \fInom\fR
+Restreint l'arbre à une seule table (appariée par nom dans toutes les
+familles). Un nom inconnu termine avant le démarrage de la TUI en affichant
+la liste des tables disponibles. Un nom qui existe dans plusieurs familles
+(p.\& ex.\&
+.B filter
+à la fois dans
+.B ip
+et dans
+.BR inet )
+renvoie toutes les correspondances.
+.TP
+.BR \-\-config " " \fIfichier\fR
+Applique le jeu de règles nftables donné via
+.BI "nft \-f " fichier
+avant le démarrage de la TUI. Ceci
+.B mute
+le jeu de règles en cours d'exécution \(em le fichier peut contenir
+.BR "flush ruleset" .
+Résolu avant
+.BR \-\-table ,
+de sorte que l'état du noyau après chargement est ce que
+.B \-\-table
+valide.
+.TP
+.B \-\-read\-only
+Désactive tout chemin d'écriture : pas de
+.RB ( add / insert / move / delete / edit / save )
+de règles, pas de
+.RB ( create / delete )
+de chaînes, tables ou ensembles, pas de remise à zéro de compteur. Les
+touches bloquées s'estompent dans le pied de page et un marqueur rouge
+.B "[LECTURE SEULE]"
+accompagne la barre de titre de chaque vue principale.
+.TP
+.BR \-\-lang " " \fIcode\fR
+Définit la langue de l'interface (par exemple
+.BR en ", " hu ", " es ", " pt\-BR ", " fr ", " de " ou " it ).
+Outrepasse l'environnement de locale
+.BR LC_ALL / LC_MESSAGES / LANG .
+Une valeur absente ou non prise en charge retombe sur la détection
+automatique depuis la locale, puis sur l'anglais. Seules les langues pour
+lesquelles nftui embarque un catalogue sont prises en compte (actuellement
+anglais, hongrois, espagnol, portugais du Brésil, français, allemand et
+italien).
+.TP
+.BR \-\-help ", " \-h
+Affiche la liste complète des options avec des descriptions d'une ligne et
+des exemples d'usage sur la sortie standard, puis termine avec
+.BR 0 .
+Les options invalides émettent le même texte d'usage sur la sortie d'erreur
+et terminent avec
+.BR 2 .
+.TP
+.B \-\-version
+Affiche
+.B "nftui <version>"
+sur la sortie standard et termine avec
+.BR 0 .
+La version est injectée lors de la build de release ; une build depuis les
+sources rapporte la version de module du build-info Go, ou
+.B dev
+pour un simple
+.BR "go build" .
+.SH "RACCOURCIS CLAVIER"
+.SS "Vue principale en arbre (tables, chaînes, ensembles, objets nommés)"
+.TP
+.BR \(ua " / " k
+déplace la sélection vers le haut
+.TP
+.BR \(da " / " j
+déplace la sélection vers le bas
+.TP
+.B "Enter / \(-> / \(<-"
+déplie ou replie la table sélectionnée
+.TP
+.B F3
+ouvre la chaîne sélectionnée dans la vue liste de règles
+.TP
+.B n
+crée une nouvelle table
+.TP
+.B c
+crée une nouvelle chaîne sur la table sélectionnée
+.TP
+.B e
+modifie la table ou la chaîne sélectionnée
+.TP
+.B s
+crée un nouvel ensemble sur la table sélectionnée
+.TP
+.B d
+supprime la table, la chaîne, l'ensemble ou l'objet nommé sélectionné (avec
+confirmation)
+.TP
+.B R
+remet à zéro le compteur ou le quota sélectionné
+.TP
+.B /
+entre dans la recherche incrémentale par nom. Tapez pour filtrer ; Enter ou
+.B \(da
+avance dans les correspondances,
+.B \(ua
+recule, Esc efface.
+.TP
+.B r
+recharge l'arbre depuis le noyau
+.TP
+.B "q / Esc / Ctrl+C"
+quitter
+.SS "Vue de chaîne (liste de règles)"
+.TP
+.BR \(ua " / " k ", " \(da " / " j
+navigue dans les règles
+.TP
+.B F3
+voir la règle sélectionnée (détail en lecture seule)
+.TP
+.B F4
+modifier la règle sélectionnée
+.TP
+.B a
+ajoute une nouvelle règle à la fin de la chaîne
+.TP
+.B i
+insère une nouvelle règle avant la règle sélectionnée
+.TP
+.B K
+monte la règle sélectionnée d'une position
+.TP
+.B J
+descend la règle sélectionnée d'une position
+.TP
+.B d
+supprime la règle sélectionnée (avec confirmation)
+.TP
+.B /
+entre dans le filtre en ligne. Tapez pour restreindre les règles visibles
+par correspondance de sous-chaîne sur le verdict, le mot-clé de la
+condition ou le commentaire. Filtre actif,
+.BR \(ua / \(da
+naviguent dans la liste filtrée, Enter ou
+.B F3
+ouvre la règle sélectionnée,
+.B F4
+ouvre l'éditeur, Esc efface le filtre.
+.TP
+.B Esc
+revient à l'arbre
+.TP
+.B q
+quitter
+.SS "Éditeur de règles"
+.TP
+.B "F5 / F6"
+onglet précédent / suivant
+.TP
+.B "Tab / Shift+Tab"
+champ suivant / précédent dans l'onglet courant
+.TP
+.B F2
+valide et applique les changements via netlink
+.TP
+.B "Esc / F3"
+revient sans enregistrer
+.TP
+.B "q / Ctrl+C"
+quitter
+.SH EXEMPLES
+.TP
+.B sudo nftui
+parcourt le jeu de règles actif.
+.TP
+.B sudo nftui \-\-table filter
+n'affiche que la ou les tables nommées
+.IR filter .
+.TP
+.B sudo nftui \-\-config examples/example\-nftables\-01.conf
+charge la fixture de test manuel, puis la parcourt.
+.TP
+.B sudo nftui \-\-read\-only
+navigation sûre \(em toute touche d'écriture est estompée et inerte.
+.TP
+.B sudo nftui \-\-config new.conf \-\-read\-only
+navigation sûre d'une fixture préchargée.
+.SH ENVIRONNEMENT
+.TP
+.B PATH
+doit inclure
+.BR nft (8)
+pour que l'option
+.B \-\-config
+fonctionne ; sinon l'exécution ne dépend pas du binaire
+.BR nft .
+.TP
+.BR LC_ALL / LC_MESSAGES / LANG
+sélectionnent la langue de l'interface quand
+.B \-\-lang
+n'est pas donné, dans cet ordre de précédence (POSIX). Les suffixes
+.B .codeset
+et
+.B @modifier
+sont ignorés ; une locale non prise en charge ou
+.BR C / POSIX
+retombe sur l'anglais. Seules les langues pour lesquelles nftui embarque un
+catalogue sont utilisées (actuellement anglais, hongrois, espagnol,
+portugais du Brésil, français, allemand et italien).
+.SH FICHIERS
+.TP
+.I examples/example\-nftables\-01.conf
+La fixture canonique de test manuel dans la distribution des sources.
+Chaque fonctionnalité documentée a sa section correspondante dans ce
+fichier ; la fixture est vérifiée avec
+.B "nft \-c \-f examples/example\-nftables\-01.conf"
+à chaque release.
+.SH "CODE DE RETOUR"
+.TP
+.B 0
+sortie normale (aussi pour un
+.B \-\-help
+explicite)
+.TP
+.B 1
+erreur d'exécution dans la TUI (p.\& ex.\& échec de la connexion netlink en
+cours de session, ou échec du binaire
+.B nft
+pendant
+.BR \-\-config )
+.TP
+.B 2
+usage invalide de la ligne de commande (option inconnue, valeur requise
+manquante ou cible
+.B \-\-table
+inconnue)
+.SH "VOIR AUSSI"
+.BR nft (8)
+.PP
+Documentation du projet dans la distribution des sources : README.md
+(installation et aperçu des fonctionnalités ; traduction française dans
+README.fr.md) et CHANGELOG.md (notes de version au format Keep a
+Changelog).
+.SH AUTEURS
+Écrit par Ákos Fehér.
