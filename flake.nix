@@ -52,7 +52,7 @@
           # (or let the `nix` CI lane in .github/workflows/ci.yml run), and paste
           # the real `sha256-...` the error prints. The CI *release* pipeline does
           # not depend on this hash; only Nix users and the `nix` CI lane use it.
-          vendorHash = "sha256-QU6sFQ/6bsgo0YLpo1pVPsQsQTCAfhuyhF7wSi/9GCw=";
+          vendorHash = "sha256-SzczNfDWD76Khv2P3Urk/lLMAVzaUhCYqk51APaAIHQ=";
 
           # buildGoModule defaults to CGO_ENABLED=0, which is what we want —
           # a static binary matching the Goreleaser output. `-s -w` matches
