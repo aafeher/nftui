@@ -12,6 +12,8 @@
 [![Platform: Linux](https://img.shields.io/badge/platform-linux-blue)](#voraussetzungen)
 [![Downloads](https://img.shields.io/github/downloads/aafeher/nftui/total)](https://github.com/aafeher/nftui/releases)
 
+![nftui-Demo](assets/demo.de.gif)
+
 `nftui` ist eine Terminal-Benutzeroberfläche (TUI) zur Verwaltung von
 `nftables` unter Linux. Durchsuchen Sie das aktive Regelwerk, bearbeiten Sie
 Regeln mit vollständigen strukturierten Editoren für jeden Bedingungs- und

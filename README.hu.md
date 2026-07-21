@@ -12,6 +12,8 @@
 [![Platform: Linux](https://img.shields.io/badge/platform-linux-blue)](#követelmények)
 [![Downloads](https://img.shields.io/github/downloads/aafeher/nftui/total)](https://github.com/aafeher/nftui/releases)
 
+![nftui demó](assets/demo.hu.gif)
+
 Az `nftui` egy terminál felhasználói felület (TUI) a Linux `nftables`
 kezeléséhez. Böngészd az élő szabálykészletet, szerkeszd a szabályokat minden
 feltétel- és művelettípushoz teljes strukturált szerkesztőkkel, és alkalmazd a

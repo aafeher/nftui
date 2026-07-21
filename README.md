@@ -12,6 +12,8 @@
 [![Platform: Linux](https://img.shields.io/badge/platform-linux-blue)](#requirements)
 [![Downloads](https://img.shields.io/github/downloads/aafeher/nftui/total)](https://github.com/aafeher/nftui/releases)
 
+![nftui demo](assets/demo.gif)
+
 `nftui` is a Terminal User Interface for managing `nftables` on Linux. Browse
 the live ruleset, edit rules with full structured editors for every condition
 and action type, and apply changes back to the kernel — without ever touching

@@ -12,6 +12,8 @@
 [![Platform: Linux](https://img.shields.io/badge/platform-linux-blue)](#prérequis)
 [![Downloads](https://img.shields.io/github/downloads/aafeher/nftui/total)](https://github.com/aafeher/nftui/releases)
 
+![démo de nftui](assets/demo.fr.gif)
+
 `nftui` est une interface utilisateur de terminal (TUI) pour gérer `nftables`
 sous Linux. Parcourez le jeu de règles actif, modifiez des règles avec des
 éditeurs structurés complets pour chaque type de condition et d'action, et
