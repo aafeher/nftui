@@ -11,6 +11,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 - **Dependabot pull requests could never go green.** Two CI lanes failed on every bot PR, for two independent reasons. (1) `github/codeql-action/init`, `/autobuild` and `/analyze` are separate dependencies to Dependabot but one product to CodeQL, which aborts with `Loaded a configuration file for version 'X', but running version 'Y'` — a *configuration error*, not a finding — when they run different releases; a per-sub-action PR bumps exactly one of them, so the "Analyze (Go)" check was red by construction. All four pins (the three in `codeql.yml` plus `scorecard.yml`'s `upload-sarif`) now move together, and `.github/dependabot.yml` groups `github/codeql-action*` into a single PR so they can't drift apart again. (2) Every `gomod` bump changes `go.sum`, which invalidates `flake.nix`'s hand-pinned `vendorHash` — a value Dependabot cannot update — so the "Nix flake build" lane failed with `hash mismatch`. Go module updates are now grouped into one PR too, so the manual re-pin is one step per batch instead of one per dependency, and both `flake.nix` and the README spell out that the re-pin belongs to the same change as the `go.sum` bump.
 
+### Added
+
+- **The `nftui(1)` man pages are now guarded against flag drift.** `flagDocs` has always been the single source of truth for the CLI, but only `--help` was checked against it; the seven hand-written man pages (English plus six translations) were read by no test at all, so a newly registered flag could silently miss every one of them. `TestManPagesDocumentEveryFlag` now asserts that every registered flag is documented in every shipped page, and that a flag taking a value is introduced with a groff italic argument. The placeholder is checked structurally rather than by name, because the pages translate it (`\fIname\fR` → `\fInév\fR` / `\fInombre\fR`). The page set is derived from the embedded `i18n` catalogs, so a language that ships a catalog without its man page fails the same test.
+
 ### Changed
 
 - `golang.org/x/text` updated 0.40.0 → 0.41.0, with the matching `flake.nix` `vendorHash` re-pin in the same change.
