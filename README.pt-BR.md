@@ -159,9 +159,12 @@ nix run                # compila e executa (precisa de CAP_NET_ADMIN em execuç�
 nix develop            # ferramentas: go, gopls, goreleaser, nftables, mandoc
 ```
 
-No primeiro `nix build`, o `vendorHash` está intencionalmente definido como
-`lib.fakeHash` — o Nix imprime o `sha256-…` real no erro e o usuário o cola no
-`flake.nix` (refixe sempre que o `go.sum` mudar). Isso mantém independentes as
+O `flake.nix` carrega um `vendorHash` fixado para as dependências Go, e ele
+precisa ser refixado sempre que o `go.sum` mudar — inclusive em todo pull
+request `gomod` do Dependabot, que atualiza `go.mod` / `go.sum` mas não
+consegue tocar no flake. A build falha então com
+`hash mismatch … got: sha256-…`; é esse valor impresso que se cola na linha
+`vendorHash`. Isso mantém independentes as
 releases binárias (Goreleaser) e as builds Nix: o caminho Nix não bloqueia a
 publicação de releases.
 
@@ -577,14 +580,19 @@ verificações a cada push e pull request para `main` / `develop`:
 - **Build do flake Nix** — em um runner com Nix, `nix flake check` +
   `nix build .#default` constroem o [`flake.nix`](flake.nix) de ponta a ponta
   (compilando o nftui e rodando a sua suíte unitária no sandbox), de modo que
-  o flake não pode quebrar em silêncio. A primeira execução precisa fixar o
-  `vendorHash` do `flake.nix` — ele vem como marcador de posição e a build que
-  falha imprime o valor real a colar.
+  o flake não pode quebrar em silêncio. Essa faixa também protege o
+  `vendorHash` fixado contra a deriva do `go.sum`: uma subida de dependência a
+  faz falhar com `hash mismatch … got: sha256-…` até que esse valor seja
+  fixado no `flake.nix`.
 
 As atualizações de dependências e de GitHub Actions são automatizadas com o
 Dependabot (`.github/dependabot.yml`, semanal), que abre PRs à medida que
 releases e correções de segurança chegam. `github.com/google/nftables` fica
 excluído desses PRs porque é intencionalmente mantido em um snapshot fixado.
+Dois conjuntos são agrupados em um único PR cada: todos os passos
+`github/codeql-action*` (o CodeQL aborta se suas sub-actions rodam releases
+diferentes) e todos os módulos Go (cada lote exige um refixamento de
+`vendorHash`).
 
 A versão do Go vem do `go.mod` via `actions/setup-go@v6` com
 `go-version-file: go.mod`, então subir a versão do Go do módulo atualiza a CI

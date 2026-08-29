@@ -5,6 +5,17 @@ All notable changes to nftui are documented in this file.
 The format follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Dependabot pull requests could never go green.** Two CI lanes failed on every bot PR, for two independent reasons. (1) `github/codeql-action/init`, `/autobuild` and `/analyze` are separate dependencies to Dependabot but one product to CodeQL, which aborts with `Loaded a configuration file for version 'X', but running version 'Y'` — a *configuration error*, not a finding — when they run different releases; a per-sub-action PR bumps exactly one of them, so the "Analyze (Go)" check was red by construction. All four pins (the three in `codeql.yml` plus `scorecard.yml`'s `upload-sarif`) now move together, and `.github/dependabot.yml` groups `github/codeql-action*` into a single PR so they can't drift apart again. (2) Every `gomod` bump changes `go.sum`, which invalidates `flake.nix`'s hand-pinned `vendorHash` — a value Dependabot cannot update — so the "Nix flake build" lane failed with `hash mismatch`. Go module updates are now grouped into one PR too, so the manual re-pin is one step per batch instead of one per dependency, and both `flake.nix` and the README spell out that the re-pin belongs to the same change as the `go.sum` bump.
+
+### Changed
+
+- `golang.org/x/text` updated 0.40.0 → 0.41.0, with the matching `flake.nix` `vendorHash` re-pin in the same change.
+- `github/codeql-action` pins updated to v4.37.8 across `codeql.yml` and `scorecard.yml`.
+
 ## [1.2.0] - 2026-07-18 — Internationalization & localization
 
 ### Added
@@ -268,6 +279,7 @@ IP6 Matches, TCP & UDP Transport Matches.
 - Footer help line always lists every available key binding in the current view — the "footer-completeness" invariant.
 - Custom UI components: `NumberInput` (numeric textinput with min/max bounds), `Select` (horizontal single-select), `MultiSelect` (horizontal checkboxes).
 
+[Unreleased]: https://github.com/aafeher/nftui/compare/v1.2.0...HEAD
 [1.2.0]: https://github.com/aafeher/nftui/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/aafeher/nftui/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/aafeher/nftui/compare/v0.9.0...v1.0.0
