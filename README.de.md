@@ -162,10 +162,12 @@ nix run                # baut und führt aus (braucht CAP_NET_ADMIN zur Laufzeit
 nix develop            # Werkzeuge: go, gopls, goreleaser, nftables, mandoc
 ```
 
-Beim ersten `nix build` ist der `vendorHash` absichtlich auf `lib.fakeHash`
-gesetzt — Nix gibt den echten `sha256-…` in der Fehlermeldung aus und der
-Benutzer trägt ihn in `flake.nix` ein (bei jeder `go.sum`-Änderung neu
-festnageln). So bleiben Binary-Releases (Goreleaser) und Nix-Builds
+`flake.nix` trägt einen festgenagelten `vendorHash` für die
+Go-Abhängigkeiten, der bei jeder `go.sum`-Änderung neu festgenagelt werden
+muss — auch bei jedem Dependabot-`gomod`-Pull-Request, der zwar `go.mod` /
+`go.sum` aktualisiert, das Flake aber nicht anfassen kann. Der Build schlägt
+dann mit `hash mismatch … got: sha256-…` fehl; der ausgegebene Wert gehört in
+die `vendorHash`-Zeile. So bleiben Binary-Releases (Goreleaser) und Nix-Builds
 unabhängig: der Nix-Pfad blockiert die Release-Veröffentlichung nicht.
 
 ### Docker
@@ -586,16 +588,19 @@ und Pull Request nach `main` / `develop` dieselben Prüfungen aus:
 - **Nix-Flake-Build** — auf einem Nix-Runner bauen `nix flake check` +
   `nix build .#default` die [`flake.nix`](flake.nix) von Ende zu Ende
   (Kompilieren von nftui und Ausführen seiner Unit-Suite in der Sandbox),
-  das Flake kann also nicht unbemerkt kaputtgehen. Der erste Lauf muss den
-  `vendorHash` der `flake.nix` festnageln — er wird als Platzhalter
-  ausgeliefert und der fehlschlagende Build gibt den echten Wert zum
-  Einfügen aus.
+  das Flake kann also nicht unbemerkt kaputtgehen. Diese Bahn schützt zudem
+  den festgenagelten `vendorHash` vor `go.sum`-Drift: ein Abhängigkeits-Bump
+  lässt sie mit `hash mismatch … got: sha256-…` fehlschlagen, bis dieser Wert
+  in `flake.nix` steht.
 
 Abhängigkeits- und GitHub-Actions-Updates sind mit Dependabot automatisiert
 (`.github/dependabot.yml`, wöchentlich), der PRs öffnet, sobald Upstream-
 Releases und Sicherheitskorrekturen erscheinen. `github.com/google/nftables`
 ist von diesen PRs ausgenommen, weil es absichtlich auf einem festgenagelten
-Snapshot gehalten wird.
+Snapshot gehalten wird. Zwei Mengen werden zu je einem PR gruppiert: alle
+`github/codeql-action*`-Schritte (CodeQL bricht ab, wenn seine Sub-Actions
+verschiedene Releases fahren) und alle Go-Module (jeder Stapel braucht ein
+passendes `vendorHash`-Neufestnageln).
 
 Die Go-Version stammt aus `go.mod` via `actions/setup-go@v6` mit
 `go-version-file: go.mod`; das Anheben der Go-Version des Moduls
