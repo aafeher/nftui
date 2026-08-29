@@ -152,11 +152,13 @@ nix run                # builds and runs (needs CAP_NET_ADMIN at runtime)
 nix develop            # toolchain: go, gopls, goreleaser, nftables, mandoc
 ```
 
-On the first `nix build`, the `vendorHash` is intentionally set to
-`lib.fakeHash` — Nix prints the real `sha256-…` in the error and the user
-pastes it into `flake.nix` (re-pin whenever `go.sum` changes). This keeps
-binary releases (Goreleaser) and Nix builds independent: the Nix path does
-not block release publishing.
+`flake.nix` carries a pinned `vendorHash` for the Go dependencies, and it has
+to be re-pinned whenever `go.sum` changes — including on every Dependabot
+`gomod` pull request, which updates `go.mod` / `go.sum` but cannot touch the
+flake. The build then fails with `hash mismatch … got: sha256-…`; paste that
+printed value into the `vendorHash` line. This keeps binary releases
+(Goreleaser) and Nix builds independent: the Nix path does not block release
+publishing.
 
 ### Docker
 
@@ -520,14 +522,18 @@ on every push and pull request to `main` / `develop`:
   `mod_timestamp` / `-trimpath` / CGO-free build is byte-for-byte reproducible.
 - **Nix flake build** — on a Nix runner, `nix flake check` + `nix build .#default`
   build [`flake.nix`](flake.nix) end-to-end (compiling nftui and running its unit
-  suite in the sandbox), so the flake can't silently break. The first run must
-  pin `flake.nix`'s `vendorHash` — it ships as a placeholder and the failing
-  build prints the real value to paste in.
+  suite in the sandbox), so the flake can't silently break. This lane also
+  guards the pinned `vendorHash` against `go.sum` drift: a dependency bump
+  fails it with `hash mismatch … got: sha256-…` until that value is pinned in
+  `flake.nix`.
 
 Dependency and GitHub-Actions updates are automated with Dependabot
 (`.github/dependabot.yml`, weekly), which opens PRs as upstream releases and
 security fixes land. `github.com/google/nftables` is excluded from those PRs
-because it is intentionally held at a pinned snapshot.
+because it is intentionally held at a pinned snapshot. Two sets are grouped
+into a single PR each: every `github/codeql-action*` step (CodeQL aborts when
+its sub-actions run different releases) and every Go module (each batch needs
+one matching `vendorHash` re-pin).
 
 The Go version comes from `go.mod` via `actions/setup-go@v6` with
 `go-version-file: go.mod`, so bumping the module's Go version updates CI in
