@@ -52,7 +52,15 @@
           # (or let the `nix` CI lane in .github/workflows/ci.yml run), and paste
           # the real `sha256-...` the error prints. The CI *release* pipeline does
           # not depend on this hash; only Nix users and the `nix` CI lane use it.
-          vendorHash = "sha256-SzczNfDWD76Khv2P3Urk/lLMAVzaUhCYqk51APaAIHQ=";
+          #
+          # This is the one file a Dependabot `gomod` PR cannot keep correct on
+          # its own — the bot updates go.mod / go.sum but not this line, so the
+          # "Nix flake build" lane fails with `hash mismatch ... got: sha256-...`
+          # until the printed value lands here. That mismatch is the *expected*
+          # bootstrap for a dependency bump, not a flake regression; the
+          # `gomod` group in .github/dependabot.yml keeps it to one re-pin per
+          # batch. Current value covers golang.org/x/text v0.41.0.
+          vendorHash = "sha256-cJMn7heKO9PK8aoqW/Ib6GNv0XqdAPkVhPFdasR+rps=";
 
           # buildGoModule defaults to CGO_ENABLED=0, which is what we want —
           # a static binary matching the Goreleaser output. `-s -w` matches

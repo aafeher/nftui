@@ -8,6 +8,14 @@
 #
 # Go uses the "autobuild" mode (CodeQL builds the module to trace it). Go is set
 # up from go.mod before the init step so autobuild uses the project toolchain.
+#
+# All `github/codeql-action/*` steps MUST stay on the same release. A mixed set
+# (e.g. init on v4.36.2, autobuild on v4.37.8) aborts the job with "Loaded a
+# configuration file for version 'X', but running version 'Y'" — reported as a
+# CodeQL *configuration error*, not as a code finding. Dependabot proposes one
+# sub-action per PR, so .github/dependabot.yml groups `github/codeql-action*`
+# into a single PR; when pinning by hand, move all three below **and**
+# scorecard.yml's `upload-sarif` in the same commit.
 
 name: CodeQL
 
@@ -48,14 +56,14 @@ jobs:
           check-latest: true
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
           languages: go
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        uses: github/codeql-action/autobuild@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
           category: "/language:go"
