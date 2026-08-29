@@ -273,6 +273,8 @@ func newRuleEdit(rule *nftables.Rule, readOnly bool) ruleEdit {
 				NewTcpChecksumField(rd), // 6
 				NewTcpUrgptrField(rd),   // 7
 				NewTcpDoffField(rd),     // 8
+				// Offset 4 renames itself: `UDP length` normally,
+				// `UDPLITE csumcov` under a udplite l4proto context.
 				NewUdpLengthField(rd),   // 9
 				NewUdpChecksumField(rd), // 10
 				// ICMP fields — these inject the `meta l4proto icmp`

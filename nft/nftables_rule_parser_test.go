@@ -1552,6 +1552,107 @@ func TestNftablesToRuleDefinition_DccpType(t *testing.T) {
 	}
 }
 
+// --- UDP-Lite ---
+
+// UDP-Lite reuses UDP's wire layout except for the 16-bit cell at transport
+// offset 4: UDP calls it `length`, UDP-Lite carries the checksum coverage
+// there and calls it `csumcov`. `nft` rejects `udplite length` outright, so
+// labelling that cell `udp length` on a udplite rule is a wrong field name,
+// not just a shared-cell convention.
+func TestNftablesToRuleDefinition_UdpliteCsumcov(t *testing.T) {
+	rd, err := NftablesToRuleDefinition(makeRule(
+		&expr.Meta{Key: unix.NFT_META_L4PROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_UDPLITE}},
+		&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2, DestRegister: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: beUint16(8)},
+		&expr.Verdict{Kind: expr.VerdictAccept},
+	))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cond := rd.Conditions[1]
+	if cond.Payload.Protocol != PayloadProtoUDPLITE {
+		t.Errorf("protocol = %q, want %q", cond.Payload.Protocol, PayloadProtoUDPLITE)
+	}
+	if cond.Payload.Field != "csumcov" {
+		t.Errorf("field = %q, want %q", cond.Payload.Field, "csumcov")
+	}
+	if v, ok := cond.Payload.Value.(uint16); !ok || v != 8 {
+		t.Errorf("value = %v (%T), want uint16(8)", cond.Payload.Value, cond.Payload.Value)
+	}
+}
+
+// The same cell must keep its UDP meaning under a udp l4proto context, and
+// under no context at all (the shared-layout fallback) — the udplite arm must
+// not swallow plain UDP rules.
+func TestNftablesToRuleDefinition_UdpLengthKeepsItsName(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		exprs []expr.Any
+	}{
+		{"udp context", []expr.Any{
+			&expr.Meta{Key: unix.NFT_META_L4PROTO, Register: 1},
+			&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_UDP}},
+		}},
+		{"no l4proto context", nil},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			exprs := append(append([]expr.Any{}, c.exprs...),
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: beUint16(1500)},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			)
+			rd, err := NftablesToRuleDefinition(makeRule(exprs...))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			cond := rd.Conditions[len(rd.Conditions)-1]
+			if cond.Payload.Protocol != PayloadProtoUDP || cond.Payload.Field != "length" {
+				t.Errorf("got %q/%q, want udp/length", cond.Payload.Protocol, cond.Payload.Field)
+			}
+			if v, ok := cond.Payload.Value.(uint16); !ok || v != 1500 {
+				t.Errorf("value = %v (%T), want uint16(1500)", cond.Payload.Value, cond.Payload.Value)
+			}
+		})
+	}
+}
+
+// sport / dport / checksum stay on the shared TCP/UDP labels even under a
+// udplite context: those cells mean the same thing in both protocols and
+// `nft` accepts either spelling, so the established shared-label convention
+// (documented in examples/example-nftables-01.conf, section 25) holds. Only
+// offset 4 diverges.
+func TestNftablesToRuleDefinition_UdpliteSharedCellsUnchanged(t *testing.T) {
+	for _, c := range []struct {
+		name     string
+		offset   uint32
+		wantProt PayloadProtocol
+		wantFld  string
+	}{
+		{"sport", 0, PayloadProtoTCP, "sport"},
+		{"dport", 2, PayloadProtoTCP, "dport"},
+		{"checksum", 6, PayloadProtoUDP, "checksum"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			rd, err := NftablesToRuleDefinition(makeRule(
+				&expr.Meta{Key: unix.NFT_META_L4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{unix.IPPROTO_UDPLITE}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: c.offset, Len: 2, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: beUint16(99)},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			))
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			cond := rd.Conditions[1]
+			if cond.Payload.Protocol != c.wantProt || cond.Payload.Field != c.wantFld {
+				t.Errorf("got %q/%q, want %q/%q",
+					cond.Payload.Protocol, cond.Payload.Field, c.wantProt, c.wantFld)
+			}
+		})
+	}
+}
+
 // --- SCTP smoke tests ---
 
 func TestNftablesToRuleDefinition_SctpHeader(t *testing.T) {
@@ -1689,7 +1790,7 @@ func runPayloadIntCase(t *testing.T, c payloadIntCase) {
 		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
 		&expr.Verdict{Kind: expr.VerdictAccept},
 	)
-	// Stamp the family hint so identifyPayloadField can disambiguate
+	// Stamp the family hint so IdentifyPayloadField can disambiguate
 	// IPv4 id vs IPv6 length at offset 4, len 2.
 	if c.protocol == PayloadProtoIP6 {
 		rule.Table = &nftables.Table{Family: nftables.TableFamilyIPv6}

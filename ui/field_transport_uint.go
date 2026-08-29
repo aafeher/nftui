@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/google/nftables"
 	"github.com/google/nftables/expr"
+	"golang.org/x/sys/unix"
+
 	"nftui/nft"
 )
 
@@ -236,7 +238,35 @@ func NewUdpSportField(rd *nft.Rule) *TransportUintField {
 func NewUdpDportField(rd *nft.Rule) *TransportUintField {
 	return newTransportUintField(rd, nft.PayloadProtoTCP, "dport", 2, 2, "UDP dport")
 }
+
+// ruleIsUdplite reports whether the rule's `meta l4proto` match selects
+// UDP-Lite. Used only where UDP-Lite's header genuinely diverges from UDP's;
+// the cells the two share keep their common label.
+func ruleIsUdplite(rd *nft.Rule) bool {
+	if rd == nil {
+		return false
+	}
+	for _, c := range rd.Conditions {
+		if c.Meta == nil || c.Meta.Key != nft.MetaKeyL4Proto {
+			continue
+		}
+		if v, ok := c.Meta.Value.(uint8); ok && v == unix.IPPROTO_UDPLITE {
+			return true
+		}
+	}
+	return false
+}
+
+// NewUdpLengthField edits the 16-bit cell at transport offset 4. UDP calls it
+// `length`; UDP-Lite carries the checksum coverage there and calls it
+// `csumcov` (and rejects `udplite length` outright). One editor renames itself
+// from the rule's l4proto context rather than the tab carrying two editors
+// that would fight over the same wire cell — Save matches on offset+len, so
+// two of them could not coexist.
 func NewUdpLengthField(rd *nft.Rule) *TransportUintField {
+	if ruleIsUdplite(rd) {
+		return newTransportUintField(rd, nft.PayloadProtoUDPLITE, "csumcov", 4, 2, "UDPLITE csumcov")
+	}
 	return newTransportUintField(rd, nft.PayloadProtoUDP, "length", 4, 2, "UDP length")
 }
 func NewUdpChecksumField(rd *nft.Rule) *TransportUintField {

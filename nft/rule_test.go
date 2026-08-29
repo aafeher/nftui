@@ -184,14 +184,19 @@ func TestPayloadToHumanReadable(t *testing.T) {
 		{"ip6 saddr prefix /64", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 8, Len: 8}, "saddr"},
 		{"ip6 daddr", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 24, Len: 16}, "daddr"},
 		{"ip6 daddr prefix /48", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 24, Len: 6}, "daddr"},
-		{"ip ttl not v6 saddr", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 8, Len: 1}, "payload[network header+8:1]"},
+		// Offset 8 length 1 is the IPv4 ttl, not the head of an IPv6 saddr —
+		// the shared table names it now instead of leaving it raw.
+		{"ip ttl not v6 saddr", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 8, Len: 1}, "ttl"},
 		{"unknown transport", expr.Payload{Base: unix.NFT_PAYLOAD_TRANSPORT_HEADER, Offset: 99, Len: 4}, "payload[transport header+99:4]"},
+		// With no protocol context the shared TCP/UDP layout reads offset 4 as
+		// the UDP length; the protocol keyword comes from the meta arm.
+		{"offset 4 without context reads as length", expr.Payload{Base: unix.NFT_PAYLOAD_TRANSPORT_HEADER, Offset: 4, Len: 2}, "length"},
 		{"unknown network", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 99, Len: 4}, "payload[network header+99:4]"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := payloadToHumanReadable(&tt.payload)
+			got := payloadToHumanReadable(&tt.payload, "")
 			if got != tt.want {
 				t.Errorf("payloadToHumanReadable() = %q, want %q", got, tt.want)
 			}

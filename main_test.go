@@ -63,6 +63,106 @@ func TestWriteUsage(t *testing.T) {
 	}
 }
 
+// manPageFor maps a shipped locale tag to its nftui(1) page. English is the
+// source page at man/nftui.1; every other language lives in man/<dir>/, the
+// directory following man(1)'s convention of an underscore before the
+// territory (pt-BR -> pt_BR).
+func manPageFor(tag string) string {
+	if tag == "en" {
+		return filepath.Join("man", "nftui.1")
+	}
+	return filepath.Join("man", strings.ReplaceAll(tag, "-", "_"), "nftui.1")
+}
+
+// isFlagByte reports whether b can continue a flag name, so a mention of
+// --table inside a hypothetical --tables isn't mistaken for the shorter flag.
+func isFlagByte(b byte) bool {
+	return b == '-' || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
+}
+
+// manFlagLines returns every line of a man page that names flag as a flag.
+// Lines, not sections: the .SH headings are themselves translated (OPTIONS /
+// OPZIONI / OPTIONEN / OPCIONES / …), so there is no language-independent
+// section name to scope the search to, while the groff line that introduces a
+// flag has the same shape in every language.
+func manFlagLines(text, flag string) []string {
+	var out []string
+	for _, line := range strings.Split(text, "\n") {
+		for i := 0; ; {
+			j := strings.Index(line[i:], flag)
+			if j < 0 {
+				break
+			}
+			end := i + j + len(flag)
+			i = end
+			if end < len(line) && isFlagByte(line[end]) {
+				continue // only the prefix of a longer flag
+			}
+			out = append(out, line)
+			break
+		}
+	}
+	return out
+}
+
+// Every flag in flagDocs must be documented in every nftui(1) page the project
+// ships, not only in --help. writeUsage is guarded by TestWriteUsage, but the
+// man pages are hand-written — one per language — and no other test reads
+// them, so a newly registered flag can silently miss all of them at once. The
+// page set is derived from the embedded i18n catalogs, so a language that
+// ships a catalog without its man page fails here too.
+//
+// The value placeholder is checked structurally rather than by name: the man
+// pages translate it (\fIname\fR becomes \fInév\fR / \fInombre\fR / \fIName\fR),
+// so the assertion is that a flag taking a value is introduced with *some*
+// groff italic argument — not that it repeats flagDocs' English word.
+func TestManPagesDocumentEveryFlag(t *testing.T) {
+	catalogs, err := filepath.Glob(filepath.Join("i18n", "locales", "*.json"))
+	if err != nil {
+		t.Fatalf("globbing i18n catalogs: %v", err)
+	}
+	if len(catalogs) == 0 {
+		t.Fatal("no i18n catalogs found — the locale layout moved and this test is blind")
+	}
+
+	for _, catalog := range catalogs {
+		tag := strings.TrimSuffix(filepath.Base(catalog), ".json")
+		page := manPageFor(tag)
+
+		raw, err := os.ReadFile(page)
+		if err != nil {
+			t.Errorf("locale %q ships a catalog but no man page: %v", tag, err)
+			continue
+		}
+		// groff escapes every hyphen as `\-`, so --read-only is written
+		// `\-\-read\-only`. Unescape once so the flags match as spelled.
+		text := strings.ReplaceAll(string(raw), `\-`, "-")
+
+		for _, f := range flagDocs {
+			lines := manFlagLines(text, "--"+f.name)
+			if len(lines) == 0 {
+				t.Errorf("%s: flag --%s is not documented", page, f.name)
+				continue
+			}
+			if f.arg == "" {
+				continue
+			}
+			documented := false
+			for _, line := range lines {
+				at := strings.Index(line, "--"+f.name)
+				if italic := strings.Index(line, `\fI`); italic > at {
+					documented = true
+					break
+				}
+			}
+			if !documented {
+				t.Errorf("%s: flag --%s takes %s but is documented without a value placeholder",
+					page, f.name, f.arg)
+			}
+		}
+	}
+}
+
 // resolveVersion prefers the ldflags-injected version; falls back to the Go
 // build-info module version (set for `go install module@vX.Y.Z`); and finally
 // to "dev" for a plain `go build` / `(devel)` checkout where neither is set.

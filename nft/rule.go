@@ -214,32 +214,29 @@ type PayloadCondition struct {
 	Value    any
 }
 
-// PayloadProtocol represents a specific protocol type used within payload data for networking and filtering operations.
-type PayloadProtocol string
+// PayloadProtocol and its constants now live in nftui/nft/expr, next to the
+// shared payload field table (nft/expr/payload_fields.go). They are aliased
+// back into this package because the public PayloadCondition carries the type
+// and ui/ addresses the constants as nft.PayloadProtoTCP — moving the
+// definition must not churn either.
+type PayloadProtocol = nftexpr.PayloadProtocol
 
-// PayloadProtoEther represents the payload protocol for Ethernet.
-// PayloadProtoIP represents the payload protocol for IPv4.
-// PayloadProtoIP6 represents the payload protocol for IPv6.
-// PayloadProtoTCP represents the payload protocol for TCP.
-// PayloadProtoUDP represents the payload protocol for UDP.
-// PayloadProtoICMP represents the payload protocol for ICMP.
-// PayloadProtoICMPv6 represents the payload protocol for ICMPv6.
-// PayloadProtoARP represents the payload protocol for ARP.
 const (
-	PayloadProtoEther  PayloadProtocol = "ether"
-	PayloadProtoIP     PayloadProtocol = "ip"
-	PayloadProtoIP6    PayloadProtocol = "ip6"
-	PayloadProtoTCP    PayloadProtocol = "tcp"
-	PayloadProtoUDP    PayloadProtocol = "udp"
-	PayloadProtoICMP   PayloadProtocol = "icmp"
-	PayloadProtoICMPv6 PayloadProtocol = "icmpv6"
-	PayloadProtoSCTP   PayloadProtocol = "sctp"
-	PayloadProtoDCCP   PayloadProtocol = "dccp"
-	PayloadProtoAH     PayloadProtocol = "ah"
-	PayloadProtoESP    PayloadProtocol = "esp"
-	PayloadProtoCOMP   PayloadProtocol = "comp"
-	PayloadProtoVlan   PayloadProtocol = "vlan"
-	PayloadProtoARP    PayloadProtocol = "arp"
+	PayloadProtoEther   = nftexpr.PayloadProtoEther
+	PayloadProtoIP      = nftexpr.PayloadProtoIP
+	PayloadProtoIP6     = nftexpr.PayloadProtoIP6
+	PayloadProtoTCP     = nftexpr.PayloadProtoTCP
+	PayloadProtoUDP     = nftexpr.PayloadProtoUDP
+	PayloadProtoUDPLITE = nftexpr.PayloadProtoUDPLITE
+	PayloadProtoICMP    = nftexpr.PayloadProtoICMP
+	PayloadProtoICMPv6  = nftexpr.PayloadProtoICMPv6
+	PayloadProtoSCTP    = nftexpr.PayloadProtoSCTP
+	PayloadProtoDCCP    = nftexpr.PayloadProtoDCCP
+	PayloadProtoAH      = nftexpr.PayloadProtoAH
+	PayloadProtoESP     = nftexpr.PayloadProtoESP
+	PayloadProtoCOMP    = nftexpr.PayloadProtoCOMP
+	PayloadProtoVlan    = nftexpr.PayloadProtoVlan
+	PayloadProtoARP     = nftexpr.PayloadProtoARP
 )
 
 // IPFields represents the structure to hold metadata fields for an IP packet.
@@ -1170,7 +1167,7 @@ func metaCompareToCondition(regVal *registerValue, cmp *compareContext) (Conditi
 
 // payloadCompareToCondition converts a payload comparison context into a Condition by interpreting protocol and field info.
 func payloadCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition, error) {
-	protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto, regVal.etherType)
+	protocol, field := nftexpr.IdentifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto, regVal.etherType)
 
 	// Refine bit-packed IPv4 header fields based on the Bitwise mask:
 	//   offset 0 len 1, mask 0xf0 → version (high nibble; raw value = data>>4)
@@ -1382,7 +1379,7 @@ func ctCompareToCondition(regVal *registerValue, cmp *compareContext) (Condition
 func rangeToCondition(regVal *registerValue, rng *expr.Range) (Condition, error) {
 	switch regVal.valueType {
 	case regTypePayload:
-		protocol, field := identifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto, regVal.etherType)
+		protocol, field := nftexpr.IdentifyPayloadField(regVal.payloadBase, regVal.payloadOff, regVal.payloadLen, regVal.payloadFamily, regVal.l4Proto, regVal.etherType)
 		fromVal := decodePayloadValue(protocol, field, rng.FromData)
 		toVal := decodePayloadValue(protocol, field, rng.ToData)
 
@@ -1434,7 +1431,7 @@ func regValueFieldLabel(regVal *registerValue) string {
 	case regTypeMeta:
 		return metaKeyToString(regVal.metaKey)
 	case regTypePayload:
-		proto, field := identifyPayloadField(
+		proto, field := nftexpr.IdentifyPayloadField(
 			regVal.payloadBase, regVal.payloadOff, regVal.payloadLen,
 			regVal.payloadFamily, regVal.l4Proto, regVal.etherType)
 		switch {
@@ -1812,257 +1809,15 @@ func tableFamilyHint(rule *nftables.Rule) payloadFamilyHint {
 	return payloadFamilyAny
 }
 
-// payloadFamilyHint conveys the chain-family context to identifyPayloadField
-// so it can resolve the offset/length conflict between IPv4 and IPv6 header
-// fields (e.g. offset 4 len 2 = IPv4 id OR IPv6 payload length).
-type payloadFamilyHint int
+// payloadFamilyHint is an alias of the shared type; see
+// nft/expr/payload_fields.go.
+type payloadFamilyHint = nftexpr.PayloadFamilyHint
 
 const (
-	payloadFamilyAny  payloadFamilyHint = iota // ambiguous — pick IPv4 by default
-	payloadFamilyIPv4                          // hint: this rule lives in an IPv4 (or inet w/ IPv4 ctx) chain
-	payloadFamilyIPv6                          // hint: this rule lives in an IPv6 (or inet w/ IPv6 ctx) chain
+	payloadFamilyAny  = nftexpr.PayloadFamilyAny
+	payloadFamilyIPv4 = nftexpr.PayloadFamilyIPv4
+	payloadFamilyIPv6 = nftexpr.PayloadFamilyIPv6
 )
-
-// identifyPayloadField determines the protocol and field name based on payload base, offset, and length values.
-//
-// IPv4 fixed-header layout (when length matches the byte-aligned size of a
-// header field, we name it directly; otherwise we fall through to the generic
-// "offset_X_len_Y" form so the user still sees the condition):
-//
-//	offset 0 len 1  → byte holding version (high nibble) + hdrlength (low)
-//	offset 1 len 1  → DSCP (bits 7..2) + ECN (bits 1..0)
-//	offset 2 len 2  → total length (uint16 BE)
-//	offset 4 len 2  → id (uint16 BE)
-//	offset 6 len 2  → flags + fragment offset
-//	offset 8 len 1  → TTL
-//	offset 9 len 1  → protocol
-//	offset 10 len 2 → checksum
-//	offset 12 len 4 → saddr (with /24 etc. byte-aligned shorts: len 1..4)
-//	offset 16 len 4 → daddr
-//
-// IPv6 fixed-header layout:
-//
-//	offset 0..3       → version + traffic class + flow label (bit-packed)
-//	offset 4 len 2    → payload length
-//	offset 6 len 1    → next header
-//	offset 7 len 1    → hop limit
-//	offset 8 len 16   → saddr
-//	offset 24 len 16  → daddr
-//
-// The TUI uses the same Base (PayloadBaseNetworkHeader) for IPv4 and IPv6 —
-// the protocol family is determined by the chain/table family, not by the
-// raw expression. Here we disambiguate on offset+length boundaries that are
-// unambiguous between the two layouts.
-func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family payloadFamilyHint, l4Proto uint8, etherType uint16) (PayloadProtocol, string) {
-	switch base {
-	case unix.NFT_PAYLOAD_NETWORK_HEADER:
-		// ARP — NETWORK_HEADER reading layered under `ether type 0x0806`.
-		// RFC 826: htype 0..2, ptype 2..4, hlen 4..5, plen 5..6,
-		// operation 6..8.
-		if etherType == 0x0806 {
-			switch {
-			case offset == 0 && length == 2:
-				return PayloadProtoARP, "htype"
-			case offset == 2 && length == 2:
-				return PayloadProtoARP, "ptype"
-			case offset == 4 && length == 1:
-				return PayloadProtoARP, "hlen"
-			case offset == 5 && length == 1:
-				return PayloadProtoARP, "plen"
-			case offset == 6 && length == 2:
-				return PayloadProtoARP, "operation"
-			}
-		}
-		// Unmistakably-IPv6 offsets (len 16 saddr/daddr, ip6 nexthdr/hoplimit).
-		switch {
-		case offset == 8 && length == 16:
-			return PayloadProtoIP6, "saddr"
-		case offset == 24 && length == 16:
-			return PayloadProtoIP6, "daddr"
-		case offset == 6 && length == 1:
-			return PayloadProtoIP6, "nexthdr"
-		case offset == 7 && length == 1:
-			return PayloadProtoIP6, "hoplimit"
-		}
-		// Ambiguous IPv4/IPv6 cells — only pick IPv6 when the rule's family
-		// hint says so. Otherwise fall through to the IPv4 layout.
-		if family == payloadFamilyIPv6 {
-			switch {
-			case offset == 4 && length == 2:
-				return PayloadProtoIP6, "length"
-			}
-		}
-		// IPv4 layout.
-		switch {
-		case offset == 0 && length == 1:
-			return PayloadProtoIP, "version_ihl"
-		case offset == 1 && length == 1:
-			return PayloadProtoIP, "dscp_ecn"
-		case offset == 2 && length == 2:
-			return PayloadProtoIP, "length"
-		case offset == 4 && length == 2:
-			return PayloadProtoIP, "id"
-		case offset == 6 && length == 2:
-			return PayloadProtoIP, "frag-off"
-		case offset == 8 && length == 1:
-			return PayloadProtoIP, "ttl"
-		case offset == 9 && length == 1:
-			return PayloadProtoIP, "protocol"
-		case offset == 10 && length == 2:
-			return PayloadProtoIP, "checksum"
-		case offset == 12 && length >= 1 && length <= 4:
-			return PayloadProtoIP, "saddr"
-		case offset == 16 && length >= 1 && length <= 4:
-			return PayloadProtoIP, "daddr"
-		}
-		return PayloadProtoIP, fmt.Sprintf("offset_%d_len_%d", offset, length)
-
-	case unix.NFT_PAYLOAD_TRANSPORT_HEADER:
-		// Protocol-specific layouts first. We dispatch on the l4Proto hint
-		// (populated from the most recent `meta l4proto X` match) so the
-		// same offset cells can mean different things across protocols.
-		switch l4Proto {
-		case unix.IPPROTO_ICMP:
-			switch {
-			case offset == 0 && length == 1:
-				return PayloadProtoICMP, "type"
-			case offset == 1 && length == 1:
-				return PayloadProtoICMP, "code"
-			case offset == 2 && length == 2:
-				return PayloadProtoICMP, "checksum"
-			case offset == 4 && length == 2:
-				return PayloadProtoICMP, "id"
-			case offset == 6 && length == 2:
-				return PayloadProtoICMP, "sequence"
-			case offset == 4 && length == 4:
-				return PayloadProtoICMP, "gateway" // dest-unreach uses bytes 4..7 as gateway / mtu
-			}
-		case unix.IPPROTO_ICMPV6:
-			// ICMPv6 fixed header layout matches ICMP byte-for-byte; see RFC 4443.
-			switch {
-			case offset == 0 && length == 1:
-				return PayloadProtoICMPv6, "type"
-			case offset == 1 && length == 1:
-				return PayloadProtoICMPv6, "code"
-			case offset == 2 && length == 2:
-				return PayloadProtoICMPv6, "checksum"
-			case offset == 4 && length == 2:
-				return PayloadProtoICMPv6, "id"
-			case offset == 6 && length == 2:
-				return PayloadProtoICMPv6, "sequence"
-			case offset == 4 && length == 4:
-				return PayloadProtoICMPv6, "mtu" // packet-too-big uses bytes 4..7 as MTU
-			}
-		case unix.IPPROTO_SCTP:
-			// SCTP fixed header (RFC 4960): sport 0..2, dport 2..4,
-			// verification tag 4..8, checksum 8..12.
-			switch {
-			case offset == 0 && length == 2:
-				return PayloadProtoSCTP, "sport"
-			case offset == 2 && length == 2:
-				return PayloadProtoSCTP, "dport"
-			case offset == 4 && length == 4:
-				return PayloadProtoSCTP, "vtag"
-			case offset == 8 && length == 4:
-				return PayloadProtoSCTP, "checksum"
-			}
-		case unix.IPPROTO_DCCP:
-			// DCCP fixed header (RFC 4340): sport 0..2, dport 2..4,
-			// type is 4 bits at byte 8 (bits 1..4 → mask 0x1e, shift 1);
-			// the type recognizer lives in payloadCompareToCondition's
-			// Bitwise dispatch since it needs the mask byte to confirm.
-			switch {
-			case offset == 0 && length == 2:
-				return PayloadProtoDCCP, "sport"
-			case offset == 2 && length == 2:
-				return PayloadProtoDCCP, "dport"
-			}
-		case unix.IPPROTO_AH:
-			// AH header (RFC 4302): nexthdr 0..1, hdrlength 1..2,
-			// reserved 2..4, spi 4..8, sequence 8..12.
-			switch {
-			case offset == 0 && length == 1:
-				return PayloadProtoAH, "nexthdr"
-			case offset == 1 && length == 1:
-				return PayloadProtoAH, "hdrlength"
-			case offset == 2 && length == 2:
-				return PayloadProtoAH, "reserved"
-			case offset == 4 && length == 4:
-				return PayloadProtoAH, "spi"
-			case offset == 8 && length == 4:
-				return PayloadProtoAH, "sequence"
-			}
-		case unix.IPPROTO_ESP:
-			// ESP header (RFC 4303): spi 0..4, sequence 4..8.
-			switch {
-			case offset == 0 && length == 4:
-				return PayloadProtoESP, "spi"
-			case offset == 4 && length == 4:
-				return PayloadProtoESP, "sequence"
-			}
-		case unix.IPPROTO_COMP:
-			// IPComp header (RFC 3173): nexthdr 0..1, flags 1..2, cpi 2..4.
-			switch {
-			case offset == 0 && length == 1:
-				return PayloadProtoCOMP, "nexthdr"
-			case offset == 1 && length == 1:
-				return PayloadProtoCOMP, "flags"
-			case offset == 2 && length == 2:
-				return PayloadProtoCOMP, "cpi"
-			}
-		}
-
-		// TCP, UDP and UDPLITE share the first 4 bytes (sport, dport).
-		// Beyond that the layouts diverge — we can disambiguate on
-		// offset+length cells, except for sport/dport which we always tag
-		// as TCP by convention (the meta l4proto context tells the user
-		// whether it is actually udp/udplite).
-		switch {
-		case offset == 0 && length == 2:
-			return PayloadProtoTCP, "sport"
-		case offset == 2 && length == 2:
-			return PayloadProtoTCP, "dport"
-
-		// UDP / UDPLITE: length & checksum live in TCP-unused cells.
-		case offset == 4 && length == 2:
-			return PayloadProtoUDP, "length"
-		case offset == 6 && length == 2:
-			return PayloadProtoUDP, "checksum"
-
-		// TCP-specific cells.
-		case offset == 4 && length == 4:
-			return PayloadProtoTCP, "sequence"
-		case offset == 8 && length == 4:
-			return PayloadProtoTCP, "ackseq"
-		case offset == 12 && length == 1:
-			return PayloadProtoTCP, "doff" // bit-packed (high 4 bits)
-		case offset == 13 && length == 1:
-			return PayloadProtoTCP, "flags"
-		case offset == 14 && length == 2:
-			return PayloadProtoTCP, "window"
-		case offset == 16 && length == 2:
-			return PayloadProtoTCP, "checksum"
-		case offset == 18 && length == 2:
-			return PayloadProtoTCP, "urgptr"
-		}
-		return PayloadProtoTCP, fmt.Sprintf("offset_%d_len_%d", offset, length)
-
-	case unix.NFT_PAYLOAD_LL_HEADER:
-		// Ethernet link-layer header: dst-mac 0..6, src-mac 6..12, ethertype 12..14.
-		switch {
-		case offset == 0 && length == 6:
-			return PayloadProtoEther, "daddr"
-		case offset == 6 && length == 6:
-			return PayloadProtoEther, "saddr"
-		case offset == 12 && length == 2:
-			return PayloadProtoEther, "type"
-		}
-		return PayloadProtoEther, fmt.Sprintf("offset_%d_len_%d", offset, length)
-
-	default:
-		return PayloadProtoIP, fmt.Sprintf("base_%d_offset_%d_len_%d", base, offset, length)
-	}
-}
 
 // formatMACBytes renders a 6-byte MAC address as `aa:bb:cc:dd:ee:ff`.
 func formatMACBytes(data []byte) string {
@@ -2102,7 +1857,7 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 		if len(data) >= 1 {
 			return data[0]
 		}
-	case "length", "id", "frag-off", "checksum", "window", "urgptr", "cpi",
+	case "length", "csumcov", "id", "frag-off", "checksum", "window", "urgptr", "cpi",
 		"htype", "ptype", "operation":
 		// `checksum` is uint16 for TCP/UDP/ICMP/ICMPv6 but uint32 for SCTP —
 		// pick by length.
@@ -2275,6 +2030,14 @@ func RuleToHumanReadable(rule *nftables.Rule) string {
 func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) string {
 	var parts []string
 	regMap := make(map[uint32]string)
+	// Qualified names for value formatting, keyed by register; see
+	// payloadValueContext.
+	regValueCtx := make(map[uint32]string)
+
+	// Protocol keyword latched from this rule's `meta l4proto` match. Payload
+	// cells that offset+len alone cannot identify — transport offset 4 is
+	// `udp length` but `udplite csumcov` — are named from it.
+	var l4proto string
 
 	i := 0
 	for i < len(rule.Exprs) {
@@ -2315,7 +2078,11 @@ func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) stri
 			}
 
 			//fmt.Printf("e.Data: %+v, regContent: %+v", e.Data, regContent)
-			value := nftexpr.DataToHumanReadable(v.Data, regContent)
+			valueContext := regContent
+			if ctx, ok := regValueCtx[v.Register]; ok {
+				valueContext = ctx
+			}
+			value := nftexpr.DataToHumanReadable(v.Data, valueContext)
 			if regContent == "icmp type" && nftexpr.CmpOpToString(v.Op) == "==" && value == "echo-request" {
 				parts = append(parts, regContent+" "+value)
 			} else if regContent == "iif" && nftexpr.CmpOpToString(v.Op) == "==" {
@@ -2328,11 +2095,12 @@ func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) stri
 				parts = append(parts, "udp")
 			} else if regContent == "dport" && nftexpr.CmpOpToString(v.Op) == "==" {
 				parts = append(parts, regContent+" "+value)
-			} else if regContent == "l4proto" && nftexpr.CmpOpToString(v.Op) == "==" && value == "icmpv6" {
-				parts = append(parts, value)
-			} else if regContent == "l4proto" && nftexpr.CmpOpToString(v.Op) == "==" && value == "tcp" {
-				parts = append(parts, value)
-			} else if regContent == "l4proto" && nftexpr.CmpOpToString(v.Op) == "==" && value == "udp" {
+			} else if regContent == "l4proto" && nftexpr.CmpOpToString(v.Op) == "==" &&
+				nftexpr.L4ProtoNumber(value) != 0 {
+				// Rendered as the bare protocol keyword, the way nft prints it
+				// (`udp dport 53`, not `meta l4proto udp dport 53`). The same
+				// value becomes the context for any Payload further down.
+				l4proto = value
 				parts = append(parts, value)
 				//} else if regContent == "direction" {
 				//	// special handling for CT Direction
@@ -2362,7 +2130,7 @@ func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) stri
 
 		case *expr.Payload:
 			// Payload — loads data from the packet body
-			payloadDesc := payloadToHumanReadable(v)
+			payloadDesc := payloadToHumanReadable(v, l4proto)
 			if payloadDesc == "saddr" || payloadDesc == "daddr" {
 				// Family from the payload offset: IPv4 saddr/daddr sit at 12/16,
 				// IPv6 at 8/24. fullLen / ipBits drive the value formatting so a
@@ -2431,6 +2199,7 @@ func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) stri
 				}
 			}
 			regMap[v.DestRegister] = payloadDesc
+			regValueCtx[v.DestRegister] = payloadValueContext(v, l4proto)
 			i++
 			//fmt.Printf("Payload regMap: %v\n", regMap)
 			//fmt.Printf("Payload parts: %v\n", parts)
@@ -2590,47 +2359,56 @@ func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) stri
 	return result
 }
 
-// payloadToHumanReadable converts a network payload specification into a human-readable string representation.
-func payloadToHumanReadable(p *expr.Payload) string {
-	// Transport header (TCP/UDP/ICMP)
-	if p.Base == unix.NFT_PAYLOAD_TRANSPORT_HEADER {
-		if p.Offset == 0 && p.Len == 2 {
-			return "sport" // source port
-		}
-		if p.Offset == 2 && p.Len == 2 {
-			return "dport" // destination port
-		}
-		if p.Offset == 0 && p.Len == 1 {
-			return "icmp type"
-		}
+// payloadToHumanReadable names a payload load for the chain list, using the
+// shared field table (nft/expr/payload_fields.go) — the same table the rule
+// parser and the .nft serializer read, so a cell cannot be labelled `tcp
+// window` in the detail view and `payload[transport header+14:2]` here.
+//
+// l4proto is the protocol keyword latched from the rule's `meta l4proto`
+// match ("" when it carries none) and names the cells that offset and length
+// alone cannot tell apart.
+//
+// Names render bare, because the protocol is already a part of its own — the
+// `meta l4proto` arm emits it, and repeating it would read `tcp tcp window`.
+// Two labels keep their qualified spelling because this renderer's own Cmp
+// arms match on them to print a symbolic value: `ip protocol` and `icmp type`.
+func payloadToHumanReadable(p *expr.Payload, l4proto string) string {
+	proto, field, ok := nftexpr.NamePayloadField(p.Base, p.Offset, p.Len,
+		nftexpr.PayloadFamilyAny, nftexpr.L4ProtoNumber(l4proto), 0)
+	if !ok {
+		return fmt.Sprintf("payload[%s+%d:%d]", payloadBaseToString(p.Base), p.Offset, p.Len)
 	}
+	switch {
+	// The renderer's Cmp arm prints the symbolic protocol name off this exact
+	// label.
+	case proto == PayloadProtoIP && field == "protocol":
+		return string(proto) + " " + field
 
-	// Network header (IP)
-	if p.Base == unix.NFT_PAYLOAD_NETWORK_HEADER {
-		if p.Offset == 9 && p.Len == 1 {
-			return "ip protocol"
-		}
-		if p.Offset == 12 && p.Len >= 1 && p.Len <= 4 {
-			return "saddr" // IPv4 source address (len 1-3: byte-aligned prefix, len 4: full)
-		}
-		if p.Offset == 16 && p.Len >= 1 && p.Len <= 4 {
-			return "daddr" // IPv4 destination address
-		}
-		// IPv6 source/destination address (16-byte fields at offsets 8 / 24).
-		// The caller infers the family from p.Offset (8/24 → ip6, 12/16 → ip)
-		// and formats the value accordingly. Offset 24 is past the IPv4 header,
-		// so any len there is v6; at offset 8 a len > 4 rules out the 1-byte
-		// IPv4 fields (ttl at offset 8 is len 1) — so v6 byte-prefixes shorter
-		// than /40 fall through to the raw form rather than be mislabelled.
-		if p.Offset == 8 && p.Len >= 5 && p.Len <= 16 {
-			return "saddr" // IPv6 source address
-		}
-		if p.Offset == 24 && p.Len >= 1 && p.Len <= 16 {
-			return "daddr" // IPv6 destination address
-		}
+	// Link-layer fields must stay qualified: a bare "daddr" would be picked up
+	// by the caller's IPv4/IPv6 address formatter and a MAC would render as
+	// `ip daddr`. A bare "type" would be equally anonymous.
+	case proto == PayloadProtoEther:
+		return string(proto) + " " + field
+
+	// An ICMP type qualifies itself only when the rule wrote no protocol
+	// keyword; otherwise the line would read `icmp icmp type`.
+	case (proto == PayloadProtoICMP || proto == PayloadProtoICMPv6) && field == "type" && l4proto == "":
+		return string(proto) + " " + field
 	}
+	return field
+}
 
-	return fmt.Sprintf("payload[%s+%d:%d]", payloadBaseToString(p.Base), p.Offset, p.Len)
+// payloadValueContext is the qualified name of the same cell, used only to
+// format the compared value — `icmp type 8` must print as `echo-request`, and
+// that lookup keys off the qualified spelling even when the label rendered
+// bare. Mirrors the text/context split in the .nft serializer.
+func payloadValueContext(p *expr.Payload, l4proto string) string {
+	proto, field, ok := nftexpr.NamePayloadField(p.Base, p.Offset, p.Len,
+		nftexpr.PayloadFamilyAny, nftexpr.L4ProtoNumber(l4proto), 0)
+	if !ok {
+		return payloadToHumanReadable(p, l4proto)
+	}
+	return string(proto) + " " + field
 }
 
 // verdictToHumanReadable converts a verdict object into a human-readable string representation.

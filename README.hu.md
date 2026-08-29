@@ -54,7 +54,7 @@ keretrendszerrel. A kernellel netlinken keresztül kommunikál a
 | **IPv4 fejléc** | saddr, daddr (CIDR), protocol, ttl, length, dscp, version, hdrlength, id, frag-off, checksum |
 | **IPv6 fejléc** | saddr, daddr (CIDR), length, nexthdr, hoplimit, version, dscp (6 bit), flowlabel (20 bit) |
 | **TCP** | sport, dport, sequence, ackseq, flags (MultiSelect), window, checksum, urgptr, doff |
-| **UDP / UDPLITE** | sport, dport, length, checksum |
+| **UDP / UDPLITE** | sport, dport, length (UDP) / csumcov (UDP-Lite checksum-lefedettség — ugyanaz a wire-cella, a `meta l4proto` kontextusból átnevezve; `udplite length` nem létezik), checksum |
 | **SCTP** | sport, dport, vtag, checksum, **chunk** (RFC 4960 chunk-típus illesztés: data / init / init-ack / sack / heartbeat / heartbeat-ack / abort / shutdown / shutdown-ack / error / cookie-echo / cookie-ack / ecne / cwr / shutdown-complete / auth / asconf-ack / i-data / forward-tsn / asconf / i-forward-tsn — a puszta jelenlét és a típusonkénti almező-megkötések egyaránt támogatottak: a chunk-típus Select vezérel egy almező Selectet (`tsn` / `stream` / `ssn` / `ppid` a DATA-hoz; `init-tag` / `a-rwnd` / `os` / `mis` / `init-tsn` az INIT-hez; `cum-tsn-ack` / `a-rwnd` / `num-gap-ack-blocks` / `num-dup-tsns` a SACK-hoz; stb.) plusz egy érték-bemenet, amely BE-kódolással a megfelelő 1 / 2 / 4 bájtos szélességbe ír) |
 | **Meta (interfész)** | iifname, oifname, iif, oif, iiftype, oiftype, iifgroup, oifgroup |
 | **Meta (proto / socket / packet)** | length, protocol (EtherType), nfproto, l4proto, mark, priority, skuid, skgid, cgroup, rtclassid, pkttype, cpu |

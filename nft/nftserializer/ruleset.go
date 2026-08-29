@@ -198,7 +198,7 @@ func serializeRuleExprs(rule *nftables.Rule, sets []*nftables.Set) string {
 			parts = append(parts, str)
 			i++
 		case *expr.Payload:
-			str, skip := nftexpr.SerializePayload(v, rule.Exprs, i)
+			str, skip := nftexpr.SerializePayload(v, rule.Exprs, i, l4proto)
 			parts = append(parts, str)
 			i += skip
 		case *expr.Lookup:
