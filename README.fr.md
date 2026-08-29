@@ -162,9 +162,11 @@ nix run                # compile et exécute (nécessite CAP_NET_ADMIN à l'exé
 nix develop            # outils : go, gopls, goreleaser, nftables, mandoc
 ```
 
-Au premier `nix build`, le `vendorHash` est volontairement mis à
-`lib.fakeHash` — Nix affiche le vrai `sha256-…` dans l'erreur et l'utilisateur
-le colle dans `flake.nix` (re-fixez-le à chaque changement de `go.sum`). Cela
+`flake.nix` porte un `vendorHash` figé pour les dépendances Go, et il doit
+être re-fixé à chaque changement de `go.sum` — y compris à chaque pull request
+`gomod` de Dependabot, qui met à jour `go.mod` / `go.sum` mais ne peut pas
+toucher au flake. La build échoue alors avec `hash mismatch … got: sha256-…` ;
+c'est cette valeur affichée qu'il faut coller dans la ligne `vendorHash`. Cela
 garde les releases binaires (Goreleaser) et les builds Nix indépendantes : la
 voie Nix ne bloque pas la publication des releases.
 
@@ -586,14 +588,19 @@ vérifications à chaque push et pull request vers `main` / `develop` :
 - **Build du flake Nix** — sur un runner Nix, `nix flake check` +
   `nix build .#default` construisent [`flake.nix`](flake.nix) de bout en bout
   (compilation de nftui et exécution de sa suite unitaire dans le bac à
-  sable), le flake ne peut donc pas se casser en silence. La première
-  exécution doit fixer le `vendorHash` de `flake.nix` — il est livré comme
-  valeur factice et la build en échec affiche la vraie valeur à coller.
+  sable), le flake ne peut donc pas se casser en silence. Cette voie garde
+  aussi le `vendorHash` figé contre la dérive de `go.sum` : une montée de
+  dépendance la fait échouer avec `hash mismatch … got: sha256-…` tant que
+  cette valeur n'est pas fixée dans `flake.nix`.
 
 Les mises à jour des dépendances et des GitHub Actions sont automatisées avec
 Dependabot (`.github/dependabot.yml`, hebdomadaire), qui ouvre des PR au fil
 des releases et correctifs de sécurité amont. `github.com/google/nftables` est
-exclu de ces PR car il est volontairement figé sur un instantané.
+exclu de ces PR car il est volontairement figé sur un instantané. Deux
+ensembles sont groupés en une seule PR chacun : toutes les étapes
+`github/codeql-action*` (CodeQL s'interrompt si ses sous-actions tournent sur
+des releases différentes) et tous les modules Go (chaque lot demande un
+re-fixage de `vendorHash`).
 
 La version de Go vient de `go.mod` via `actions/setup-go@v6` avec
 `go-version-file: go.mod`, monter la version Go du module met donc la CI à
