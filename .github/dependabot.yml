@@ -1,5 +1,5 @@
 # Dependabot keeps dependencies current and surfaces upstream security fixes as
-# pull requests (audit E-7), complementing the govulncheck job in ci.yml. Two
+# pull requests (audit E-7), complementing the govulncheck job in ci.yml. Three
 # ecosystems are watched:
 #   - gomod          — the Go module dependencies (go.mod / go.sum).
 #   - github-actions — the SHA-pinned action versions in .github/workflows/*.
@@ -8,6 +8,17 @@
 # github.com/google/nftables is intentionally held at a post-v0.3.0 snapshot
 # (see the comment on its require line in go.mod, audit E-5) and there is no
 # newer tagged release, so it is ignored here to avoid churn.
+#
+# Two ecosystems use `groups:` so related updates arrive as ONE pull request
+# instead of one PR per dependency. Both groups exist because the ungrouped
+# form produced permanently red CI:
+#   - github/codeql-action* — CodeQL aborts with a configuration error when
+#     init / autobuild / analyze run different releases, so a per-sub-action
+#     PR can never be green on its own (see .github/workflows/codeql.yml).
+#   - gomod — every go.sum change invalidates flake.nix's hand-pinned
+#     `vendorHash`, which Dependabot cannot update, so the "Nix flake build"
+#     lane fails until the hash is re-pinned by hand. Grouping makes that a
+#     single re-pin per batch instead of one per dependency.
 version: 2
 updates:
   - package-ecosystem: "gomod"
@@ -15,6 +26,13 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # One PR for all Go module updates: each one changes go.sum, and every
+    # go.sum change needs a matching flake.nix `vendorHash` re-pin that
+    # Dependabot cannot make. Batching keeps that to one manual step.
+    groups:
+      go-modules:
+        patterns:
+          - "*"
     ignore:
       - dependency-name: "github.com/google/nftables"
 
@@ -23,6 +41,13 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # init / autobuild / analyze / upload-sarif are separate "dependencies" to
+    # Dependabot but a single product to CodeQL, which refuses to run a mixed
+    # version set. Grouped so they always move together in one PR.
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
     ignore:
       # cosign-installer v4 (cosign 4.x) broke Goreleaser's `signs:` block at the
       # v1.1.0 tag; held at v3 in release.yml until the signs block is cosign-4

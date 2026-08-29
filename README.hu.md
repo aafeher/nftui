@@ -162,10 +162,12 @@ nix run                # épít és futtat (futásidőben CAP_NET_ADMIN kell)
 nix develop            # eszközkészlet: go, gopls, goreleaser, nftables, mandoc
 ```
 
-Az első `nix build`-nél a `vendorHash` szándékosan `lib.fakeHash`-re van
-állítva — a Nix kiírja a valódi `sha256-…`-t a hibában, és a felhasználó
-beilleszti a `flake.nix`-be (pin-eld újra, valahányszor a `go.sum` változik).
-Ez függetlenül tartja a bináris kiadásokat (Goreleaser) és a Nix build-eket: a
+A `flake.nix` egy pin-elt `vendorHash`-t tartalmaz a Go függőségekhez,
+amelyet újra kell pin-elni, valahányszor a `go.sum` változik — így minden
+Dependabot `gomod` pull requestnél is, amely a `go.mod` / `go.sum` fájlokat
+frissíti, de a flake-hez nem tud hozzányúlni. A build ilyenkor
+`hash mismatch … got: sha256-…` hibával bukik el; a kiírt értéket kell
+beilleszteni a `vendorHash` sorba. Ez függetlenül tartja a bináris kiadásokat (Goreleaser) és a Nix build-eket: a
 Nix út nem blokkolja a kiadás publikálását.
 
 ### Docker
@@ -573,15 +575,18 @@ ellenőrzéseket futtatja minden push és pull request esetén a `main` /
 - **Nix flake build** — egy Nix runneren a `nix flake check` + `nix build
   .#default` végponttól végpontig építi a [`flake.nix`](flake.nix)-et (lefordítva
   az nftui-t és lefuttatva a unit-készletét a sandboxban), így a flake nem
-  törhet el csendben. Az első futásnak pin-elnie kell a `flake.nix`
-  `vendorHash`-ét — helykitöltőként szállítjuk, és az elbukó build kiírja a
-  beillesztendő valódi értéket.
+  törhet el csendben. Ez a sáv őrzi a pin-elt `vendorHash`-t a `go.sum`
+  elmozdulásától is: egy függőségemelés `hash mismatch … got: sha256-…`
+  hibával buktatja el, amíg az érték be nem kerül a `flake.nix`-be.
 
 A függőség- és GitHub-Actions-frissítéseket a Dependabot automatizálja
 (`.github/dependabot.yml`, hetente), amely PR-eket nyit, ahogy az upstream
 kiadások és biztonsági javítások megérkeznek. A
 `github.com/google/nftables` ki van zárva ezekből a PR-ekből, mert szándékosan
-egy pin-elt snapshoton van tartva.
+egy pin-elt snapshoton van tartva. Két halmaz egy-egy közös PR-be van
+csoportosítva: az összes `github/codeql-action*` lépés (a CodeQL leáll, ha az
+al-action-jei eltérő kiadáson futnak) és az összes Go modul (egy köteg egyetlen
+`vendorHash` újrapin-elést igényel).
 
 A Go verzió a `go.mod`-ból jön az `actions/setup-go@v6`-on keresztül a
 `go-version-file: go.mod`-dal, így a modul Go verziójának emelése ugyanabban a
