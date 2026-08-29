@@ -347,25 +347,25 @@ func TestSerializePayload(t *testing.T) {
 		&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2, DestRegister: 1},
 		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 22}},
 	}
-	s, skip := SerializePayload(exprs[0].(*expr.Payload), exprs, 0)
+	s, skip := SerializePayload(exprs[0].(*expr.Payload), exprs, 0, "")
 	if skip != 2 || !strings.Contains(s, "dport") {
 		t.Errorf("transport dport = %q/%d", s, skip)
 	}
 
 	// network saddr (offset 12, len 4), no Cmp → skip 1.
-	s, skip = SerializePayload(&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1}, []expr.Any{&expr.Payload{}}, 0)
+	s, skip = SerializePayload(&expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4, DestRegister: 1}, []expr.Any{&expr.Payload{}}, 0, "")
 	if skip != 1 || !strings.Contains(s, "saddr") {
 		t.Errorf("network saddr = %q/%d", s, skip)
 	}
 
 	// link-layer header.
-	s, _ = SerializePayload(&expr.Payload{Base: expr.PayloadBaseLLHeader, Offset: 0, Len: 6, DestRegister: 1}, []expr.Any{&expr.Payload{}}, 0)
+	s, _ = SerializePayload(&expr.Payload{Base: expr.PayloadBaseLLHeader, Offset: 0, Len: 6, DestRegister: 1}, []expr.Any{&expr.Payload{}}, 0, "")
 	if s == "" {
 		t.Error("link payload returned empty")
 	}
 
 	// unknown base → raw @base,off,len form.
-	s, _ = SerializePayload(&expr.Payload{Base: 99, Offset: 4, Len: 2, DestRegister: 1}, []expr.Any{&expr.Payload{}}, 0)
+	s, _ = SerializePayload(&expr.Payload{Base: 99, Offset: 4, Len: 2, DestRegister: 1}, []expr.Any{&expr.Payload{}}, 0, "")
 	if !strings.Contains(s, "@") {
 		t.Errorf("unknown base = %q, want @-form", s)
 	}

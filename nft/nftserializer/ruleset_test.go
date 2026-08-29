@@ -125,6 +125,43 @@ func TestSerializeRuleExprs(t *testing.T) {
 			want: "tcp dport 22 accept",
 		},
 		{
+			// Transport offset 4 is `length` under UDP but the checksum
+			// coverage under UDP-Lite, where nft calls it `csumcov` and
+			// rejects `udplite length`. The serializer names it from the
+			// l4proto context the meta match latched.
+			name: "udplite csumcov via meta l4proto",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{136}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 8}},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			},
+			want: "udplite csumcov 8 accept",
+		},
+		{
+			name: "udp length via meta l4proto",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{17}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 64}},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			},
+			want: "udp length 64 accept",
+		},
+		{
+			// No l4proto match in the rule → the cell cannot be named, and
+			// the raw @th form is what nft itself accepts back.
+			name: "transport offset 4 without context stays raw",
+			exprs: []expr.Any{
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 8}},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			},
+			want: "@th,32,16 0x0008 accept",
+		},
+		{
 			name:  "masquerade",
 			exprs: []expr.Any{&expr.Masq{}},
 			want:  "masquerade",

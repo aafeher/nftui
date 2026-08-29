@@ -459,7 +459,8 @@ func (r ruleView) renderNetworkTab(rd *nft.Rule) string {
 		switch p.Protocol {
 		case nft.PayloadProtoIP, nft.PayloadProtoIP6:
 			ipExtras = append(ipExtras, condition)
-		case nft.PayloadProtoTCP, nft.PayloadProtoUDP, nft.PayloadProtoICMP, nft.PayloadProtoICMPv6,
+		case nft.PayloadProtoTCP, nft.PayloadProtoUDP, nft.PayloadProtoUDPLITE,
+			nft.PayloadProtoICMP, nft.PayloadProtoICMPv6,
 			nft.PayloadProtoSCTP, nft.PayloadProtoDCCP, nft.PayloadProtoAH, nft.PayloadProtoESP,
 			nft.PayloadProtoCOMP:
 			transportExtras = append(transportExtras, condition)

@@ -54,7 +54,7 @@ via netlink por meio da biblioteca
 | **Cabeçalho IPv4** | saddr, daddr (CIDR), protocol, ttl, length, dscp, version, hdrlength, id, frag-off, checksum |
 | **Cabeçalho IPv6** | saddr, daddr (CIDR), length, nexthdr, hoplimit, version, dscp (6 bits), flowlabel (20 bits) |
 | **TCP** | sport, dport, sequence, ackseq, flags (MultiSelect), window, checksum, urgptr, doff |
-| **UDP / UDPLITE** | sport, dport, length, checksum |
+| **UDP / UDPLITE** | sport, dport, length (UDP) / csumcov (cobertura de checksum do UDP-Lite — a mesma célula no fio, renomeada a partir do contexto `meta l4proto`; `udplite length` não existe), checksum |
 | **SCTP** | sport, dport, vtag, checksum, **chunk** (correspondência por tipo de chunk conforme a RFC 4960: data / init / init-ack / sack / heartbeat / heartbeat-ack / abort / shutdown / shutdown-ack / error / cookie-echo / cookie-ack / ecne / cwr / shutdown-complete / auth / asconf-ack / i-data / forward-tsn / asconf / i-forward-tsn — tanto a mera presença quanto restrições por sub-campo de cada tipo são suportadas: o Select de tipo de chunk comanda um Select de sub-campo (`tsn` / `stream` / `ssn` / `ppid` para DATA; `init-tag` / `a-rwnd` / `os` / `mis` / `init-tsn` para INIT; `cum-tsn-ack` / `a-rwnd` / `num-gap-ack-blocks` / `num-dup-tsns` para SACK; etc.) mais uma entrada de valor codificada em big-endian na largura correspondente de 1 / 2 / 4 bytes) |
 | **Meta (interface)** | iifname, oifname, iif, oif, iiftype, oiftype, iifgroup, oifgroup |
 | **Meta (proto / socket / pacote)** | length, protocol (EtherType), nfproto, l4proto, mark, priority, skuid, skgid, cgroup, rtclassid, pkttype, cpu |

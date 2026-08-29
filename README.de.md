@@ -54,7 +54,7 @@ Geschrieben in Go mit dem
 | **IPv4-Header** | saddr, daddr (CIDR), protocol, ttl, length, dscp, version, hdrlength, id, frag-off, checksum |
 | **IPv6-Header** | saddr, daddr (CIDR), length, nexthdr, hoplimit, version, dscp (6 Bit), flowlabel (20 Bit) |
 | **TCP** | sport, dport, sequence, ackseq, flags (MultiSelect), window, checksum, urgptr, doff |
-| **UDP / UDPLITE** | sport, dport, length, checksum |
+| **UDP / UDPLITE** | sport, dport, length (UDP) / csumcov (UDP-Lite-Prüfsummenabdeckung — dieselbe Wire-Zelle, aus dem `meta l4proto`-Kontext umbenannt; `udplite length` existiert nicht), checksum |
 | **SCTP** | sport, dport, vtag, checksum, **chunk** (Chunk-Typ-Abgleich nach RFC 4960: data / init / init-ack / sack / heartbeat / heartbeat-ack / abort / shutdown / shutdown-ack / error / cookie-echo / cookie-ack / ecne / cwr / shutdown-complete / auth / asconf-ack / i-data / forward-tsn / asconf / i-forward-tsn — sowohl das bloße Vorhandensein als auch typspezifische Unterfeld-Bedingungen werden unterstützt: das Chunk-Typ-Select steuert ein Unterfeld-Select (`tsn` / `stream` / `ssn` / `ppid` für DATA; `init-tag` / `a-rwnd` / `os` / `mis` / `init-tsn` für INIT; `cum-tsn-ack` / `a-rwnd` / `num-gap-ack-blocks` / `num-dup-tsns` für SACK; usw.) plus eine Werteingabe, die big-endian in die passende Breite von 1 / 2 / 4 Byte kodiert wird) |
 | **Meta (Schnittstelle)** | iifname, oifname, iif, oif, iiftype, oiftype, iifgroup, oifgroup |
 | **Meta (Proto / Socket / Paket)** | length, protocol (EtherType), nfproto, l4proto, mark, priority, skuid, skgid, cgroup, rtclassid, pkttype, cpu |

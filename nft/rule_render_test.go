@@ -270,6 +270,30 @@ func TestRuleToHumanReadableWithSets(t *testing.T) {
 			exprs:  []expr.Any{&expr.Log{}},
 			tokens: []string{"log"},
 		},
+		{
+			// Transport offset 4 is `length` in UDP but the checksum
+			// coverage in UDP-Lite, where nft calls it `csumcov` and
+			// rejects `udplite length`. The renderer picks the name from
+			// the rule's own `meta l4proto` match.
+			name: "udplite csumcov",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{136}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 8}},
+			},
+			tokens: []string{"udplite", "csumcov"},
+		},
+		{
+			name: "udp length keeps its own name",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{17}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 64}},
+			},
+			tokens: []string{"udp length"},
+		},
 	}
 
 	for _, tt := range tests {

@@ -222,24 +222,28 @@ type PayloadProtocol string
 // PayloadProtoIP6 represents the payload protocol for IPv6.
 // PayloadProtoTCP represents the payload protocol for TCP.
 // PayloadProtoUDP represents the payload protocol for UDP.
+// PayloadProtoUDPLITE represents the payload protocol for UDP-Lite. It is only
+// used for the fields where UDP-Lite genuinely differs from UDP (csumcov); the
+// cells the two share keep their UDP/TCP labels.
 // PayloadProtoICMP represents the payload protocol for ICMP.
 // PayloadProtoICMPv6 represents the payload protocol for ICMPv6.
 // PayloadProtoARP represents the payload protocol for ARP.
 const (
-	PayloadProtoEther  PayloadProtocol = "ether"
-	PayloadProtoIP     PayloadProtocol = "ip"
-	PayloadProtoIP6    PayloadProtocol = "ip6"
-	PayloadProtoTCP    PayloadProtocol = "tcp"
-	PayloadProtoUDP    PayloadProtocol = "udp"
-	PayloadProtoICMP   PayloadProtocol = "icmp"
-	PayloadProtoICMPv6 PayloadProtocol = "icmpv6"
-	PayloadProtoSCTP   PayloadProtocol = "sctp"
-	PayloadProtoDCCP   PayloadProtocol = "dccp"
-	PayloadProtoAH     PayloadProtocol = "ah"
-	PayloadProtoESP    PayloadProtocol = "esp"
-	PayloadProtoCOMP   PayloadProtocol = "comp"
-	PayloadProtoVlan   PayloadProtocol = "vlan"
-	PayloadProtoARP    PayloadProtocol = "arp"
+	PayloadProtoEther   PayloadProtocol = "ether"
+	PayloadProtoIP      PayloadProtocol = "ip"
+	PayloadProtoIP6     PayloadProtocol = "ip6"
+	PayloadProtoTCP     PayloadProtocol = "tcp"
+	PayloadProtoUDP     PayloadProtocol = "udp"
+	PayloadProtoUDPLITE PayloadProtocol = "udplite"
+	PayloadProtoICMP    PayloadProtocol = "icmp"
+	PayloadProtoICMPv6  PayloadProtocol = "icmpv6"
+	PayloadProtoSCTP    PayloadProtocol = "sctp"
+	PayloadProtoDCCP    PayloadProtocol = "dccp"
+	PayloadProtoAH      PayloadProtocol = "ah"
+	PayloadProtoESP     PayloadProtocol = "esp"
+	PayloadProtoCOMP    PayloadProtocol = "comp"
+	PayloadProtoVlan    PayloadProtocol = "vlan"
+	PayloadProtoARP     PayloadProtocol = "arp"
 )
 
 // IPFields represents the structure to hold metadata fields for an IP packet.
@@ -2000,6 +2004,21 @@ func identifyPayloadField(base expr.PayloadBase, offset, length uint32, family p
 			case offset == 4 && length == 4:
 				return PayloadProtoESP, "sequence"
 			}
+		case unix.IPPROTO_UDPLITE:
+			// UDP-Lite (RFC 3828) reuses the UDP header layout, except that
+			// UDP's `length` cell carries the checksum coverage instead.
+			// `nft` names it `csumcov` and rejects `udplite length` outright,
+			// so this is a different field, not another spelling of the same
+			// one — hence the dedicated arm.
+			//
+			// Deliberately only offset 4: sport / dport / checksum mean the
+			// same thing in both protocols and `nft` accepts either spelling,
+			// so they fall through to the shared TCP/UDP labels below. That
+			// convention is the one examples/example-nftables-01.conf's
+			// section 25 documents ("wire = udp dport", "wire = udp checksum").
+			if offset == 4 && length == 2 {
+				return PayloadProtoUDPLITE, "csumcov"
+			}
 		case unix.IPPROTO_COMP:
 			// IPComp header (RFC 3173): nexthdr 0..1, flags 1..2, cpi 2..4.
 			switch {
@@ -2102,7 +2121,7 @@ func decodePayloadValue(protocol PayloadProtocol, field string, data []byte) int
 		if len(data) >= 1 {
 			return data[0]
 		}
-	case "length", "id", "frag-off", "checksum", "window", "urgptr", "cpi",
+	case "length", "csumcov", "id", "frag-off", "checksum", "window", "urgptr", "cpi",
 		"htype", "ptype", "operation":
 		// `checksum` is uint16 for TCP/UDP/ICMP/ICMPv6 but uint32 for SCTP —
 		// pick by length.
@@ -2276,6 +2295,11 @@ func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) stri
 	var parts []string
 	regMap := make(map[uint32]string)
 
+	// Protocol keyword latched from this rule's `meta l4proto` match. Payload
+	// cells that offset+len alone cannot identify — transport offset 4 is
+	// `udp length` but `udplite csumcov` — are named from it.
+	var l4proto string
+
 	i := 0
 	for i < len(rule.Exprs) {
 		e := rule.Exprs[i]
@@ -2328,11 +2352,12 @@ func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) stri
 				parts = append(parts, "udp")
 			} else if regContent == "dport" && nftexpr.CmpOpToString(v.Op) == "==" {
 				parts = append(parts, regContent+" "+value)
-			} else if regContent == "l4proto" && nftexpr.CmpOpToString(v.Op) == "==" && value == "icmpv6" {
-				parts = append(parts, value)
-			} else if regContent == "l4proto" && nftexpr.CmpOpToString(v.Op) == "==" && value == "tcp" {
-				parts = append(parts, value)
-			} else if regContent == "l4proto" && nftexpr.CmpOpToString(v.Op) == "==" && value == "udp" {
+			} else if regContent == "l4proto" && nftexpr.CmpOpToString(v.Op) == "==" &&
+				(value == "icmpv6" || value == "tcp" || value == "udp" || value == "udplite") {
+				// Rendered as the bare protocol keyword, the way nft prints it
+				// (`udp dport 53`, not `meta l4proto udp dport 53`). The same
+				// value becomes the context for any Payload further down.
+				l4proto = value
 				parts = append(parts, value)
 				//} else if regContent == "direction" {
 				//	// special handling for CT Direction
@@ -2362,7 +2387,7 @@ func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) stri
 
 		case *expr.Payload:
 			// Payload — loads data from the packet body
-			payloadDesc := payloadToHumanReadable(v)
+			payloadDesc := payloadToHumanReadable(v, l4proto)
 			if payloadDesc == "saddr" || payloadDesc == "daddr" {
 				// Family from the payload offset: IPv4 saddr/daddr sit at 12/16,
 				// IPv6 at 8/24. fullLen / ipBits drive the value formatting so a
@@ -2591,7 +2616,10 @@ func ruleToHumanReadableWithSets(rule *nftables.Rule, sets []*nftables.Set) stri
 }
 
 // payloadToHumanReadable converts a network payload specification into a human-readable string representation.
-func payloadToHumanReadable(p *expr.Payload) string {
+// l4proto is the protocol keyword latched from the rule's `meta l4proto` match
+// ("" when it carries none) and names the transport cells that offset and
+// length alone cannot tell apart.
+func payloadToHumanReadable(p *expr.Payload, l4proto string) string {
 	// Transport header (TCP/UDP/ICMP)
 	if p.Base == unix.NFT_PAYLOAD_TRANSPORT_HEADER {
 		if p.Offset == 0 && p.Len == 2 {
@@ -2602,6 +2630,25 @@ func payloadToHumanReadable(p *expr.Payload) string {
 		}
 		if p.Offset == 0 && p.Len == 1 {
 			return "icmp type"
+		}
+		// Offset 4 is `length` in UDP but the checksum coverage in UDP-Lite,
+		// which nft names `csumcov` (and it rejects `udplite length`). Offset
+		// 6 is the checksum in both — TCP's sequence number spans bytes 4..8,
+		// so a standalone 2-byte match there is never TCP. Both need the
+		// l4proto context; without it they keep the raw form below.
+		// Field name only — the protocol keyword is already a part of its
+		// own (the `meta l4proto` arm above), so "udp length" here would
+		// render `udp udp length 64`.
+		if p.Offset == 4 && p.Len == 2 {
+			switch l4proto {
+			case "udp":
+				return "length"
+			case "udplite":
+				return "csumcov"
+			}
+		}
+		if p.Offset == 6 && p.Len == 2 && (l4proto == "udp" || l4proto == "udplite") {
+			return "checksum"
 		}
 	}
 

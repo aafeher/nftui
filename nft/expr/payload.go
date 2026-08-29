@@ -24,14 +24,18 @@ func FormatPayload(payload *expr.Payload) string {
 	return strings.Join(parts, " ")
 }
 
-func SerializePayload(p *expr.Payload, exprs []expr.Any, pos int) (string, int) {
+// SerializePayload renders a payload load (plus the Cmp that follows it, when
+// there is one). l4proto is the protocol keyword latched from the rule's
+// `meta l4proto` match, or "" when the rule carries none; it names the
+// transport cells that offset+len alone cannot identify.
+func SerializePayload(p *expr.Payload, exprs []expr.Any, pos int, l4proto string) (string, int) {
 	var payloadStr string
 
 	switch p.Base {
 	case expr.PayloadBaseNetworkHeader:
 		payloadStr = serializeNetworkPayload(p)
 	case expr.PayloadBaseTransportHeader:
-		payloadStr = serializeTransportPayload(p)
+		payloadStr = serializeTransportPayload(p, l4proto)
 	case expr.PayloadBaseLLHeader:
 		payloadStr = serializeLinkPayload(p)
 	default:
@@ -97,7 +101,13 @@ func serializeNetworkPayload(p *expr.Payload) string {
 	return fmt.Sprintf("@nh,%d,%d", p.Offset*8, p.Len*8)
 }
 
-func serializeTransportPayload(p *expr.Payload) string {
+// serializeTransportPayload names a transport-header cell. Most cells follow
+// from offset+len alone, but two need the protocol: transport offset 4 is
+// `udp length` in UDP and `udplite csumcov` (the checksum coverage) in
+// UDP-Lite — different fields sharing one cell, and `udplite length` is not
+// even valid syntax. l4proto carries that context; without it those cells
+// keep the raw @th form rather than guess at a name.
+func serializeTransportPayload(p *expr.Payload, l4proto string) string {
 	// TCP/UDP header fields
 	switch p.Offset {
 	case 0: // Source port
@@ -109,6 +119,24 @@ func serializeTransportPayload(p *expr.Payload) string {
 	case 2: // Destination port
 		if p.Len == 2 {
 			return "dport"
+		}
+	case 4: // UDP length / UDP-Lite checksum coverage
+		// Field name only: the protocol keyword is already emitted by the
+		// `meta l4proto` part, so returning "udp length" here would render
+		// `udp udp length 64`.
+		if p.Len == 2 {
+			switch l4proto {
+			case "udp":
+				return "length"
+			case "udplite":
+				return "csumcov"
+			}
+		}
+	case 6: // UDP / UDP-Lite checksum
+		// TCP's sequence number spans bytes 4..8, so a standalone 2-byte
+		// match here only ever belongs to UDP or UDP-Lite.
+		if p.Len == 2 && (l4proto == "udp" || l4proto == "udplite") {
+			return "checksum"
 		}
 	case 13: // TCP flags
 		if p.Len == 1 {

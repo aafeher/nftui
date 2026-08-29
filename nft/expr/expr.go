@@ -91,12 +91,16 @@ func SerializeMeta(m *expr.Meta, exprs []expr.Any, pos int) (string, int, string
 				data = fmt.Sprintf("%s %s", op, value)
 			}
 
-			if m.Key == expr.MetaKeyL4PROTO && data == "icmpv6" {
-				return fmt.Sprintf("%s", data), 2, data
-			} else if m.Key == expr.MetaKeyL4PROTO && data == "tcp" {
-				return fmt.Sprintf("%s", data), 2, data
-			} else if m.Key == expr.MetaKeyL4PROTO && data == "udp" {
-				return fmt.Sprintf("%s", data), 2, data
+			if m.Key == expr.MetaKeyL4PROTO {
+				switch data {
+				// nft prints these as a bare protocol keyword — `tcp dport
+				// 80`, not `meta l4proto tcp tcp dport 80`. The same string
+				// is handed back as the l4proto context so a later Payload
+				// can name cells that only the protocol disambiguates
+				// (see serializeTransportPayload).
+				case "icmpv6", "tcp", "udp", "udplite":
+					return data, 2, data
+				}
 			}
 			return fmt.Sprintf("%s %s", metaStr, data), 2, ""
 		}
@@ -295,6 +299,8 @@ func DataToHumanReadable(data []byte, context string) string {
 				return "udp"
 			case 58:
 				return "icmpv6"
+			case 136:
+				return "udplite"
 			default:
 				return fmt.Sprintf("%d", val)
 			}
@@ -325,6 +331,14 @@ func DataToHumanReadable(data []byte, context string) string {
 	}
 
 	// 4 bytes - IP address
+	// UDP `length` / UDP-Lite `csumcov` are plain byte counts and nft prints
+	// them in decimal. Matched exactly, not with Contains: the network-header
+	// context "ip length" also contains "length" and its hex rendering is
+	// long-standing behaviour this change has no business altering.
+	if len(data) == 2 && (context == "length" || context == "csumcov") {
+		return fmt.Sprintf("%d", binary.BigEndian.Uint16(data))
+	}
+
 	if len(data) == 4 && (strings.Contains(context, "addr") || strings.Contains(context, "saddr") || strings.Contains(context, "daddr")) {
 		return fmt.Sprintf("%d.%d.%d.%d", data[0], data[1], data[2], data[3])
 	}

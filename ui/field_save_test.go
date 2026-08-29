@@ -10,6 +10,7 @@ package ui
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/google/nftables"
@@ -919,6 +920,65 @@ func TestTransportUintField_Save(t *testing.T) {
 		f.Save(rule)
 		if cmp := findPayloadCmp(rule.Exprs, 2, 2); cmp == nil || !bytes.Equal(cmp.Data, []byte{0x1f, 0x90}) {
 			t.Errorf("dport update = %+v, want 8080", cmp)
+		}
+	})
+}
+
+// The 16-bit cell at transport offset 4 is `udp length` under a udp l4proto
+// context but `udplite csumcov` under a udplite one — two different fields on
+// one wire cell, so a single editor renames itself from the rule's context
+// instead of the tab carrying two colliding editors for the same offset.
+func TestUdpLengthField_RenamesUnderUdplite(t *testing.T) {
+	udplite := &nft.Rule{Conditions: []nft.Condition{
+		{Type: nft.ConditionTypeMeta, Operation: nft.CompareOpEq,
+			Meta: &nft.MetaCondition{Key: nft.MetaKeyL4Proto, Value: uint8(unix.IPPROTO_UDPLITE)}},
+		{Type: nft.ConditionTypePayload, Operation: nft.CompareOpEq,
+			Payload: &nft.PayloadCondition{Protocol: nft.PayloadProtoUDPLITE, Field: "csumcov", Value: uint16(8)}},
+	}}
+	udp := &nft.Rule{Conditions: []nft.Condition{
+		{Type: nft.ConditionTypeMeta, Operation: nft.CompareOpEq,
+			Meta: &nft.MetaCondition{Key: nft.MetaKeyL4Proto, Value: uint8(unix.IPPROTO_UDP)}},
+		{Type: nft.ConditionTypePayload, Operation: nft.CompareOpEq,
+			Payload: &nft.PayloadCondition{Protocol: nft.PayloadProtoUDP, Field: "length", Value: uint16(1500)}},
+	}}
+
+	t.Run("udplite context", func(t *testing.T) {
+		f := NewUdpLengthField(udplite)
+		if !strings.Contains(f.View(), "UDPLITE csumcov") {
+			t.Errorf("label = %q, want it to name UDPLITE csumcov", f.label)
+		}
+		if f.originalValue != 8 {
+			t.Errorf("originalValue = %d, want 8 (the csumcov condition was not picked up)", f.originalValue)
+		}
+	})
+
+	t.Run("udp context", func(t *testing.T) {
+		f := NewUdpLengthField(udp)
+		if !strings.Contains(f.View(), "UDP length") {
+			t.Errorf("label = %q, want it to name UDP length", f.label)
+		}
+		if f.originalValue != 1500 {
+			t.Errorf("originalValue = %d, want 1500", f.originalValue)
+		}
+	})
+
+	t.Run("no context falls back to UDP length", func(t *testing.T) {
+		f := NewUdpLengthField(&nft.Rule{})
+		if !strings.Contains(f.View(), "UDP length") {
+			t.Errorf("label = %q, want the UDP fallback", f.label)
+		}
+	})
+
+	// Whichever name it wears, it edits the same wire cell.
+	t.Run("saves to transport offset 4 under either name", func(t *testing.T) {
+		for name, rd := range map[string]*nft.Rule{"udplite": udplite, "udp": udp} {
+			f := NewUdpLengthField(rd)
+			f.valueInput.SetValue("12")
+			rule := &nftables.Rule{}
+			f.Save(rule)
+			if cmp := findPayloadCmp(rule.Exprs, 4, 2); cmp == nil || !bytes.Equal(cmp.Data, []byte{0, 12}) {
+				t.Errorf("%s: cmp = %+v, want 12 at transport offset 4", name, cmp)
+			}
 		}
 	})
 }

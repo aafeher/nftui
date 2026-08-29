@@ -58,22 +58,57 @@ func TestSerializeTransportPayload(t *testing.T) {
 	tests := []struct {
 		name    string
 		payload expr.Payload
+		l4proto string
 		want    string
 	}{
-		{"icmp type", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 0, Len: 1}, "icmp type"},
-		{"sport", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 0, Len: 2}, "sport"},
-		{"dport", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2}, "dport"},
-		{"tcp flags", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 13, Len: 1}, "tcp flags"},
-		{"unknown", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 99, Len: 4}, "@th,792,32"},
+		{"icmp type", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 0, Len: 1}, "", "icmp type"},
+		{"sport", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 0, Len: 2}, "", "sport"},
+		{"dport", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2}, "", "dport"},
+		{"tcp flags", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 13, Len: 1}, "", "tcp flags"},
+		{"unknown", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 99, Len: 4}, "", "@th,792,32"},
+
+		// Offset 4 is the cell UDP and UDP-Lite disagree about: `length` vs
+		// the checksum coverage. Only the l4proto context can tell them
+		// apart. The field name is returned bare — the protocol keyword is
+		// emitted by the `meta l4proto` part, so the rule reads
+		// `udplite csumcov 8`, not `udplite udplite csumcov 8`.
+		{"udp length", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2}, "udp", "length"},
+		{"udplite csumcov", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2}, "udplite", "csumcov"},
+		{"offset 4 without context stays raw", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2}, "", "@th,32,16"},
+		{"offset 4 under tcp stays raw", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2}, "tcp", "@th,32,16"},
+
+		{"udp checksum", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 6, Len: 2}, "udp", "checksum"},
+		{"udplite checksum", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 6, Len: 2}, "udplite", "checksum"},
+		{"offset 6 without context stays raw", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 6, Len: 2}, "", "@th,48,16"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := serializeTransportPayload(&tt.payload)
+			got := serializeTransportPayload(&tt.payload, tt.l4proto)
 			if got != tt.want {
 				t.Errorf("serializeTransportPayload() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// SerializeMeta hands the l4proto context back to the caller so a later
+// Payload can be named. UDP-Lite must be recognised by number (136) and
+// reported like the protocols already special-cased.
+func TestSerializeMeta_UdpliteContext(t *testing.T) {
+	exprs := []expr.Any{
+		&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{136}},
+	}
+	str, skip, l4p := SerializeMeta(exprs[0].(*expr.Meta), exprs, 0)
+	if l4p != "udplite" {
+		t.Errorf("l4proto context = %q, want %q", l4p, "udplite")
+	}
+	if str != "udplite" {
+		t.Errorf("rendered = %q, want the bare protocol keyword %q", str, "udplite")
+	}
+	if skip != 2 {
+		t.Errorf("skip = %d, want 2", skip)
 	}
 }
 

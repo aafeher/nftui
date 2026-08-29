@@ -186,12 +186,13 @@ func TestPayloadToHumanReadable(t *testing.T) {
 		{"ip6 daddr prefix /48", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 24, Len: 6}, "daddr"},
 		{"ip ttl not v6 saddr", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 8, Len: 1}, "payload[network header+8:1]"},
 		{"unknown transport", expr.Payload{Base: unix.NFT_PAYLOAD_TRANSPORT_HEADER, Offset: 99, Len: 4}, "payload[transport header+99:4]"},
+		{"offset 4 without context stays raw", expr.Payload{Base: unix.NFT_PAYLOAD_TRANSPORT_HEADER, Offset: 4, Len: 2}, "payload[transport header+4:2]"},
 		{"unknown network", expr.Payload{Base: unix.NFT_PAYLOAD_NETWORK_HEADER, Offset: 99, Len: 4}, "payload[network header+99:4]"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := payloadToHumanReadable(&tt.payload)
+			got := payloadToHumanReadable(&tt.payload, "")
 			if got != tt.want {
 				t.Errorf("payloadToHumanReadable() = %q, want %q", got, tt.want)
 			}
