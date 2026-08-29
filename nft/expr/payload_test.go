@@ -36,7 +36,9 @@ func TestSerializeNetworkPayload(t *testing.T) {
 		{"ip protocol", expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 9, Len: 1}, "ip protocol"},
 		{"ip saddr", expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 12, Len: 4}, "ip saddr"},
 		{"ip daddr", expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 16, Len: 4}, "ip daddr"},
-		{"ip version", expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 0, Len: 1}, "ip version"},
+		// The packed version/IHL byte has no nft keyword — nft exposes `ip version`
+		// and `ip hdrlength` separately — so the serializer keeps the raw form.
+		{"ip version_ihl packed byte", expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 0, Len: 1}, "@nh,0,8"},
 		{"ip length", expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 2, Len: 2}, "ip length"},
 		{"ip ttl", expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 8, Len: 1}, "ip ttl"},
 		{"ip6 saddr", expr.Payload{Base: expr.PayloadBaseNetworkHeader, Offset: 8, Len: 16}, "ip6 saddr"},
@@ -46,9 +48,9 @@ func TestSerializeNetworkPayload(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := serializeNetworkPayload(&tt.payload)
+			got, _, _ := serializePayloadField(&tt.payload, "")
 			if got != tt.want {
-				t.Errorf("serializeNetworkPayload() = %q, want %q", got, tt.want)
+				t.Errorf("serializePayloadField() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -61,10 +63,15 @@ func TestSerializeTransportPayload(t *testing.T) {
 		l4proto string
 		want    string
 	}{
-		{"icmp type", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 0, Len: 1}, "", "icmp type"},
-		{"sport", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 0, Len: 2}, "", "sport"},
-		{"dport", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2}, "", "dport"},
+		// A single byte at transport offset 0 is an ICMP type even with no
+		// l4proto match: nothing else reads one byte there.
+		{"icmp type without context", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 0, Len: 1}, "", "icmp type"},
+		{"icmp type", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 0, Len: 1}, "icmp", "type"},
+		{"sport unqualified", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 0, Len: 2}, "", "tcp sport"},
+		{"sport under udp", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 0, Len: 2}, "udp", "sport"},
+		{"dport unqualified", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2}, "", "tcp dport"},
 		{"tcp flags", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 13, Len: 1}, "", "tcp flags"},
+		{"tcp flags under context", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 13, Len: 1}, "tcp", "flags"},
 		{"unknown", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 99, Len: 4}, "", "@th,792,32"},
 
 		// Offset 4 is the cell UDP and UDP-Lite disagree about: `length` vs
@@ -74,19 +81,21 @@ func TestSerializeTransportPayload(t *testing.T) {
 		// `udplite csumcov 8`, not `udplite udplite csumcov 8`.
 		{"udp length", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2}, "udp", "length"},
 		{"udplite csumcov", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2}, "udplite", "csumcov"},
-		{"offset 4 without context stays raw", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2}, "", "@th,32,16"},
+		{"offset 4 without context reads as udp", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2}, "", "udp length"},
+		// `tcp length` does not exist, so a udp-tagged name must not be written
+		// under a tcp keyword — raw form instead.
 		{"offset 4 under tcp stays raw", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2}, "tcp", "@th,32,16"},
 
 		{"udp checksum", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 6, Len: 2}, "udp", "checksum"},
 		{"udplite checksum", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 6, Len: 2}, "udplite", "checksum"},
-		{"offset 6 without context stays raw", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 6, Len: 2}, "", "@th,48,16"},
+		{"offset 6 without context reads as udp", expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 6, Len: 2}, "", "udp checksum"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := serializeTransportPayload(&tt.payload, tt.l4proto)
+			got, _, _ := serializePayloadField(&tt.payload, tt.l4proto)
 			if got != tt.want {
-				t.Errorf("serializeTransportPayload() = %q, want %q", got, tt.want)
+				t.Errorf("serializePayloadField() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -126,9 +135,9 @@ func TestSerializeLinkPayload(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := serializeLinkPayload(&tt.payload)
+			got, _, _ := serializePayloadField(&tt.payload, "")
 			if got != tt.want {
-				t.Errorf("serializeLinkPayload() = %q, want %q", got, tt.want)
+				t.Errorf("serializePayloadField() = %q, want %q", got, tt.want)
 			}
 		})
 	}

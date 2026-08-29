@@ -6,6 +6,7 @@ package nftserializer
 // needed — the same seam the TUI's rule viewer and save-error path rely on.
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/nftables"
@@ -151,15 +152,81 @@ func TestSerializeRuleExprs(t *testing.T) {
 			want: "udp length 64 accept",
 		},
 		{
-			// No l4proto match in the rule → the cell cannot be named, and
-			// the raw @th form is what nft itself accepts back.
-			name: "transport offset 4 without context stays raw",
+			// nft rejects `tcp @th,112,16 …`: once a protocol keyword is on
+			// the line, the raw form is a syntax error. These cells used to
+			// come out exactly that way because the serializer knew only
+			// sport / dport / flags.
+			name: "tcp window",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{6}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 14, Len: 2, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0xff, 0xff}},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			},
+			want: "tcp window 65535 accept",
+		},
+		{
+			name: "sctp vtag",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{132}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 4, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 0, 0, 9}},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			},
+			want: "sctp vtag 9 accept",
+		},
+		{
+			name: "icmp code",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{1}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 1, Len: 1, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0}},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			},
+			want: "icmp code 0 accept",
+		},
+		{
+			// The protocol keyword must not be repeated by the payload:
+			// `tcp tcp flags` is what the old prefixed label produced.
+			name: "tcp flags names the protocol once",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{6}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 13, Len: 1, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{2}},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			},
+			want: "tcp flags 2 accept",
+		},
+		{
+			// A cell the table cannot name keeps the raw form — and then the
+			// meta match must NOT collapse to a bare keyword, because
+			// `tcp @th,…` is a syntax error while `l4proto tcp @th,…` is not.
+			name: "unnameable cell keeps the explicit meta form",
+			exprs: []expr.Any{
+				&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{6}},
+				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 99, Len: 4, DestRegister: 1},
+				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 0, 0, 1}},
+				&expr.Verdict{Kind: expr.VerdictAccept},
+			},
+			want: "l4proto tcp @th,792,32 0x00000001 accept",
+		},
+		{
+			// With no l4proto match the shared table falls back to the UDP
+			// reading of the cell and qualifies it, which nft accepts. (It
+			// used to come out as the raw `@th,32,16 0x0008` — also valid,
+			// but it told the reader nothing.)
+			name: "transport offset 4 without context",
 			exprs: []expr.Any{
 				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 4, Len: 2, DestRegister: 1},
 				&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{0, 8}},
 				&expr.Verdict{Kind: expr.VerdictAccept},
 			},
-			want: "@th,32,16 0x0008 accept",
+			want: "udp length 8 accept",
 		},
 		{
 			name:  "masquerade",
@@ -322,7 +389,10 @@ func TestSerializeRuleExprs(t *testing.T) {
 				&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: 2, Len: 2, DestRegister: 1},
 				&expr.Range{Op: expr.CmpOpEq, FromData: []byte{0, 80}, ToData: []byte{0, 90}},
 			},
-			want: "dport 80-90",
+			// Qualified now: with no l4proto match the table reads the cell
+			// as TCP and says so. `dport 80-90` on its own parses too, but
+			// naming the protocol is what nft itself writes.
+			want: "tcp dport 80-90",
 		},
 		{
 			name: "ct state",
@@ -413,5 +483,39 @@ func TestSerializeRule_Terminates(t *testing.T) {
 	}
 	if got := SerializeRule(rule); got == "" {
 		t.Error("SerializeRule returned an empty string")
+	}
+}
+
+// nft accepts a raw `@th,off,len` match only when it stands on its own: once a
+// protocol keyword has been written on the line, the raw form is a syntax
+// error (`tcp @th,112,16 65535` → "syntax error, unexpected @"). The
+// serializer produced exactly that for every TCP cell beyond sport / dport /
+// flags until the payload namer and the meta keyword were taught to move
+// together. This pins the shape so they cannot drift apart again.
+func TestSerializeRuleExprs_NoKeywordBeforeRawPayload(t *testing.T) {
+	keywords := []string{"tcp", "udp", "udplite", "sctp", "dccp", "icmp", "icmpv6", "ah", "esp", "comp"}
+	protos := map[string]byte{
+		"tcp": 6, "udp": 17, "udplite": 136, "sctp": 132, "dccp": 33,
+		"icmp": 1, "icmpv6": 58, "ah": 51, "esp": 50, "comp": 108,
+	}
+	for name, num := range protos {
+		for _, off := range []uint32{0, 1, 2, 4, 6, 8, 12, 13, 14, 16, 18, 99} {
+			for _, ln := range []uint32{1, 2, 4} {
+				rule := &nftables.Rule{Exprs: []expr.Any{
+					&expr.Meta{Key: expr.MetaKeyL4PROTO, Register: 1},
+					&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: []byte{num}},
+					&expr.Payload{Base: expr.PayloadBaseTransportHeader, Offset: off, Len: ln, DestRegister: 1},
+					&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: make([]byte, ln)},
+					&expr.Verdict{Kind: expr.VerdictAccept},
+				}}
+				got := serializeRuleExprs(rule, nil)
+				for _, kw := range keywords {
+					if strings.HasPrefix(got, kw+" @") {
+						t.Errorf("%s th+%d:%d → %q: a protocol keyword may not be followed by a raw @th match",
+							name, off, ln, got)
+					}
+				}
+			}
+		}
 	}
 }

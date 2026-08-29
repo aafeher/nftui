@@ -1790,7 +1790,7 @@ func runPayloadIntCase(t *testing.T, c payloadIntCase) {
 		&expr.Cmp{Op: expr.CmpOpEq, Register: 1, Data: c.data},
 		&expr.Verdict{Kind: expr.VerdictAccept},
 	)
-	// Stamp the family hint so identifyPayloadField can disambiguate
+	// Stamp the family hint so IdentifyPayloadField can disambiguate
 	// IPv4 id vs IPv6 length at offset 4, len 2.
 	if c.protocol == PayloadProtoIP6 {
 		rule.Table = &nftables.Table{Family: nftables.TableFamilyIPv6}

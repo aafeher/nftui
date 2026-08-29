@@ -91,16 +91,18 @@ func SerializeMeta(m *expr.Meta, exprs []expr.Any, pos int) (string, int, string
 				data = fmt.Sprintf("%s %s", op, value)
 			}
 
-			if m.Key == expr.MetaKeyL4PROTO {
-				switch data {
-				// nft prints these as a bare protocol keyword — `tcp dport
-				// 80`, not `meta l4proto tcp tcp dport 80`. The same string
-				// is handed back as the l4proto context so a later Payload
-				// can name cells that only the protocol disambiguates
-				// (see serializeTransportPayload).
-				case "icmpv6", "tcp", "udp", "udplite":
-					return data, 2, data
-				}
+			// nft writes the protocol as a bare keyword — `tcp dport 80`,
+			// not `meta l4proto tcp dport 80` — and the same string is handed
+			// back as the l4proto context so a later Payload can name cells
+			// that only the protocol disambiguates (see serializePayloadField).
+			//
+			// The keyword is only safe when every transport cell in the rule
+			// can actually be named: nft rejects a raw `@th,off,len` match
+			// that follows a protocol keyword, while it accepts the explicit
+			// `l4proto tcp @th,…` spelling this falls back to.
+			if m.Key == expr.MetaKeyL4PROTO && L4ProtoNumber(data) != 0 &&
+				transportCellsNameable(exprs, pos+2, data) {
+				return data, 2, data
 			}
 			return fmt.Sprintf("%s %s", metaStr, data), 2, ""
 		}
@@ -297,8 +299,18 @@ func DataToHumanReadable(data []byte, context string) string {
 				return "tcp"
 			case 17:
 				return "udp"
+			case 33:
+				return "dccp"
+			case 50:
+				return "esp"
+			case 51:
+				return "ah"
 			case 58:
 				return "icmpv6"
+			case 108:
+				return "comp"
+			case 132:
+				return "sctp"
 			case 136:
 				return "udplite"
 			default:
@@ -331,19 +343,27 @@ func DataToHumanReadable(data []byte, context string) string {
 	}
 
 	// 4 bytes - IP address
-	// UDP `length` / UDP-Lite `csumcov` are plain byte counts and nft prints
-	// them in decimal. Matched exactly, not with Contains: the network-header
-	// context "ip length" also contains "length" and its hex rendering is
-	// long-standing behaviour this change has no business altering.
-	if len(data) == 2 && (context == "length" || context == "csumcov") {
-		return fmt.Sprintf("%d", binary.BigEndian.Uint16(data))
-	}
-
 	if len(data) == 4 && (strings.Contains(context, "addr") || strings.Contains(context, "saddr") || strings.Contains(context, "daddr")) {
 		return fmt.Sprintf("%d.%d.%d.%d", data[0], data[1], data[2], data[3])
 	}
 
 	// Interface name (null-terminated string)
+	// Named integer header fields print in decimal, the way nft writes them
+	// (`tcp window 65535`, `ip length 1500`, `udplite csumcov 8`). The
+	// symbolic fields (protocol, icmp type) and the address fields are
+	// handled above; anything the field table could not name keeps the hex
+	// form below, which is what the raw @base,off,len syntax expects.
+	if decimalHeaderField(context) {
+		switch len(data) {
+		case 1:
+			return fmt.Sprintf("%d", data[0])
+		case 2:
+			return fmt.Sprintf("%d", binary.BigEndian.Uint16(data))
+		case 4:
+			return fmt.Sprintf("%d", binary.BigEndian.Uint32(data))
+		}
+	}
+
 	if strings.Contains(context, "ifname") {
 		// Find null terminator
 		end := len(data)
@@ -358,4 +378,53 @@ func DataToHumanReadable(data []byte, context string) string {
 
 	// Otherwise in hex format
 	return fmt.Sprintf("0x%x", data)
+}
+
+// transportCellsNameable reports whether every transport-header payload from
+// pos onwards can be named under the given protocol. It decides whether the
+// meta serializer may collapse `meta l4proto tcp` to the bare `tcp` keyword:
+// a keyword followed by a raw @th match is a syntax error to nft, so a rule
+// carrying an unnameable cell keeps the explicit form.
+func transportCellsNameable(exprs []expr.Any, pos int, l4proto string) bool {
+	for i := pos; i < len(exprs); i++ {
+		pay, ok := exprs[i].(*expr.Payload)
+		if !ok || pay.Base != expr.PayloadBaseTransportHeader {
+			continue
+		}
+		// Ask the payload formatter itself rather than re-deriving the
+		// answer: the two must agree exactly, or a bare keyword can end up in
+		// front of a raw match. Naming a cell takes more than the field table
+		// recognising it — display-only labels and protocol mismatches also
+		// force the raw form.
+		if _, _, named := serializePayloadField(pay, l4proto); !named {
+			return false
+		}
+	}
+	return true
+}
+
+// decimalHeaderFields lists the payload field names whose values nft prints as
+// plain decimal integers. Keyed on the field name alone (the last word of the
+// qualified context), so `ip length` and `udp length` share one entry.
+//
+// Deliberately excluded: saddr / daddr (addresses, formatted above), protocol
+// and icmp type (printed symbolically), and flags (a bit set).
+var decimalHeaderFields = map[string]bool{
+	"length": true, "csumcov": true, "checksum": true, "id": true,
+	"frag-off": true, "ttl": true, "hoplimit": true, "version": true,
+	"hdrlength": true, "dscp": true, "flowlabel": true, "nexthdr": true,
+	"window": true, "urgptr": true, "sequence": true, "ackseq": true,
+	"doff": true, "code": true, "gateway": true, "mtu": true,
+	"vtag": true, "spi": true, "cpi": true, "reserved": true,
+	"htype": true, "ptype": true, "hlen": true, "plen": true,
+	"operation": true, "cfi": true, "pcp": true,
+}
+
+// decimalHeaderField reports whether the value carried by this payload context
+// should print in decimal.
+func decimalHeaderField(context string) bool {
+	if i := strings.LastIndex(context, " "); i >= 0 {
+		context = context[i+1:]
+	}
+	return decimalHeaderFields[context]
 }
