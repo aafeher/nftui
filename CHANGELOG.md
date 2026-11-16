@@ -22,6 +22,7 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 - `golang.org/x/text` updated 0.40.0 → 0.41.0, with the matching `flake.nix` `vendorHash` re-pin in the same change.
 - `github/codeql-action` pins updated to v4.37.8 across `codeql.yml` and `scorecard.yml`.
+- `golang.org/x/net` updated 0.57.0 → 0.62.0 (indirect, via `mdlayher/netlink`), clearing the OpenSSF Scorecard Vulnerabilities finding for GO-2026-6603, -6610, -6611, -6612, -6617, -6860 and -6866. None was reachable — nftui only uses `x/net/bpf`, the fixes are in `http2` and `html`, and `govulncheck` already reported 0 affecting vulnerabilities — but Scorecard matches at module level. Minimum version selection carries `golang.org/x/sys` 0.48.0 → 0.49.0, `golang.org/x/text` 0.42.0 → 0.43.0 and `golang.org/x/sync` 0.23.0 → 0.24.0 along; `flake.nix` `vendorHash` re-pinned in the same change.
 
 ## [1.2.0] - 2026-07-18 — Internationalization & localization
 
