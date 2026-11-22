@@ -83,7 +83,7 @@ framework. Talks to the kernel over netlink via the
 ## Requirements
 
 - **Linux** with a kernel that has `nftables` support.
-- **Go 1.25+** to build from source.
+- **Go 1.26+** to build from source.
 - **`CAP_NET_ADMIN`** at runtime (run via `sudo` or grant the capability with
   `setcap`).
 - A terminal at least **80x24** characters. Below that nftui shows a resize
@@ -132,9 +132,9 @@ is welcome to adopt the reference [`packaging/aur/PKGBUILD`](packaging/aur/PKGBU
 
 **Gentoo:** the repo is a standard Go module, so `go build -o nftui .` is the
 simplest path. Two community-maintainable reference ebuilds are provided for a
-local overlay: [`nftui-1.2.0.ebuild`](packaging/gentoo/nftui-1.2.0.ebuild)
+local overlay: [`nftui-1.2.1.ebuild`](packaging/gentoo/nftui-1.2.1.ebuild)
 builds from source via `go-module.eclass`, and
-[`nftui-bin-1.2.0.ebuild`](packaging/gentoo/nftui-bin-1.2.0.ebuild) installs the
+[`nftui-bin-1.2.1.ebuild`](packaging/gentoo/nftui-bin-1.2.1.ebuild) installs the
 prebuilt release binary; install one or the other (they share `/usr/bin/nftui`
 and block each other). See
 [`packaging/gentoo/README.md`](packaging/gentoo/README.md) for overlay setup.
@@ -168,7 +168,7 @@ A [`Dockerfile`](Dockerfile) builds a small (~17 MB) image that bundles the
 ```bash
 docker build -t nftui:local .
 # versioned build (sets `nftui --version`):
-docker build -t nftui:1.2.0 --build-arg VERSION=1.2.0 .
+docker build -t nftui:1.2.1 --build-arg VERSION=1.2.1 .
 ```
 
 nftui manages the **host** ruleset, so the container needs the host network
@@ -535,10 +535,13 @@ into a single PR each: every `github/codeql-action*` step (CodeQL aborts when
 its sub-actions run different releases) and every Go module (each batch needs
 one matching `vendorHash` re-pin).
 
-The Go version comes from `go.mod` via `actions/setup-go@v6` with
-`go-version-file: go.mod`, so bumping the module's Go version updates CI in
-the same commit. Concurrent runs on the same ref cancel earlier in-flight
-runs (`cancel-in-progress: true`).
+The Go toolchain comes from `go.mod` via `actions/setup-go` with
+`go-version-file: go.mod`: the `toolchain` line (currently `go1.27.4`) picks
+the exact version CI and the release build use, while the `go` line stays the
+minimum for building from source. Without a `toolchain` line setup-go would
+install exactly the `go` line's version — the oldest supported release, not a
+patched one. Bumping either line updates CI in the same commit. Concurrent runs
+on the same ref cancel earlier in-flight runs (`cancel-in-progress: true`).
 
 ## Release process
 
@@ -642,6 +645,15 @@ to date:
   catalogs with `--lang` / POSIX-locale selection, localized confirm mnemonics
   (the German `j` alias is language-gated to protect vim-scroll muscle
   memory), and a full man page + README translation pair for every language.
+
+- **v1.2.1** (2026-11-22) — payload field naming fixes & dependency refresh:
+  transport-header matches are named from one shared table, so the chain list,
+  the rule view and the `.nft` export agree, and the export no longer writes
+  rules `nft` rejects; UDP-Lite's checksum coverage shows as `udplite csumcov`.
+  Plus man-page flag-drift tests, an animated demo in every README, refreshed
+  Go dependencies (Go 1.26+ to build from source), and release binaries built
+  with Go 1.27.4.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

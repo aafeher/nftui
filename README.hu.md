@@ -88,7 +88,7 @@ keretrendszerrel. A kernellel netlinken keresztül kommunikál a
 ## Követelmények
 
 - **Linux** olyan kernellel, amely támogatja az `nftables`-t.
-- **Go 1.25+** a forrásból fordításhoz.
+- **Go 1.26+** a forrásból fordításhoz.
 - **`CAP_NET_ADMIN`** futásidőben (futtasd `sudo`-val, vagy add meg a
   jogosultságot `setcap`-pal).
 - Legalább **80x24** karakteres terminál. Ez alatt az nftui egy átméretezési
@@ -141,9 +141,9 @@ kiadás tarball fölött).
 **Gentoo:** a repó egy szabványos Go modul, így a `go build -o nftui .` a
 legegyszerűbb út. Két közösségileg karbantartható referencia-ebuild áll
 rendelkezésre egy helyi overlayhez: a
-[`nftui-1.2.0.ebuild`](packaging/gentoo/nftui-1.2.0.ebuild) forrásból épít a
+[`nftui-1.2.1.ebuild`](packaging/gentoo/nftui-1.2.1.ebuild) forrásból épít a
 `go-module.eclass`-szal, a
-[`nftui-bin-1.2.0.ebuild`](packaging/gentoo/nftui-bin-1.2.0.ebuild) pedig az
+[`nftui-bin-1.2.1.ebuild`](packaging/gentoo/nftui-bin-1.2.1.ebuild) pedig az
 előre elkészített kiadási binárist telepíti; az egyiket vagy a másikat
 telepítsd (osztoznak a `/usr/bin/nftui`-n és blokkolják egymást). Az overlay
 beállításához lásd a
@@ -178,7 +178,7 @@ tartalmazza az `nft(8)` CLI-t, amelyre az nftui futásidőben szükségel:
 ```bash
 docker build -t nftui:local .
 # verziózott build (beállítja az `nftui --version`-t):
-docker build -t nftui:1.2.0 --build-arg VERSION=1.2.0 .
+docker build -t nftui:1.2.1 --build-arg VERSION=1.2.1 .
 ```
 
 Az nftui a **host** szabálykészletét kezeli, így a konténernek szüksége van a
@@ -588,10 +588,14 @@ csoportosítva: az összes `github/codeql-action*` lépés (a CodeQL leáll, ha 
 al-action-jei eltérő kiadáson futnak) és az összes Go modul (egy köteg egyetlen
 `vendorHash` újrapin-elést igényel).
 
-A Go verzió a `go.mod`-ból jön az `actions/setup-go@v6`-on keresztül a
-`go-version-file: go.mod`-dal, így a modul Go verziójának emelése ugyanabban a
-commitban frissíti a CI-t. Az azonos ref-en futó párhuzamos futások megszakítják
-a korábbi folyamatban lévőket (`cancel-in-progress: true`).
+A Go toolchain a `go.mod`-ból jön az `actions/setup-go`-n keresztül a
+`go-version-file: go.mod`-dal: a `toolchain` sor (jelenleg `go1.27.4`) adja a
+CI és a release build pontos verzióját, a `go` sor pedig a forrásból fordítás
+minimuma marad. `toolchain` sor nélkül a setup-go pontosan a `go` sor verzióját
+telepítené — a legrégebbi támogatott kiadást, nem egy foltozottat. Bármelyik
+sor emelése ugyanabban a commitban frissíti a CI-t. Az azonos ref-en futó
+párhuzamos futások megszakítják a korábbi folyamatban lévőket
+(`cancel-in-progress: true`).
 
 ## Kiadási folyamat
 
@@ -704,6 +708,16 @@ mérföldkövek:
   `--lang` / POSIX-locale választással, honosított megerősítő-mnemonikokkal (a
   német `j` alias nyelvfüggő, a vim-görgetési izommemória védelmében), és
   minden nyelvhez teljes man oldal + README fordítás-párral.
+
+- **v1.2.1** (2026-11-22) — payload-mezőnevek javítása és függőségfrissítés:
+  a transport-fejléc illesztések neve egyetlen közös táblából jön, így a lánc
+  nézet, a szabály-nézet és a `.nft` export egyezik, és az export már nem ír
+  olyan szabályt, amit az `nft` elutasít; a UDP-Lite checksum coverage mezője
+  `udplite csumcov` néven jelenik meg. Emellett: a man oldalak flag-eltérését
+  figyelő tesztek, animált demó minden README-ben, frissített Go-függőségek
+  (forrásból fordításhoz Go 1.26+), és Go 1.27.4-gyel fordított release
+  binárisok.
+
 ## Licenc
 
 MIT — lásd [LICENSE](LICENSE).
