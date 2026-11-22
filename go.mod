@@ -15,10 +15,10 @@ require (
 	github.com/google/nftables v0.3.1-0.20251119083706-1db35da82052
 	github.com/mdlayher/netlink v1.11.2
 	github.com/stretchr/testify v1.12.1
-	golang.org/x/sys v0.49.0
+	golang.org/x/sys v0.50.0
 )
 
-require golang.org/x/text v0.43.0
+require golang.org/x/text v0.44.0
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect
@@ -43,5 +43,5 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/net v0.62.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
 )

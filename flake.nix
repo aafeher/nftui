@@ -59,8 +59,8 @@
           # until the printed value lands here. That mismatch is the *expected*
           # bootstrap for a dependency bump, not a flake regression; the
           # `gomod` group in .github/dependabot.yml keeps it to one re-pin per
-          # batch. Current value covers golang.org/x/net v0.62.0.
-          vendorHash = "sha256-LnJ/PnERAOirjmmLTQgvW7fakr267UMel9kWTsEZ2sc=";
+          # batch. Current value covers golang.org/x/sys v0.50.0 + x/text v0.44.0.
+          vendorHash = "sha256-VwceToLcmoMYDBO7qdnivkWRSJTWA22wRuuerJ0m1Bo=";
 
           # buildGoModule defaults to CGO_ENABLED=0, which is what we want —
           # a static binary matching the Goreleaser output. `-s -w` matches
