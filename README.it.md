@@ -89,7 +89,7 @@ via netlink attraverso la libreria
 ## Requisiti
 
 - **Linux** con un kernel con supporto `nftables`.
-- **Go 1.25+** per compilare dai sorgenti.
+- **Go 1.26+** per compilare dai sorgenti.
 - **`CAP_NET_ADMIN`** a runtime (esegui via `sudo` o concedi la capability
   con `setcap`).
 - Un terminale di almeno **80x24** caratteri. Al di sotto, nftui mostra un
@@ -141,9 +141,9 @@ pacchetto `-bin` sul tarball della release).
 **Gentoo:** il repository è un modulo Go standard, quindi
 `go build -o nftui .` è la via più semplice. Due ebuild di riferimento
 mantenibili dalla comunità sono forniti per un overlay locale:
-[`nftui-1.2.0.ebuild`](packaging/gentoo/nftui-1.2.0.ebuild) compila dai
+[`nftui-1.2.1.ebuild`](packaging/gentoo/nftui-1.2.1.ebuild) compila dai
 sorgenti via `go-module.eclass`, e
-[`nftui-bin-1.2.0.ebuild`](packaging/gentoo/nftui-bin-1.2.0.ebuild) installa
+[`nftui-bin-1.2.1.ebuild`](packaging/gentoo/nftui-bin-1.2.1.ebuild) installa
 il binario precompilato della release; installa l'uno o l'altro (condividono
 `/usr/bin/nftui` e si bloccano a vicenda). Vedi
 [`packaging/gentoo/README.md`](packaging/gentoo/README.md) per la
@@ -176,7 +176,7 @@ include la CLI `nft(8)` di cui nftui ha bisogno a runtime:
 ```bash
 docker build -t nftui:local .
 # build con versione (imposta `nftui --version`):
-docker build -t nftui:1.2.0 --build-arg VERSION=1.2.0 .
+docker build -t nftui:1.2.1 --build-arg VERSION=1.2.1 .
 ```
 
 nftui gestisce l'insieme di regole dell'**host**, quindi il container ha
@@ -596,10 +596,14 @@ ciascuno: tutti i passi `github/codeql-action*` (CodeQL si interrompe se le sue
 sotto-action girano su release diverse) e tutti i moduli Go (ogni lotto
 richiede un rifissaggio di `vendorHash`).
 
-La versione di Go proviene da `go.mod` via `actions/setup-go@v6` con
-`go-version-file: go.mod`, quindi alzare la versione Go del modulo aggiorna
-la CI nello stesso commit. Le esecuzioni concorrenti sulla stessa ref
-annullano le precedenti in corso (`cancel-in-progress: true`).
+La toolchain Go proviene da `go.mod` via `actions/setup-go` con
+`go-version-file: go.mod`: la riga `toolchain` (attualmente `go1.27.4`) fissa
+la versione esatta usata dalla CI e dalla build di release, mentre la riga `go`
+resta il minimo per compilare dai sorgenti. Senza riga `toolchain`, setup-go
+installerebbe esattamente la versione della riga `go` — la più vecchia
+supportata, non una con le patch. Alzare una delle due righe aggiorna la CI
+nello stesso commit. Le esecuzioni concorrenti sulla stessa ref annullano le
+precedenti in corso (`cancel-in-progress: true`).
 
 ## Processo di release
 
@@ -719,6 +723,17 @@ Le note per versione vivono in [CHANGELOG.md](CHANGELOG.md) nel formato
   mnemonici di conferma localizzati (l'alias tedesco `j` è condizionato alla
   lingua per proteggere la memoria muscolare dello scorrimento vim), e una
   coppia completa pagina di manuale + README per ogni lingua.
+
+- **v1.2.1** (2026-11-22) — correzione dei nomi dei campi payload e
+  aggiornamento delle dipendenze: le corrispondenze sull'header di trasporto
+  sono nominate da un'unica tabella condivisa, così la vista della catena, la
+  vista della regola e l'export `.nft` coincidono, e l'export non scrive più
+  regole che `nft` rifiuta; la copertura del checksum di UDP-Lite appare come
+  `udplite csumcov`. Inoltre: test che verificano che le pagine di manuale
+  documentino ogni opzione, una demo animata in ogni README, dipendenze Go
+  aggiornate (Go 1.26+ per compilare dai sorgenti) e binari di release
+  compilati con Go 1.27.4.
+
 ## Licenza
 
 MIT — vedi [LICENSE](LICENSE).

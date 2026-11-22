@@ -7,6 +7,10 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-22 — Payload field naming fixes & dependency refresh
+
+A maintenance release. Transport-header payload matches are now named from one shared table, so the chain list, the rule view and the `.nft` serializer agree, and the serializer no longer writes rules `nft` rejects (122 invalid shapes → 0); UDP-Lite's checksum-coverage field gets its real name. Also: man-page flag-drift tests, an animated demo in every README, a refreshed Go dependency set, and release binaries built with a current, patched Go toolchain (`toolchain go1.27.4`).
+
 ### Fixed
 
 - **UDP-Lite rules showed a field name that does not exist.** The 16-bit cell at transport offset 4 is `length` in UDP but the *checksum coverage* in UDP-Lite, where `nft` calls it `csumcov` and rejects `udplite length` outright. nftui identified that cell as `udp length` regardless of protocol, so a `udplite csumcov 8` rule was displayed as `udp length 8` — a wrong field name, not merely the other protocol's spelling — and the rule editor offered no way to express it. The payload identifier now has a UDP-Lite arm keyed on the rule's `meta l4proto` context, and the editor's offset-4 row renames itself to `UDPLITE csumcov` (one editor, not two: `Save` matches on offset+length, so a second editor for the same cell would collide). Deliberately scoped to that one cell — `sport` / `dport` / `checksum` mean the same thing in both protocols and `nft` accepts either spelling, so they keep the shared label the project already documents. Examples tr-18…tr-20 in `examples/example-nftables-01.conf` cover the plain, negated and range forms.
@@ -17,12 +21,17 @@ and the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 ### Added
 
 - **The `nftui(1)` man pages are now guarded against flag drift.** `flagDocs` has always been the single source of truth for the CLI, but only `--help` was checked against it; the seven hand-written man pages (English plus six translations) were read by no test at all, so a newly registered flag could silently miss every one of them. `TestManPagesDocumentEveryFlag` now asserts that every registered flag is documented in every shipped page, and that a flag taking a value is introduced with a groff italic argument. The placeholder is checked structurally rather than by name, because the pages translate it (`\fIname\fR` → `\fInév\fR` / `\fInombre\fR`). The page set is derived from the embedded `i18n` catalogs, so a language that ships a catalog without its man page fails the same test.
+- **An animated demo in every README.** Each of the seven READMEs now opens with a short GIF of nftui running in that README's language (`assets/demo.gif`, `assets/demo.<lang>.gif`), recorded from one shared choreography over `examples/example-host-firewall.conf`, with localized alt text.
 
 ### Changed
 
 - `golang.org/x/text` updated 0.40.0 → 0.41.0, with the matching `flake.nix` `vendorHash` re-pin in the same change.
 - `github/codeql-action` pins updated to v4.37.8 across `codeql.yml` and `scorecard.yml`.
+- **Minimum Go version for building from source raised 1.25.8 → 1.26.0.** A `go-modules` group update moved `golang.org/x/sys` 0.47.0 → 0.48.0, `golang.org/x/text` 0.41.0 → 0.42.0 and `golang.org/x/sync` 0.22.0 → 0.23.0, each of which declares `go 1.26.0`, so the module's `go` line followed. The same update took the test-only `github.com/stretchr/testify` 1.11.1 → 1.12.1, which replaces `gopkg.in/yaml.v3` with `go.yaml.in/yaml/v3` and no longer pulls in `go-spew` / `go-difflib`. `flake.nix` `vendorHash` re-pinned; the "Requirements" section of all seven READMEs now says Go 1.26+.
 - `golang.org/x/net` updated 0.57.0 → 0.62.0 (indirect, via `mdlayher/netlink`), clearing the OpenSSF Scorecard Vulnerabilities finding for GO-2026-6603, -6610, -6611, -6612, -6617, -6860 and -6866. None was reachable — nftui only uses `x/net/bpf`, the fixes are in `http2` and `html`, and `govulncheck` already reported 0 affecting vulnerabilities — but Scorecard matches at module level. Minimum version selection carries `golang.org/x/sys` 0.48.0 → 0.49.0, `golang.org/x/text` 0.42.0 → 0.43.0 and `golang.org/x/sync` 0.23.0 → 0.24.0 along; `flake.nix` `vendorHash` re-pinned in the same change.
+- `golang.org/x/sys` updated 0.49.0 → 0.50.0, `golang.org/x/text` 0.43.0 → 0.44.0 and `golang.org/x/sync` 0.24.0 → 0.25.0 (indirect), with the matching `flake.nix` `vendorHash` re-pin.
+- The `Dockerfile` build stage moved from `golang:1.26.4-alpine` to `golang:1.27.4-alpine`, and the `alpine:3.24` runtime stage to a newer digest (both stay digest-pinned).
+- **Release binaries are built with Go 1.27.4.** `go.mod` gained a `toolchain go1.27.4` directive. Every CI and release workflow resolves Go through `actions/setup-go`'s `go-version-file: go.mod`, which — with no `toolchain` line — installs exactly the `go` line's version: Go 1.26.0, the minimum the dependencies require rather than a patched release. CI, CodeQL, the reproducible-build check and the release build all ran on it, so the binaries would have shipped a February 2026 standard library. setup-go now installs the `toolchain` version instead, matching the Dockerfile's builder. The minimum for building from source stays Go 1.26.0: under the default `GOTOOLCHAIN=auto` an older local Go fetches 1.27.4 on first build, and `GOTOOLCHAIN=local` builds keep using the local toolchain. The "Continuous integration" section of all seven READMEs now explains the `toolchain` / `go` split (and no longer names the outdated `setup-go@v6`).
 
 ## [1.2.0] - 2026-07-18 — Internationalization & localization
 
@@ -287,7 +296,8 @@ IP6 Matches, TCP & UDP Transport Matches.
 - Footer help line always lists every available key binding in the current view — the "footer-completeness" invariant.
 - Custom UI components: `NumberInput` (numeric textinput with min/max bounds), `Select` (horizontal single-select), `MultiSelect` (horizontal checkboxes).
 
-[Unreleased]: https://github.com/aafeher/nftui/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/aafeher/nftui/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/aafeher/nftui/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/aafeher/nftui/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/aafeher/nftui/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/aafeher/nftui/compare/v0.9.0...v1.0.0
